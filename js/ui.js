@@ -105,8 +105,8 @@ function lineChart(series, { color = "cyan", height = 180, goal = null } = {}) {
   let extra = "";
   if (goal) {
     extra += `<line x1="${padL}" y1="${y(goal).toFixed(1)}" x2="${W - padR}" y2="${y(goal).toFixed(1)}"
-      stroke="var(--green)" stroke-width="1.5" stroke-dasharray="6 5" opacity="0.7"/>
-      <text x="${W - padR}" y="${(y(goal) - 5).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--green)">cíl ${fmtNum(goal)}</text>`;
+      stroke="var(--text2)" stroke-width="1.5" stroke-dasharray="6 5" opacity="0.8"/>
+      <text x="${W - padR}" y="${(y(goal) - 5).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--text2)">cíl ${fmtNum(goal)}</text>`;
   }
   const dots = pts.map((p, i) =>
     `<circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="3.2" fill="var(--${color})"/>`).join("");

@@ -2,23 +2,14 @@
 "use strict";
 
 const FV = {
-  sub: "log",                // log | cal
-  calY: new Date().getFullYear(),
-  calM: new Date().getMonth(),
   results: [],               // poslední výsledky vyhledávání
   pending: null,             // vybraná potravina čekající na množství
   editId: null,              // id upravovaného záznamu
-  mealPreset: null,          // předvolené jídlo dne (klik na + u sekce)
-  mealChoice: null           // aktuální volba jídla dne v kroku množství
+  mealChoice: null           // volba jídla dne v kroku množství
 };
 
 function renderFood() {
-  const tabs = `
-    <div class="subtabs">
-      <button class="subtab${FV.sub === "log" ? " on" : ""}" data-act="f-sub" data-sub="log">Dnes</button>
-      <button class="subtab${FV.sub === "cal" ? " on" : ""}" data-act="f-sub" data-sub="cal">Kalendář</button>
-    </div>`;
-  return tabs + (FV.sub === "cal" ? renderFoodCal() : renderFoodLog());
+  return renderFoodLog();
 }
 
 /* ---- Denní log — sekce podle jídel dne ---- */
@@ -62,10 +53,7 @@ function renderFoodLog() {
       <div class="card">
         <div class="row between">
           <span class="h2" style="margin:0">${m.name}</span>
-          <div class="row" style="gap:12px">
-            ${items.length ? `<b>${fmtNum(kcal)} kcal</b>` : `<span class="small">—</span>`}
-            <button class="meal-add" data-act="f-add-meal" data-meal="${m.id}" aria-label="Přidat ${m.name}">+</button>
-          </div>
+          ${items.length ? `<b>${fmtNum(kcal)} kcal</b>` : `<span class="small">—</span>`}
         </div>
         ${items.length ? `<div class="mt">${items.map(entryRow).join("")}</div>` : ""}
       </div>`;
@@ -78,7 +66,8 @@ function renderFoodLog() {
       ${unassigned.map(entryRow).join("")}
     </div>` : "";
 
-  return summary + mealCards + unassignedCard;
+  return `<button class="btn primary full" style="margin-bottom:14px" data-act="f-add">+ Přidat jídlo</button>`
+    + summary + mealCards + unassignedCard;
 }
 
 function foodEntryName(e) {
@@ -163,7 +152,7 @@ function foodManualHtml() {
 /* ---- Krok množství (společný pro všechny cesty) ---- */
 function openAmountStep(item, existing) {
   FV.pending = item;
-  FV.mealChoice = existing ? (existing.mealType || null) : (FV.mealPreset || null);
+  FV.mealChoice = existing ? (existing.mealType || null) : null;
   const mealChips = [{ id: null, name: "Bez zařazení" }, ...MEAL_TYPES].map(m =>
     `<button class="chip mealchip${FV.mealChoice === m.id ? " on" : ""}"
       data-act="f-meal-chip" data-meal="${m.id || ""}">${m.name}</button>`).join("");
@@ -249,20 +238,10 @@ function editFoodEntry(id) {
   openAmountStep(item, e);
 }
 
-/* ---- Kalendář stravy ---- */
-function renderFoodCal() {
-  return `<div class="card">${calendarHtml(FV.calY, FV.calM, ds => {
-    const n = dayNutrition(ds);
-    if (!n.count) return null;
-    return calorieGoalMet(ds) ? { cls: "hit", mark: "✓" } : { cls: "", mark: "•" };
-  }, "f-cal-day")}
-  <div class="small mt"><span style="color:var(--green)">✓</span> splněný kalorický cíl (±10 %) ·
-    <b>•</b> den se záznamem</div></div>`;
-}
-
-function openDayFood(ds) {
+/* ---- Denní přehled stravy (pro sjednocený kalendář v Souhrnu) ---- */
+function foodDayHtml(ds) {
   const entries = foodLogOn(ds);
-  if (!entries.length) { toast("V tento den není žádný záznam"); return; }
+  if (!entries.length) return `<div class="empty-note" style="padding:14px">Žádný záznam stravy</div>`;
   const n = dayNutrition(ds);
   const rows = entries.map(e => `
     <div class="list-item">
@@ -272,9 +251,12 @@ function openDayFood(ds) {
       </div>
       <b>${fmtNum(e.calories)} kcal</b>
     </div>`).join("");
-  openModal(`${modalTitle("Strava " + fmtDate(ds))}
+  return `
     <div class="card2" style="margin-bottom:10px">
-      <b>${fmtNum(n.calories)} kcal</b> · B ${fmtNum(n.protein)} g · S ${fmtNum(n.carbs)} g · T ${fmtNum(n.fat)} g
+      <b>${fmtNum(n.calories)} kcal</b> ·
+      <span style="color:var(--pink)">B ${fmtNum(n.protein)} g</span> ·
+      <span style="color:var(--cyan)">S ${fmtNum(n.carbs)} g</span> ·
+      <span style="color:var(--purple)">T ${fmtNum(n.fat)} g</span>
       ${calorieGoalMet(ds) ? ` <span class="badge green">cíl splněn</span>` : ""}
-    </div>${rows}`);
+    </div>${rows}`;
 }

@@ -55,14 +55,14 @@ function renderToday() {
       if (s.type === "cardio") {
         const c = s.entries[0] || {};
         return `<div class="list-item">
-          <span class="badge orange">Kardio</span>
+          <span class="badge orange">${esc(cardioLabel(c))}</span>
           <div class="grow name">${fmtNum(c.duration)} min${c.distance ? ` · ${fmtNum(c.distance, 2)} km` : ""}</div>
           ${c.calories ? `<span class="small">${fmtNum(c.calories)} kcal</span>` : ""}
         </div>`;
       }
       const sets = s.entries.reduce((n, e) => n + (e.sets || []).length, 0);
       return `<div class="list-item">
-        <span class="badge ${s.templateUsed === "B" ? "cyan" : "green"}">${esc(templateLabel(s.templateUsed))}</span>
+        <span class="badge green">${esc(templateLabel(s.templateUsed))}</span>
         <div class="grow name">${s.entries.length} cviků · ${sets} sérií</div>
         <button class="btn sm ghost" data-act="w-detail" data-id="${s.id}">Detail</button>
       </div>`;
