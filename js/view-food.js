@@ -7,7 +7,9 @@ const FV = {
   calM: new Date().getMonth(),
   results: [],               // poslední výsledky vyhledávání
   pending: null,             // vybraná potravina čekající na množství
-  editId: null               // id upravovaného záznamu
+  editId: null,              // id upravovaného záznamu
+  mealPreset: null,          // předvolené jídlo dne (klik na + u sekce)
+  mealChoice: null           // aktuální volba jídla dne v kroku množství
 };
 
 function renderFood() {
@@ -19,61 +21,64 @@ function renderFood() {
   return tabs + (FV.sub === "cal" ? renderFoodCal() : renderFoodLog());
 }
 
-/* ---- Denní log ---- */
+/* ---- Denní log — sekce podle jídel dne ---- */
 function renderFoodLog() {
   const today = todayStr();
   const nut = dayNutrition(today);
   const g = S.goal;
+  const over = nut.calories > g.dailyCalories * 1.05;
 
-  const goalRow = (label, val, target, color) => {
-    const state = !target ? "" : val > target * 1.05
-      ? `<span class="badge red">překročeno</span>`
-      : (Math.abs(val - target) / target <= 0.10 && val > 0 ? `<span class="badge green">v cíli</span>` : "");
-    return `<div class="mt">
-      <div class="row between" style="margin-bottom:4px">
-        <span class="muted">${label} ${state}</span>
-        <span class="small">${fmtNum(val)} / ${fmtNum(target)}</span>
-      </div>
-      ${barHtml(val, target, color)}
-    </div>`;
-  };
-
-  const goals = `
+  const summary = `
     <div class="card">
-      <div class="h2">Denní cíle</div>
-      ${goalRow("Kalorie (kcal)", nut.calories, g.dailyCalories, "green")}
-      ${goalRow("Bílkoviny (g)", nut.protein, g.proteinGrams, "pink")}
-      ${goalRow("Sacharidy (g)", nut.carbs, g.carbsGrams, "cyan")}
-      ${goalRow("Tuky (g)", nut.fat, g.fatGrams, "purple")}
+      <div class="h2">Dnešní příjem</div>
+      <div class="row between" style="align-items:baseline;margin-bottom:8px">
+        <span class="big-num"${over ? ` style="color:var(--red)"` : ""}>${fmtNum(nut.calories)}</span>
+        <span class="muted">z ${fmtNum(g.dailyCalories)} kcal</span>
+      </div>
+      ${barHtml(nut.calories, g.dailyCalories, "green")}
+      <div class="row mt" style="gap:12px;align-items:flex-start">
+        ${macroBar("Bílk.", nut.protein, g.proteinGrams, "pink", true)}
+        ${macroBar("Sach.", nut.carbs, g.carbsGrams, "cyan", true)}
+        ${macroBar("Tuky", nut.fat, g.fatGrams, "purple", true)}
+      </div>
     </div>`;
 
   const entries = foodLogOn(today);
-  let logList;
-  if (!entries.length) {
-    logList = `<div class="empty-note">Dnes ještě nic zapsáno</div>`;
-  } else {
-    const byMeal = [...MEAL_TYPES, { id: null, name: "Nezařazeno" }];
-    logList = byMeal.map(m => {
-      const items = entries.filter(e => (e.mealType || null) === m.id);
-      if (!items.length) return "";
-      const rows = items.map(e => `
-        <div class="list-item">
-          <div class="grow">
-            <div class="name">${esc(foodEntryName(e))}</div>
-            <div class="small">${fmtNum(e.amountGrams)} g · B ${fmtNum(e.protein)} · S ${fmtNum(e.carbs)} · T ${fmtNum(e.fat)}</div>
-          </div>
-          <b style="white-space:nowrap">${fmtNum(e.calories)} kcal</b>
-          <button class="btn sm ghost" data-act="f-entry-edit" data-id="${e.id}">✎</button>
-          <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="f-entry-del" data-id="${e.id}">✕</button>
-        </div>`).join("");
-      return `<div class="h3" style="margin-top:12px">${m.name}</div>${rows}`;
-    }).join("");
-  }
+  const entryRow = e => `
+    <div class="list-item">
+      <div class="grow">
+        <div class="name">${esc(foodEntryName(e))}</div>
+        <div class="small">${fmtNum(e.amountGrams)} g · B ${fmtNum(e.protein)} · S ${fmtNum(e.carbs)} · T ${fmtNum(e.fat)}</div>
+      </div>
+      <b style="white-space:nowrap">${fmtNum(e.calories)}</b>
+      <button class="btn sm ghost" data-act="f-entry-edit" data-id="${e.id}">✎</button>
+      <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="f-entry-del" data-id="${e.id}">✕</button>
+    </div>`;
 
-  return `
-    <button class="btn primary full" style="margin-bottom:14px" data-act="f-add">+ Přidat jídlo</button>
-    ${goals}
-    <div class="card"><div class="h2">Snědeno dnes</div>${logList}</div>`;
+  const mealCards = MEAL_TYPES.map(m => {
+    const items = entries.filter(e => e.mealType === m.id);
+    const kcal = items.reduce((s, e) => s + e.calories, 0);
+    return `
+      <div class="card">
+        <div class="row between">
+          <span class="h2" style="margin:0">${m.name}</span>
+          <div class="row" style="gap:12px">
+            ${items.length ? `<b>${fmtNum(kcal)} kcal</b>` : `<span class="small">—</span>`}
+            <button class="meal-add" data-act="f-add-meal" data-meal="${m.id}" aria-label="Přidat ${m.name}">+</button>
+          </div>
+        </div>
+        ${items.length ? `<div class="mt">${items.map(entryRow).join("")}</div>` : ""}
+      </div>`;
+  }).join("");
+
+  const unassigned = entries.filter(e => !e.mealType);
+  const unassignedCard = unassigned.length ? `
+    <div class="card">
+      <div class="h2">Nezařazeno</div>
+      ${unassigned.map(entryRow).join("")}
+    </div>` : "";
+
+  return summary + mealCards + unassignedCard;
 }
 
 function foodEntryName(e) {
@@ -158,9 +163,10 @@ function foodManualHtml() {
 /* ---- Krok množství (společný pro všechny cesty) ---- */
 function openAmountStep(item, existing) {
   FV.pending = item;
-  const mealOpts = [`<option value="">Nezařazeno</option>`]
-    .concat(MEAL_TYPES.map(m => `<option value="${m.id}"${existing && existing.mealType === m.id ? " selected" : ""}>${m.name}</option>`))
-    .join("");
+  FV.mealChoice = existing ? (existing.mealType || null) : (FV.mealPreset || null);
+  const mealChips = [{ id: null, name: "Bez zařazení" }, ...MEAL_TYPES].map(m =>
+    `<button class="chip mealchip${FV.mealChoice === m.id ? " on" : ""}"
+      data-act="f-meal-chip" data-meal="${m.id || ""}">${m.name}</button>`).join("");
   openModal(`${modalTitle(existing ? "Upravit záznam" : item.name)}
     <div class="card2" style="margin-bottom:12px">
       <div class="row between"><span class="muted">Na 100 g</span>${sourceBadge(item.source)}</div>
@@ -168,12 +174,10 @@ function openAmountStep(item, existing) {
         B ${fmtNum(item.proteinPer100g, 1)} g · S ${fmtNum(item.carbsPer100g, 1)} g · T ${fmtNum(item.fatPer100g, 1)} g</div>
       ${item.servingSize ? `<div class="small mt">Porce dle výrobce: ${esc(item.servingSize)}</div>` : ""}
     </div>
-    <div class="input-row">
-      <label class="field"><span>Množství (g) *</span>
-        <input class="input" id="amtG" type="number" inputmode="decimal" value="${existing ? existing.amountGrams : 100}"></label>
-      <label class="field"><span>Jídlo</span>
-        <select class="input" id="amtMeal">${mealOpts}</select></label>
-    </div>
+    <label class="field"><span>Množství (g) *</span>
+      <input class="input" id="amtG" type="number" inputmode="decimal" value="${existing ? existing.amountGrams : 100}"></label>
+    <label class="field" style="margin-bottom:4px"><span>Jídlo dne</span></label>
+    <div class="chips">${mealChips}</div>
     <div class="card2" id="amtPreview" style="margin-bottom:14px"></div>
     <button class="btn primary full" data-act="f-amount-save">${existing ? "Uložit změny" : "Přidat do dne"}</button>`);
   const upd = () => {
@@ -189,7 +193,7 @@ function openAmountStep(item, existing) {
 function saveAmount() {
   const item = FV.pending;
   const grams = parseFloat(document.getElementById("amtG").value);
-  const meal = document.getElementById("amtMeal").value || null;
+  const meal = FV.mealChoice || null;
   if (!grams || grams <= 0) { toast("Zadej množství v gramech", "err"); return; }
   const k = grams / 100;
   const r1 = v => Math.round((v || 0) * k * 10) / 10;

@@ -130,12 +130,53 @@ function sourceBadge(source) {
   }[source] || "";
 }
 
+/* ---- Kalorický prstenec (SVG) ---- */
+function ringHtml(value, target, size = 150, centerHtml = "") {
+  const pct = target > 0 ? clamp(value / target, 0, 1) : 0;
+  const over = target > 0 && value > target * 1.05;
+  const sw = 12;
+  const r = (size - sw) / 2;
+  const c = 2 * Math.PI * r;
+  return `
+  <div class="ring-wrap" style="width:${size}px;height:${size}px">
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="var(--bg3)" stroke-width="${sw}"/>
+      <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none"
+        stroke="var(--${over ? "red" : "green"})" stroke-width="${sw}" stroke-linecap="round"
+        stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - pct)).toFixed(1)}"
+        style="transition:stroke-dashoffset .5s"/>
+    </svg>
+    <div class="ring-center">${centerHtml}</div>
+  </div>`;
+}
+
+/* ---- Makro mini bar s labelem a hodnotami ----
+   stack=true: label / bar / hodnota pod sebou (úzké sloupce vedle sebe) */
+function macroBar(label, val, target, color, stack = false) {
+  if (stack) {
+    return `
+      <div class="grow">
+        <div class="h3" style="margin-bottom:5px">${label}</div>
+        ${barHtml(val, target, color, true)}
+        <div class="small" style="font-weight:700;margin-top:5px;white-space:nowrap">${fmtNum(val)}<span style="color:var(--text3)">/${fmtNum(target)}g</span></div>
+      </div>`;
+  }
+  return `
+    <div class="grow">
+      <div class="row between" style="margin-bottom:4px">
+        <span class="h3" style="margin:0">${label}</span>
+        <span class="small" style="font-weight:700;white-space:nowrap">${fmtNum(val)}<span style="color:var(--text3)">/${fmtNum(target)}g</span></span>
+      </div>
+      ${barHtml(val, target, color, true)}
+    </div>`;
+}
+
 /* ---- Badge typu jídla ---- */
 const MEAL_TYPES = [
   { id: "breakfast", name: "Snídaně" },
+  { id: "snack", name: "Svačina" },
   { id: "lunch", name: "Oběd" },
-  { id: "dinner", name: "Večeře" },
-  { id: "snack", name: "Svačina" }
+  { id: "dinner", name: "Večeře" }
 ];
 function mealName(id) {
   const m = MEAL_TYPES.find(m => m.id === id);

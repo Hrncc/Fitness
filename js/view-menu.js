@@ -1,7 +1,7 @@
 /* ===== Obrazovky z hamburger menu ===== */
 "use strict";
 
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.1.0";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -357,8 +357,7 @@ function saveSettings() {
 function renderAbout() {
   return `
     <div class="card center">
-      <div style="font-size:44px">💪</div>
-      <div class="h2" style="margin-top:8px">Fitness Log</div>
+      <div style="font-size:26px;font-weight:900;letter-spacing:.06em;margin-top:6px">FITNESS<span style="color:var(--green)">LOG</span></div>
       <p class="muted">Verze ${APP_VERSION}</p>
       <p class="muted" style="text-align:left">
         Osobní deník silových a kardio tréninků a stravy.
