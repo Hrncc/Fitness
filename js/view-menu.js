@@ -1,7 +1,7 @@
 /* ===== Obrazovky z hamburger menu ===== */
 "use strict";
 
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.2.0";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -102,8 +102,8 @@ function renderTemplates() {
         <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="tpl-rm" data-tpl="${t.id}" data-i="${i}">✕</button>
       </div>`).join("");
     return `
-      <div class="card" style="border-color:var(--${t.id === "B" ? "cyan" : "green"})">
-        <div class="h2" style="color:var(--${t.id === "B" ? "cyan" : "green"})">${esc(t.name)}</div>
+      <div class="card" style="border-color:var(--green)">
+        <div class="h2" style="color:var(--green)">${esc(t.name)}</div>
         ${rows || `<div class="empty-note">Šablona je prázdná</div>`}
         <button class="btn ghost full mt" style="border-style:dashed" data-act="tpl-add" data-tpl="${t.id}">+ Přidat cvik</button>
       </div>`;

@@ -145,6 +145,7 @@ button { font-family: inherit; }
   border-radius: 999px; padding: 8px 15px; font-size: 13px; font-weight: 700; cursor: pointer;
 }
 .chip.on { background: var(--green); color: #0A0B0D; }
+.chip.on.orange { background: var(--orange); color: #0A0B0D; }
 
 /* ===== Sub-tabs (segmented) ===== */
 .subtabs {
@@ -258,7 +259,11 @@ label.field > span {
 }
 .cal-day.empty { background: none; cursor: default; }
 .cal-day.today { border-color: var(--green); color: var(--text); font-weight: 800; }
-.cal-day .mark { font-size: 10px; line-height: 1; height: 11px; }
+.cal-day .mark {
+  font-size: 10px; line-height: 1; height: 11px;
+  display: flex; align-items: center; justify-content: center; gap: 2.5px;
+}
+.cal-day .mark i { width: 5px; height: 5px; border-radius: 50%; display: block; }
 .cal-day.hit { background: var(--green-bg); color: var(--green); }
 .cal-day.miss { background: var(--red-bg); color: var(--red); }
 
@@ -296,6 +301,7 @@ label.field > span {
 
 /* ===== Statistiky ===== */
 .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat-grid.three { grid-template-columns: 1fr 1fr 1fr; }
 .stat { background: var(--bg2); border-radius: 16px; padding: 14px 10px; text-align: center; }
 .stat .val { font-size: 25px; font-weight: 900; letter-spacing: -0.02em; }
 .stat .lbl { font-size: 10.5px; color: var(--text3); margin-top: 3px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
@@ -327,15 +333,6 @@ label.field > span {
   font-size: 9.5px; color: var(--text3); font-weight: 800;
   text-transform: uppercase; letter-spacing: .12em; margin-top: 4px;
 }
-
-/* ===== Jídlo — sekce podle jídel dne ===== */
-.meal-add {
-  width: 36px; height: 36px; border-radius: 50%; border: none;
-  background: var(--green-bg); color: var(--green);
-  font-size: 21px; font-weight: 800; line-height: 1; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
-.meal-add:active { transform: scale(.92); background: var(--green); color: #0A0B0D; }
 
 /* ===== Týdenní strip ===== */
 .week-strip { display: flex; gap: 6px; }

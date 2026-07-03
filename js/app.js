@@ -57,21 +57,29 @@ const ACTIONS = {
   "drawer-close": () => openDrawer(false),
   "modal-close": () => closeModal(),
 
-  /* kalendáře (trénink i jídlo) */
+  /* sjednocený kalendář (Souhrn) */
   "cal-nav": d => {
-    const st = App.route.tab === "food" ? FV : WV;
-    let m = st.calM + Number(d.dir), y = st.calY;
+    let m = SV.calM + Number(d.dir), y = SV.calY;
     if (m < 0) { m = 11; y--; }
     if (m > 11) { m = 0; y++; }
-    st.calM = m; st.calY = y;
+    SV.calM = m; SV.calY = y;
     render();
   },
+  "sum-cal-day": d => openDaySummary(d.date),
 
   /* ---- Trénink ---- */
   "w-sub": d => { WV.sub = d.sub; render(); },
   "w-begin": d => beginWorkout(d.template === "custom" ? null : d.template),
   "w-cardio": () => openCardioModal(),
   "w-cardio-save": () => saveCardio(),
+  "w-sport-chip": d => {
+    WV.sportChoice = d.sport;
+    document.querySelectorAll(".sportchip").forEach(c => {
+      const on = c.dataset.sport === d.sport;
+      c.classList.toggle("on", on);
+      c.classList.toggle("orange", on);
+    });
+  },
   "w-add-set": d => addSet(Number(d.i)),
   "w-del-set": d => {
     S.activeSession.entries[Number(d.i)].sets.splice(Number(d.j), 1);
@@ -102,7 +110,6 @@ const ACTIONS = {
     toast("Trénink zrušen");
   },
   "w-pr-history": d => openPRHistory(d.exid),
-  "w-cal-day": d => openDayWorkouts(d.date),
   "w-detail": d => openSessionDetail(d.id),
   "w-del-session": d => confirmModal("Smazat tento trénink? Ovlivní to i historii rekordů.", "w-del-session-yes", `data-id="${d.id}"`),
   "w-del-session-yes": d => {
@@ -112,9 +119,7 @@ const ACTIONS = {
   },
 
   /* ---- Jídlo ---- */
-  "f-sub": d => { FV.sub = d.sub; render(); },
-  "f-add": () => { FV.mealPreset = null; openAddFood("search"); },
-  "f-add-meal": d => { FV.mealPreset = d.meal; openAddFood("search"); },
+  "f-add": () => openAddFood("search"),
   "f-modal-tab": d => openAddFood(d.tab),
   "f-meal-chip": d => {
     FV.mealChoice = d.meal || null;
@@ -131,7 +136,6 @@ const ACTIONS = {
     save(); render();
     toast("Záznam smazán");
   },
-  "f-cal-day": d => openDayFood(d.date),
 
   /* ---- Souhrn ---- */
   "s-range": d => { SV.range = d.range; render(); },

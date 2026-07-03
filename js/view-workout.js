@@ -1,22 +1,23 @@
-/* ===== Obrazovka: Trénink — log, osobní rekordy, kalendář ===== */
+/* ===== Obrazovka: Trénink — log a osobní rekordy =====
+   Barevné významy (jednotné se Souhrnem): váhy = volt (green),
+   kardio = orange, rekordy = pink, stavy: probíhá = yellow. */
 "use strict";
 
+const CARDIO_SPORTS = ["Běh", "Chůze", "Kolo", "Plavání", "Veslování", "Švihadlo", "Eliptický", "Turistika", "Jiné"];
+
 const WV = {
-  sub: "log",                 // log | pr | cal
-  calY: new Date().getFullYear(),
-  calM: new Date().getMonth(),
-  pickerIndex: null           // null = přidání cviku, číslo = výměna na indexu
+  sub: "log",                 // log | pr
+  pickerIndex: null,          // null = přidání cviku, číslo = výměna na indexu
+  sportChoice: CARDIO_SPORTS[0]
 };
 
 function renderWorkout() {
   const tabs = `
     <div class="subtabs">
-      <button class="subtab${WV.sub === "log" ? " on" : ""}" data-act="w-sub" data-sub="log">Log</button>
+      <button class="subtab${WV.sub === "pr" ? "" : " on"}" data-act="w-sub" data-sub="log">Log</button>
       <button class="subtab${WV.sub === "pr" ? " on" : ""}" data-act="w-sub" data-sub="pr">Rekordy</button>
-      <button class="subtab${WV.sub === "cal" ? " on" : ""}" data-act="w-sub" data-sub="cal">Kalendář</button>
     </div>`;
   if (WV.sub === "pr") return tabs + renderPRList();
-  if (WV.sub === "cal") return tabs + renderWorkoutCal();
   return tabs + (S.activeSession ? renderActiveSession() : renderWorkoutStart());
 }
 
@@ -27,14 +28,14 @@ function renderWorkoutStart() {
       <div class="h2">Silový trénink</div>
       <div class="row" style="gap:8px">
         <button class="btn grow" style="border-color:var(--green);color:var(--green)" data-act="w-begin" data-template="A">Trénink A</button>
-        <button class="btn grow" style="border-color:var(--cyan);color:var(--cyan)" data-act="w-begin" data-template="B">Trénink B</button>
+        <button class="btn grow" style="border-color:var(--green);color:var(--green)" data-act="w-begin" data-template="B">Trénink B</button>
       </div>
-      <button class="btn full mt" style="border-color:var(--purple);color:var(--purple)" data-act="w-begin" data-template="custom">Libovolný cvik (mimo šablonu)</button>
+      <button class="btn full mt" style="border-color:var(--green);color:var(--green)" data-act="w-begin" data-template="custom">Libovolný cvik (mimo šablonu)</button>
     </div>
     <div class="card">
       <div class="h2">Kardio</div>
-      <p class="muted" style="margin:0 0 12px">Běh, kolo, chůze… — čas, vzdálenost, kalorie.</p>
-      <button class="btn primary full" data-act="w-cardio">Zapsat kardio</button>
+      <p class="muted" style="margin:0 0 12px">Vyber sport a zapiš čas, vzdálenost, kalorie.</p>
+      <button class="btn full" style="background:var(--orange);color:#0A0B0D;font-weight:800" data-act="w-cardio">Zapsat kardio</button>
     </div>`;
 }
 
@@ -70,7 +71,7 @@ function renderActiveSession() {
         <input class="input" id="weight-${i}" type="number" inputmode="decimal" step="0.5" placeholder="${weightUnit()}" style="flex:1">
         <input class="input" id="note-${i}" type="text" placeholder="Poznámka" style="flex:1.4">
       </div>
-      <button class="btn sm full mt" style="border-color:var(--orange);color:var(--orange)" data-act="w-add-set" data-i="${i}">+ Přidat sérii</button>
+      <button class="btn sm full mt" style="border-color:var(--green);color:var(--green)" data-act="w-add-set" data-i="${i}">+ Přidat sérii</button>
     </div>`;
   }).join("");
 
@@ -169,7 +170,12 @@ function exercisePickerList(query) {
 
 /* ---- Kardio formulář ---- */
 function openCardioModal() {
+  WV.sportChoice = CARDIO_SPORTS[0];
+  const sportChips = CARDIO_SPORTS.map(s =>
+    `<button class="chip sportchip${s === WV.sportChoice ? " on orange" : ""}" data-act="w-sport-chip" data-sport="${s}">${s}</button>`).join("");
   openModal(`${modalTitle("Zapsat kardio")}
+    <label class="field" style="margin-bottom:4px"><span>Sport</span></label>
+    <div class="chips">${sportChips}</div>
     <label class="field"><span>Doba trvání (min) *</span>
       <input class="input" id="cDur" type="number" inputmode="decimal" placeholder="např. 30"></label>
     <label class="field"><span>Vzdálenost (km)</span>
@@ -177,7 +183,7 @@ function openCardioModal() {
     <label class="field"><span>Kalorie (kcal)</span>
       <input class="input" id="cCal" type="number" inputmode="numeric" placeholder="volitelné"></label>
     <div class="small" id="cPace" style="margin-bottom:14px"></div>
-    <button class="btn primary full" data-act="w-cardio-save">Uložit kardio</button>`);
+    <button class="btn full" style="background:var(--orange);color:#0A0B0D;font-weight:800" data-act="w-cardio-save">Uložit kardio</button>`);
   const upd = () => {
     const d = parseFloat(document.getElementById("cDur").value);
     const k = parseFloat(document.getElementById("cDist").value);
@@ -195,12 +201,19 @@ function saveCardio() {
   if (!duration || duration <= 0) { toast("Zadej dobu trvání", "err"); return; }
   S.sessions.push({
     id: uid(), date: todayStr(), type: "cardio", templateUsed: null,
-    entries: [{ duration, distance, pace: distance ? Math.round(duration / distance * 100) / 100 : null, calories }]
+    entries: [{
+      sport: WV.sportChoice, duration, distance,
+      pace: distance ? Math.round(duration / distance * 100) / 100 : null, calories
+    }]
   });
   save();
   closeModal();
   render();
   toast("Kardio uloženo ✓", "ok");
+}
+
+function cardioLabel(entry) {
+  return entry && entry.sport ? entry.sport : "Kardio";
 }
 
 /* ---- Osobní rekordy ---- */
@@ -214,7 +227,7 @@ function renderPRList() {
         <div class="small">${fmtDate(pr.date)}</div>
       </div>
       <div style="text-align:right">
-        <div style="font-weight:700;color:var(--green)">${fmtWeight(pr.weight)} × ${pr.reps}</div>
+        <div style="font-weight:700;color:var(--pink)">${fmtWeight(pr.weight)} × ${pr.reps}</div>
         <div class="small">e1RM ${fmtWeight(pr.e1rm)}</div>
       </div>
     </div>`).join("");
@@ -226,7 +239,7 @@ function openPRHistory(exerciseId) {
   const hist = prHistory(exerciseId).slice().reverse();
   const rows = hist.map((h, idx) => `
     <div class="list-item">
-      <span class="badge ${idx === 0 ? "pink" : "green"}">${idx === 0 ? "aktuální" : "PR"}</span>
+      <span class="badge pink">${idx === 0 ? "aktuální" : "PR"}</span>
       <div class="grow name">${fmtWeight(h.weight)} × ${h.reps}</div>
       <div style="text-align:right">
         <div class="small">e1RM ${fmtWeight(h.e1rm)}</div>
@@ -237,28 +250,12 @@ function openPRHistory(exerciseId) {
     ${rows || `<div class="empty-note">Žádná historie</div>`}`);
 }
 
-/* ---- Kalendář tréninků ---- */
-function renderWorkoutCal() {
-  return `<div class="card">${calendarHtml(WV.calY, WV.calM, ds => {
-    const list = sessionsOn(ds);
-    if (!list.length) return null;
-    return { cls: "hit", mark: "✓" };
-  }, "w-cal-day")}
-  <div class="small mt"><span style="color:var(--green)">✓</span> den s tréninkem — klikni pro detail</div></div>`;
-}
-
-function openDayWorkouts(ds) {
-  const list = sessionsOn(ds);
-  if (!list.length) { toast("V tento den není žádný trénink"); return; }
-  const html = list.map(s => sessionDetailHtml(s)).join("<hr style='border-color:var(--line);margin:14px 0'>");
-  openModal(`${modalTitle("Tréninky " + fmtDate(ds))}${html}`);
-}
-
+/* ---- Detail session (sdílený s kalendářem v Souhrnu) ---- */
 function sessionDetailHtml(s) {
   if (s.type === "cardio") {
     const c = s.entries[0] || {};
     return `<div>
-      <div class="row between"><span class="badge orange">Kardio</span>
+      <div class="row between"><span class="badge orange">${esc(cardioLabel(c))}</span>
         <button class="btn sm danger" data-act="w-del-session" data-id="${s.id}">Smazat</button></div>
       <div class="card2 mt">
         <div>⏱ ${fmtNum(c.duration)} min${c.distance ? ` · 📏 ${fmtNum(c.distance, 2)} km` : ""}</div>
@@ -274,7 +271,7 @@ function sessionDetailHtml(s) {
   }).join("");
   return `<div>
     <div class="row between">
-      <span class="badge ${s.templateUsed === "B" ? "cyan" : "green"}">${esc(templateLabel(s.templateUsed))}</span>
+      <span class="badge green">${esc(templateLabel(s.templateUsed))}</span>
       <span class="small">objem ${fmtWeight(sessionVolume(s))}</span>
       <button class="btn sm danger" data-act="w-del-session" data-id="${s.id}">Smazat</button>
     </div>${blocks}</div>`;
