@@ -113,8 +113,14 @@ const ACTIONS = {
 
   /* ---- Jídlo ---- */
   "f-sub": d => { FV.sub = d.sub; render(); },
-  "f-add": () => openAddFood("search"),
+  "f-add": () => { FV.mealPreset = null; openAddFood("search"); },
+  "f-add-meal": d => { FV.mealPreset = d.meal; openAddFood("search"); },
   "f-modal-tab": d => openAddFood(d.tab),
+  "f-meal-chip": d => {
+    FV.mealChoice = d.meal || null;
+    document.querySelectorAll(".mealchip").forEach(c =>
+      c.classList.toggle("on", (c.dataset.meal || "") === (d.meal || "")));
+  },
   "f-pick": d => openAmountStep(FV.results[Number(d.i)]),
   "f-pick-fav": d => { const f = getFood(d.id); if (f) openAmountStep(f); },
   "f-manual-next": () => manualFoodNext(),

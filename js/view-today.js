@@ -1,25 +1,54 @@
-/* ===== Obrazovka: Dnes ===== */
+/* ===== Obrazovka: Dnes — landing ===== */
 "use strict";
+
+const CZ_DAYS_FULL = ["neděle", "pondělí", "úterý", "středa", "čtvrtek", "pátek", "sobota"];
+const CZ_MONTHS_GEN = ["ledna", "února", "března", "dubna", "května", "června",
+  "července", "srpna", "září", "října", "listopadu", "prosince"];
 
 function renderToday() {
   const today = todayStr();
+  const now = new Date();
   const sessions = sessionsOn(today);
   const nut = dayNutrition(today);
   const g = S.goal;
 
-  /* -- karta Trénink dnes -- */
+  /* -- datum -- */
+  const hero_date = `<div class="hero-date">${CZ_DAYS_FULL[now.getDay()]} · ${now.getDate()}. ${CZ_MONTHS_GEN[now.getMonth()]}</div>`;
+
+  /* -- hero: kalorický prstenec + makra -- */
+  const remaining = Math.max(0, g.dailyCalories - nut.calories);
+  const over = nut.calories > g.dailyCalories * 1.05;
+  const ring = ringHtml(nut.calories, g.dailyCalories, 148, `
+    <b${over ? ` style="color:var(--red)"` : ""}>${fmtNum(nut.calories)}</b>
+    <span>${over ? `+${fmtNum(nut.calories - g.dailyCalories)} nad cíl` : `zbývá ${fmtNum(remaining)}`}</span>`);
+  const heroCard = `
+    <div class="card hero-card">
+      <div class="h2">Energie · cíl ${fmtNum(g.dailyCalories)} kcal</div>
+      <div class="hero-main">
+        ${ring}
+        <div class="hero-macros">
+          ${macroBar("Bílkoviny", nut.protein, g.proteinGrams, "pink")}
+          ${macroBar("Sacharidy", nut.carbs, g.carbsGrams, "cyan")}
+          ${macroBar("Tuky", nut.fat, g.fatGrams, "purple")}
+        </div>
+      </div>
+      <button class="btn primary full mt" data-act="nav" data-tab="food">+ Přidat jídlo</button>
+    </div>`;
+
+  /* -- trénink -- */
   let workoutCard;
   if (S.activeSession) {
     const a = S.activeSession;
     const setCount = a.type === "weights" ? a.entries.reduce((n, e) => n + (e.sets || []).length, 0) : 0;
     workoutCard = `
-      <div class="card" style="border-color:var(--yellow)">
-        <div class="row between"><span class="h2" style="margin:0">Trénink dnes</span>
-          <span class="badge yellow">Probíhá</span></div>
-        <p class="muted" style="margin:8px 0 12px">${a.type === "weights"
-          ? `Rozpracovaný silový trénink (${esc(templateLabel(a.templateUsed))}) — ${setCount} sérií zapsáno`
-          : "Rozpracované kardio"}</p>
-        <button class="btn primary full" data-act="nav" data-tab="workout">Pokračovat v tréninku</button>
+      <div class="card">
+        <div class="row between">
+          <span class="h2" style="margin:0">Trénink</span>
+          <span class="badge yellow">Probíhá</span>
+        </div>
+        <div class="big-num" style="font-size:24px;margin:12px 0 4px">${esc(templateLabel(a.templateUsed))}</div>
+        <div class="muted" style="margin-bottom:14px">${setCount} sérií zapsáno</div>
+        <button class="btn primary full" data-act="nav" data-tab="workout">Pokračovat →</button>
       </div>`;
   } else if (sessions.length) {
     const items = sessions.map(s => {
@@ -27,60 +56,37 @@ function renderToday() {
         const c = s.entries[0] || {};
         return `<div class="list-item">
           <span class="badge orange">Kardio</span>
-          <div class="grow"><div class="name">${fmtNum(c.duration)} min${c.distance ? ` · ${fmtNum(c.distance, 2)} km` : ""}</div>
-          ${c.calories ? `<div class="small">${fmtNum(c.calories)} kcal</div>` : ""}</div>
+          <div class="grow name">${fmtNum(c.duration)} min${c.distance ? ` · ${fmtNum(c.distance, 2)} km` : ""}</div>
+          ${c.calories ? `<span class="small">${fmtNum(c.calories)} kcal</span>` : ""}
         </div>`;
       }
       const sets = s.entries.reduce((n, e) => n + (e.sets || []).length, 0);
       return `<div class="list-item">
         <span class="badge ${s.templateUsed === "B" ? "cyan" : "green"}">${esc(templateLabel(s.templateUsed))}</span>
-        <div class="grow"><div class="name">${s.entries.length} cviků · ${sets} sérií</div>
-        <div class="small">objem ${fmtWeight(sessionVolume(s))}</div></div>
+        <div class="grow name">${s.entries.length} cviků · ${sets} sérií</div>
         <button class="btn sm ghost" data-act="w-detail" data-id="${s.id}">Detail</button>
       </div>`;
     }).join("");
     workoutCard = `
-      <div class="card" style="border-color:var(--green)">
-        <div class="row between"><span class="h2" style="margin:0">Trénink dnes</span>
-          <span class="badge green">✓ Hotovo</span></div>
-        ${items}
-        <button class="btn ghost full mt" data-act="nav" data-tab="workout">Přidat další trénink</button>
+      <div class="card">
+        <div class="row between">
+          <span class="h2" style="margin:0">Trénink</span>
+          <span class="badge green">✓ Hotovo</span>
+        </div>
+        <div class="mt">${items}</div>
+        <button class="btn ghost full mt" data-act="nav" data-tab="workout">+ Další trénink</button>
       </div>`;
   } else {
     workoutCard = `
       <div class="card">
-        <div class="h2">Trénink dnes</div>
-        <p class="muted" style="margin:0 0 12px">Dnes ještě nemáš zapsaný žádný trénink.</p>
-        <button class="btn primary full" data-act="nav" data-tab="workout">Zahájit trénink</button>
+        <div class="h2">Trénink</div>
+        <div class="big-num" style="font-size:22px;margin-bottom:4px">Zatím nic</div>
+        <div class="muted" style="margin-bottom:14px">Dnes ještě nemáš zapsaný žádný trénink.</div>
+        <button class="btn primary full" data-act="nav" data-tab="workout">Zahájit trénink →</button>
       </div>`;
   }
 
-  /* -- karta Strava dnes -- */
-  const kcalPct = g.dailyCalories ? Math.round(nut.calories / g.dailyCalories * 100) : 0;
-  const macro = (label, val, target, color) => `
-    <div class="grow">
-      <div class="small" style="margin-bottom:3px">${label}</div>
-      ${barHtml(val, target, color, true)}
-      <div class="small" style="margin-top:3px">${fmtNum(val)} / ${fmtNum(target)} g</div>
-    </div>`;
-  const foodCard = `
-    <div class="card">
-      <div class="row between"><span class="h2" style="margin:0">Strava dnes</span>
-        ${nut.count ? `<span class="badge ${nut.calories > g.dailyCalories * 1.05 ? "red" : "green"}">${kcalPct} %</span>` : ""}</div>
-      <div class="row between" style="margin:10px 0 4px">
-        <b style="font-size:19px">${fmtNum(nut.calories)} kcal</b>
-        <span class="muted">cíl ${fmtNum(g.dailyCalories)} kcal</span>
-      </div>
-      ${barHtml(nut.calories, g.dailyCalories, "green")}
-      <div class="row mt" style="gap:12px">
-        ${macro("Bílkoviny", nut.protein, g.proteinGrams, "pink")}
-        ${macro("Sacharidy", nut.carbs, g.carbsGrams, "cyan")}
-        ${macro("Tuky", nut.fat, g.fatGrams, "purple")}
-      </div>
-      <button class="btn primary full mt" data-act="nav" data-tab="food">Přidat jídlo</button>
-    </div>`;
-
-  /* -- týdenní mini přehled Po–Ne -- */
+  /* -- týdenní strip Po–Ne -- */
   const monday = mondayOf(today);
   let strip = "";
   for (let i = 0; i < 7; i++) {
@@ -90,20 +96,20 @@ function renderToday() {
     strip += `<div class="week-day${d === today ? " today" : ""}">
       ${CZ_DOW[i]}
       <div class="dots">
-        <i style="background:${hasW ? "var(--orange)" : "var(--bg3)"}"></i>
-        <i style="background:${hasF ? "var(--green)" : "var(--bg3)"}"></i>
+        <i style="background:${hasW ? "var(--green)" : "var(--bg3)"}"></i>
+        <i style="background:${hasF ? "var(--cyan)" : "var(--bg3)"}"></i>
       </div>
     </div>`;
   }
   const weekCard = `
     <div class="card">
-      <div class="h3">Tento týden</div>
+      <div class="h2">Týden</div>
       <div class="week-strip">${strip}</div>
-      <div class="small mt"><span style="color:var(--orange)">●</span> trénink&nbsp;&nbsp;
-        <span style="color:var(--green)">●</span> splněný kalorický cíl</div>
+      <div class="small mt"><span style="color:var(--green)">●</span> trénink&nbsp;&nbsp;
+        <span style="color:var(--cyan)">●</span> kalorický cíl</div>
     </div>`;
 
-  return workoutCard + foodCard + weekCard;
+  return hero_date + heroCard + workoutCard + weekCard;
 }
 
 function templateLabel(t) {
