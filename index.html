@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fitness Log</title>
+<meta name="description" content="Osobní deník tréninků a stravy">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fitness Log">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="iconbtn" data-act="drawer-open" aria-label="Menu">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+  </button>
+  <div class="topbar-title" id="topbarTitle">Dnes</div>
+  <div class="sync-dot" id="syncDot" title="Stav synchronizace"></div>
+</header>
+
+<main id="view" class="view"></main>
+
+<nav class="bottomnav">
+  <button class="navbtn" data-act="nav" data-tab="today">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+    <span>Dnes</span>
+  </button>
+  <button class="navbtn" data-act="nav" data-tab="workout">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11"/></svg>
+    <span>Trénink</span>
+  </button>
+  <button class="navbtn" data-act="nav" data-tab="food">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 3v7a2 2 0 0 0 2 2v9M11 3v7a2 2 0 0 1-2 2M15 3v18M15 3c2.5 1 4 3.5 4 6v3h-4"/></svg>
+    <span>Jídlo</span>
+  </button>
+  <button class="navbtn" data-act="nav" data-tab="summary">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-8M21 20H3"/></svg>
+    <span>Souhrn</span>
+  </button>
+</nav>
+
+<div class="drawer-backdrop" id="drawerBackdrop" data-act="drawer-close"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div class="drawer-logo">💪 Fitness Log</div>
+    <button class="iconbtn" data-act="drawer-close">✕</button>
+  </div>
+  <button class="drawer-item" data-act="menu" data-page="exlib">🏋️ Exercise Library</button>
+  <button class="drawer-item" data-act="menu" data-page="templates">📋 Workout Templates</button>
+  <button class="drawer-item" data-act="menu" data-page="foodlib">🥗 Food Library</button>
+  <button class="drawer-item" data-act="menu" data-page="export">📤 Export &amp; Backup</button>
+  <button class="drawer-item" data-act="menu" data-page="settings">⚙️ Nastavení</button>
+  <button class="drawer-item" data-act="menu" data-page="about">ℹ️ O aplikaci</button>
+</aside>
+
+<div class="modal-backdrop" id="modalBackdrop"></div>
+<div class="modal" id="modal"></div>
+
+<div class="toast" id="toast"></div>
+
+<script src="js/util.js"></script>
+<script src="js/data.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/foodapi.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/view-today.js"></script>
+<script src="js/view-workout.js"></script>
+<script src="js/view-food.js"></script>
+<script src="js/view-summary.js"></script>
+<script src="js/view-menu.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
