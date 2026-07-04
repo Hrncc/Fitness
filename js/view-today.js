@@ -112,7 +112,7 @@ function renderToday() {
       </div>`;
   }
 
-  return hero_date + heroCard + weightCard + workoutCard;
+  return hero_date + heroCard + workoutCard + weightCard;
 }
 
 /* ---- Modal zápisu váhy ---- */
