@@ -8,21 +8,23 @@
   --bg3: #262932;
   --line: #23252C;
 
-  --green: #CDFB51;   /* volt — primární akcent, success, splněné cíle */
-  --orange: #FF7847;  /* kardio, probíhající stavy */
-  --pink: #FF5CA8;    /* PR, highlight, bílkoviny */
+  /* Barevná logika:
+     volt   = interakce a cíle (tlačítka, aktivní prvky, progress k cíli, splněno)
+     bílá + šedá škála = data (čísla, grafy, série maker)
+     zlatá  = rekordy (medaile) + rozpracované/pending stavy
+     červená = chyby, mazání, překročení */
+  --green: #CDFB51;   /* volt — akcent */
+  --yellow: #F7C948;  /* zlatá — PR, pending */
   --red: #FF4D5E;     /* chyby, překročení */
-  --yellow: #F7C948;  /* pending, sync, rozpracováno */
-  --cyan: #54D6FF;    /* info, sacharidy, trénink B */
-  --purple: #B78BFF;  /* tuky, vlastní položky, kategorie */
 
   --green-bg: rgba(205,251,81,.12);
-  --orange-bg: rgba(255,120,71,.13);
-  --pink-bg: rgba(255,92,168,.13);
-  --red-bg: rgba(255,77,94,.13);
   --yellow-bg: rgba(247,201,72,.13);
-  --cyan-bg: rgba(84,214,255,.12);
-  --purple-bg: rgba(183,139,255,.13);
+  --red-bg: rgba(255,77,94,.13);
+
+  --mac1: #F4F5F1;    /* bílkoviny — nejsvětlejší */
+  --mac2: #AEB3BD;    /* sacharidy — střední */
+  --mac3: #7C818C;    /* tuky — nejtmavší */
+  --chart: #C9CDC2;   /* neutrální datové křivky a sloupce */
 
   --text: #F4F5F1;
   --text2: #9EA2AD;
@@ -132,12 +134,9 @@ button { font-family: inherit; }
   font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
 }
 .badge.green { background: var(--green-bg); color: var(--green); }
-.badge.orange { background: var(--orange-bg); color: var(--orange); }
-.badge.pink { background: var(--pink-bg); color: var(--pink); }
-.badge.cyan { background: var(--cyan-bg); color: var(--cyan); }
-.badge.purple { background: var(--purple-bg); color: var(--purple); }
-.badge.red { background: var(--red-bg); color: var(--red); }
 .badge.yellow { background: var(--yellow-bg); color: var(--yellow); }
+.badge.red { background: var(--red-bg); color: var(--red); }
+.badge.neutral { background: var(--bg3); color: #C7CAD1; }
 
 .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
 .chip {
@@ -145,7 +144,6 @@ button { font-family: inherit; }
   border-radius: 999px; padding: 8px 15px; font-size: 13px; font-weight: 700; cursor: pointer;
 }
 .chip.on { background: var(--green); color: #0A0B0D; }
-.chip.on.orange { background: var(--orange); color: #0A0B0D; }
 
 /* ===== Sub-tabs (segmented) ===== */
 .subtabs {
@@ -278,8 +276,8 @@ label.field > span {
   display: flex; align-items: center; justify-content: center;
   font-size: 12px; font-weight: 800; color: var(--text2); flex-shrink: 0;
 }
-.pr-flash { animation: prflash 1.4s ease 2; border-color: var(--pink) !important; }
-@keyframes prflash { 50% { box-shadow: 0 0 26px rgba(255,92,168,.5); } }
+.pr-flash { animation: prflash 1.4s ease 2; border-color: var(--yellow) !important; }
+@keyframes prflash { 50% { box-shadow: 0 0 26px rgba(247,201,72,.5); } }
 
 /* ===== Grafy ===== */
 .chart-wrap { width: 100%; overflow: hidden; }
@@ -295,7 +293,7 @@ label.field > span {
   max-width: 86vw; text-align: center;
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
-.toast.pr { background: #26101B; color: var(--pink); }
+.toast.pr { background: #2A2210; color: var(--yellow); }
 .toast.err { background: #291016; color: var(--red); }
 .toast.ok { background: #1A2410; color: var(--green); }
 
