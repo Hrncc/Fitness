@@ -1,7 +1,7 @@
 /* ===== Obrazovky z hamburger menu ===== */
 "use strict";
 
-const APP_VERSION = "1.2.0";
+const APP_VERSION = "1.4.0";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -33,7 +33,7 @@ function elListHtml() {
           <div class="name">${esc(e.name)}</div>
           <div class="small">${esc(e.category)}</div>
         </div>
-        ${e.isCustom ? `<span class="badge purple">vlastní</span>` : ""}
+        ${e.isCustom ? `<span class="badge neutral">vlastní</span>` : ""}
       </div>`).join("");
   return list || `<div class="empty-note">Nic nenalezeno</div>`;
 }
@@ -44,9 +44,9 @@ function openExerciseDetail(id) {
   const pr = currentPR(id);
   openModal(`${modalTitle(e.name)}
     <div class="row" style="margin-bottom:10px">
-      <span class="badge purple">${esc(e.category)}</span>
-      ${e.isCustom ? `<span class="badge purple">vlastní</span>` : ""}
-      ${pr ? `<span class="badge green">PR ${fmtWeight(pr.weight)} × ${pr.reps}</span>` : ""}
+      <span class="badge neutral">${esc(e.category)}</span>
+      ${e.isCustom ? `<span class="badge neutral">vlastní</span>` : ""}
+      ${pr ? `<span class="badge yellow">PR ${fmtWeight(pr.weight)} × ${pr.reps}</span>` : ""}
     </div>
     <p class="muted" style="margin:0 0 16px">${esc(e.description || "Bez popisu")}</p>
     ${pr ? `<button class="btn ghost full" style="margin-bottom:8px" data-act="w-pr-history" data-exid="${id}">Historie rekordů</button>` : ""}
@@ -141,7 +141,7 @@ function renderFoodLib() {
   if (!foods.length) return `<div class="card"><div class="empty-note">Knihovna je prázdná.<br>Položky se ukládají automaticky při zápisu jídla.</div></div>`;
   const rows = foods.map(f => `
     <div class="list-item">
-      <button class="iconbtn" style="width:34px;height:34px;font-size:18px" data-act="fl-star" data-id="${f.id}">${f.isFavorite ? "⭐" : "☆"}</button>
+      <button class="iconbtn" style="width:34px;height:34px;font-size:19px;color:${f.isFavorite ? "var(--green)" : "var(--text3)"}" data-act="fl-star" data-id="${f.id}">${f.isFavorite ? "★" : "☆"}</button>
       <div class="grow">
         <div class="name">${esc(f.name)}</div>
         <div class="small">${fmtNum(f.caloriesPer100g)} kcal · B ${fmtNum(f.proteinPer100g, 1)} · S ${fmtNum(f.carbsPer100g, 1)} · T ${fmtNum(f.fatPer100g, 1)} /100 g</div>
@@ -151,7 +151,7 @@ function renderFoodLib() {
       <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="fl-del-ask" data-id="${f.id}">✕</button>
     </div>`).join("");
   return `<div class="card"><div class="h2">Knihovna potravin</div>${rows}
-    <p class="small mt">⭐ = oblíbené (rychlý výběr při zápisu jídla)</p></div>`;
+    <p class="small mt">★ = oblíbené (rychlý výběr při zápisu jídla)</p></div>`;
 }
 
 function openFoodEdit(id) {

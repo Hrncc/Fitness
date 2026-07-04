@@ -67,6 +67,10 @@ const ACTIONS = {
   },
   "sum-cal-day": d => openDaySummary(d.date),
 
+  /* tělesná váha */
+  "bw-open": () => openBodyWeightModal(),
+  "bw-save": () => saveBodyWeight(),
+
   /* ---- Trénink ---- */
   "w-sub": d => { WV.sub = d.sub; render(); },
   "w-begin": d => beginWorkout(d.template === "custom" ? null : d.template),
@@ -74,11 +78,8 @@ const ACTIONS = {
   "w-cardio-save": () => saveCardio(),
   "w-sport-chip": d => {
     WV.sportChoice = d.sport;
-    document.querySelectorAll(".sportchip").forEach(c => {
-      const on = c.dataset.sport === d.sport;
-      c.classList.toggle("on", on);
-      c.classList.toggle("orange", on);
-    });
+    document.querySelectorAll(".sportchip").forEach(c =>
+      c.classList.toggle("on", c.dataset.sport === d.sport));
   },
   "w-add-set": d => addSet(Number(d.i)),
   "w-del-set": d => {

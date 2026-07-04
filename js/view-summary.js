@@ -1,7 +1,6 @@
 /* ===== Obrazovka: Souhrn — kalendář, statistiky, grafy =====
-   Barevné významy (jednotné s ostatními sekcemi):
-   trénink: váhy = volt (green), kardio = orange, rekordy = pink
-   strava: kalorie = volt (green), bílkoviny = pink, sacharidy = cyan, tuky = purple */
+   Barevná logika: data = bílá/šedá (čísla, křivky), volt = cíle a interakce,
+   zlatá = rekordy, makra = škála mac1 (bílkoviny) → mac3 (tuky). */
 "use strict";
 
 const SV = {
@@ -38,12 +37,12 @@ function renderSummary() {
         if (!w && !f) return null;
         return {
           cls: "", mark:
-            (w ? `<i style="background:var(--green)"></i>` : "") +
-            (f ? `<i style="background:var(--cyan)"></i>` : "")
+            (w ? `<i style="background:var(--text)"></i>` : "") +
+            (f ? `<i style="background:var(--green)"></i>` : "")
         };
       }, "sum-cal-day")}
-      <div class="small mt"><span style="color:var(--green)">●</span> trénink&nbsp;&nbsp;
-        <span style="color:var(--cyan)">●</span> splněný kalorický cíl (±10 %) — klikni na den pro detail</div>
+      <div class="small mt"><span style="color:var(--text)">●</span> trénink&nbsp;&nbsp;
+        <span style="color:var(--green)">●</span> splněný kalorický cíl (±10 %) — klikni na den pro detail</div>
     </div>`;
 
   /* -- trénink: statistiky -- */
@@ -51,10 +50,10 @@ function renderSummary() {
     <div class="card">
       <div class="h2">Trénink <span class="small">(posledních ${days} dní)</span></div>
       <div class="stat-grid">
-        <div class="stat"><div class="val" style="color:var(--green)">${weights.length}</div><div class="lbl">silových tréninků</div></div>
-        <div class="stat"><div class="val" style="color:var(--orange)">${cardio.length}</div><div class="lbl">kardio (${fmtNum(cardioMin)} min)</div></div>
-        <div class="stat"><div class="val" style="color:var(--green)">${fmtWeight(totalVolume, false)}</div><div class="lbl">celkový objem (${weightUnit()})</div></div>
-        <div class="stat"><div class="val" style="color:var(--pink)">${prCountInRange(from)}</div><div class="lbl">nových PR</div></div>
+        <div class="stat"><div class="val">${weights.length}</div><div class="lbl">silových tréninků</div></div>
+        <div class="stat"><div class="val">${cardio.length}</div><div class="lbl">kardio (${fmtNum(cardioMin)} min)</div></div>
+        <div class="stat"><div class="val">${fmtWeight(totalVolume, false)}</div><div class="lbl">celkový objem (${weightUnit()})</div></div>
+        <div class="stat"><div class="val" style="color:var(--yellow)">${prCountInRange(from)}</div><div class="lbl">nových PR</div></div>
       </div>
     </div>`;
 
@@ -73,7 +72,7 @@ function renderSummary() {
   const volumeChart = `
     <div class="card">
       <div class="h2">Objem po týdnech <span class="small">(${weightUnit()})</span></div>
-      ${barChart(weeksData, { color: "green" })}
+      ${barChart(weeksData, { color: "chart" })}
     </div>`;
 
   /* -- progres cviku -- */
@@ -97,7 +96,7 @@ function renderSummary() {
       <div class="card">
         <div class="h2">Progres cviku <span class="small">(e1RM, ${weightUnit()})</span></div>
         <select class="input" data-change="s-exercise" style="margin-bottom:12px">${opts}</select>
-        ${lineChart(series, { color: "green" })}
+        ${lineChart(series, { color: "chart" })}
       </div>`;
   }
 
@@ -110,7 +109,7 @@ function renderSummary() {
         <div class="list-item">
           <div class="grow"><div class="name">${esc(exName(exerciseId))}</div>
             <div class="small">${fmtDate(pr.date)}</div></div>
-          <span style="font-weight:700;color:var(--pink)">${fmtWeight(pr.weight)} × ${pr.reps}</span>
+          <span style="font-weight:700;color:var(--yellow)">${fmtWeight(pr.weight)} × ${pr.reps}</span>
         </div>`).join("")}
     </div>` : "";
 
@@ -128,13 +127,13 @@ function renderSummary() {
     <div class="card">
       <div class="h2">Strava <span class="small">(posledních ${days} dní)</span></div>
       <div class="stat-grid">
-        <div class="stat"><div class="val" style="color:var(--green)">${fmtNum(avg("calories"))}</div><div class="lbl">Ø kcal / den</div></div>
+        <div class="stat"><div class="val">${fmtNum(avg("calories"))}</div><div class="lbl">Ø kcal / den</div></div>
         <div class="stat"><div class="val">${goalMetCount}<span class="small"> / ${nutDays.length}</span></div><div class="lbl">dní v cíli (±10 %)</div></div>
       </div>
       <div class="stat-grid three mt">
-        <div class="stat"><div class="val" style="color:var(--pink)">${fmtNum(avg("protein"))} g</div><div class="lbl">Ø bílkoviny</div></div>
-        <div class="stat"><div class="val" style="color:var(--cyan)">${fmtNum(avg("carbs"))} g</div><div class="lbl">Ø sacharidy</div></div>
-        <div class="stat"><div class="val" style="color:var(--purple)">${fmtNum(avg("fat"))} g</div><div class="lbl">Ø tuky</div></div>
+        <div class="stat"><div class="val" style="color:var(--mac1)">${fmtNum(avg("protein"))} g</div><div class="lbl">Ø bílkoviny</div></div>
+        <div class="stat"><div class="val" style="color:var(--mac2)">${fmtNum(avg("carbs"))} g</div><div class="lbl">Ø sacharidy</div></div>
+        <div class="stat"><div class="val" style="color:var(--mac3)">${fmtNum(avg("fat"))} g</div><div class="lbl">Ø tuky</div></div>
       </div>
     </div>`;
 
@@ -142,10 +141,30 @@ function renderSummary() {
   const foodChart = `
     <div class="card">
       <div class="h2">Kalorie vs cíl</div>
-      ${lineChart(kcalSeries, { color: "green", goal: S.goal.dailyCalories })}
+      ${lineChart(kcalSeries, { color: "chart", goal: S.goal.dailyCalories })}
     </div>`;
 
-  return rangeTabs + calendarCard + workoutStats + volumeChart + exerciseChart + prCard + foodStats + foodChart;
+  /* -- tělesná váha -- */
+  const inRangeW = S.bodyLog.filter(b => b.date >= from);
+  const wSeries = (inRangeW.length >= 2 ? inRangeW : S.bodyLog)
+    .map(b => ({ date: b.date, value: Math.round(kgOut(b.weightKg) * 10) / 10 }));
+  const latest = lastBodyWeight();
+  let weightDelta = "";
+  if (inRangeW.length >= 2) {
+    const diff = kgOut(inRangeW[inRangeW.length - 1].weightKg) - kgOut(inRangeW[0].weightKg);
+    weightDelta = `<div class="stat"><div class="val">${diff > 0 ? "+" : ""}${fmtNum(diff, 1)} ${weightUnit()}</div><div class="lbl">změna za ${days} dní</div></div>`;
+  }
+  const weightCard = `
+    <div class="card">
+      <div class="h2">Tělesná váha</div>
+      <div class="stat-grid">
+        <div class="stat"><div class="val">${latest ? fmtWeight(latest.weightKg, false) : "—"} ${weightUnit()}</div><div class="lbl">aktuální (${latest ? fmtDate(latest.date) : "bez záznamu"})</div></div>
+        ${weightDelta || `<div class="stat"><div class="val">${S.bodyLog.length}</div><div class="lbl">záznamů celkem</div></div>`}
+      </div>
+      <div class="mt">${lineChart(wSeries, { color: "chart" })}</div>
+    </div>`;
+
+  return rangeTabs + calendarCard + workoutStats + volumeChart + exerciseChart + prCard + weightCard + foodStats + foodChart;
 }
 
 /* Detail dne: tréninky + strava v jednom modalu */

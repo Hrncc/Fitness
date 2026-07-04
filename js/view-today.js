@@ -27,12 +27,38 @@ function renderToday() {
       <div class="hero-main">
         ${ring}
         <div class="hero-macros">
-          ${macroBar("Bílkoviny", nut.protein, g.proteinGrams, "pink")}
-          ${macroBar("Sacharidy", nut.carbs, g.carbsGrams, "cyan")}
-          ${macroBar("Tuky", nut.fat, g.fatGrams, "purple")}
+          ${macroBar("Bílkoviny", nut.protein, g.proteinGrams, "mac1")}
+          ${macroBar("Sacharidy", nut.carbs, g.carbsGrams, "mac2")}
+          ${macroBar("Tuky", nut.fat, g.fatGrams, "mac3")}
         </div>
       </div>
       <button class="btn primary full mt" data-act="nav" data-tab="food">+ Přidat jídlo</button>
+    </div>`;
+
+  /* -- tělesná váha -- */
+  const todayW = bodyWeightOn(today);
+  const last = lastBodyWeight(todayW ? addDays(today, -1) : today);
+  let deltaBadge = "";
+  if (todayW != null && last) {
+    const diff = kgOut(todayW) - kgOut(last.weightKg);
+    if (Math.abs(diff) >= 0.05) {
+      deltaBadge = `<span class="badge neutral">${diff > 0 ? "▲" : "▼"} ${fmtNum(Math.abs(diff), 1)} ${weightUnit()}</span>`;
+    }
+  }
+  const shown = todayW != null ? todayW : (last ? last.weightKg : null);
+  const weightCard = `
+    <div class="card">
+      <div class="row between">
+        <span class="h2" style="margin:0">Tělesná váha</span>
+        ${deltaBadge}
+      </div>
+      <div class="row between mt">
+        <div>
+          <span class="big-num" style="font-size:28px">${shown != null ? fmtWeight(shown) : "—"}</span>
+          ${todayW == null ? `<div class="small">${last ? `naposledy ${fmtDate(last.date)}` : "zatím žádný záznam"}</div>` : ""}
+        </div>
+        <button class="btn sm primary" data-act="bw-open">${todayW != null ? "Upravit" : "Zapsat"}</button>
+      </div>
     </div>`;
 
   /* -- trénink -- */
@@ -55,14 +81,14 @@ function renderToday() {
       if (s.type === "cardio") {
         const c = s.entries[0] || {};
         return `<div class="list-item">
-          <span class="badge orange">${esc(cardioLabel(c))}</span>
+          <span class="badge neutral">${esc(cardioLabel(c))}</span>
           <div class="grow name">${fmtNum(c.duration)} min${c.distance ? ` · ${fmtNum(c.distance, 2)} km` : ""}</div>
           ${c.calories ? `<span class="small">${fmtNum(c.calories)} kcal</span>` : ""}
         </div>`;
       }
       const sets = s.entries.reduce((n, e) => n + (e.sets || []).length, 0);
       return `<div class="list-item">
-        <span class="badge green">${esc(templateLabel(s.templateUsed))}</span>
+        <span class="badge neutral">${esc(templateLabel(s.templateUsed))}</span>
         <div class="grow name">${s.entries.length} cviků · ${sets} sérií</div>
         <button class="btn sm ghost" data-act="w-detail" data-id="${s.id}">Detail</button>
       </div>`;
@@ -86,30 +112,29 @@ function renderToday() {
       </div>`;
   }
 
-  /* -- týdenní strip Po–Ne -- */
-  const monday = mondayOf(today);
-  let strip = "";
-  for (let i = 0; i < 7; i++) {
-    const d = addDays(monday, i);
-    const hasW = sessionsOn(d).length > 0;
-    const hasF = calorieGoalMet(d);
-    strip += `<div class="week-day${d === today ? " today" : ""}">
-      ${CZ_DOW[i]}
-      <div class="dots">
-        <i style="background:${hasW ? "var(--green)" : "var(--bg3)"}"></i>
-        <i style="background:${hasF ? "var(--cyan)" : "var(--bg3)"}"></i>
-      </div>
-    </div>`;
-  }
-  const weekCard = `
-    <div class="card">
-      <div class="h2">Týden</div>
-      <div class="week-strip">${strip}</div>
-      <div class="small mt"><span style="color:var(--green)">●</span> trénink&nbsp;&nbsp;
-        <span style="color:var(--cyan)">●</span> kalorický cíl</div>
-    </div>`;
+  return hero_date + heroCard + workoutCard + weightCard;
+}
 
-  return hero_date + heroCard + workoutCard + weekCard;
+/* ---- Modal zápisu váhy ---- */
+function openBodyWeightModal() {
+  const today = todayStr();
+  const current = bodyWeightOn(today) ?? (lastBodyWeight(today) || {}).weightKg;
+  openModal(`${modalTitle("Zapsat váhu")}
+    <label class="field"><span>Tělesná váha (${weightUnit()})</span>
+      <input class="input" id="bwInput" type="number" inputmode="decimal" step="0.1"
+        value="${current != null ? fmtNum(kgOut(current), 1).replace(",", ".") : ""}" placeholder="např. 80.5"></label>
+    <button class="btn primary full" data-act="bw-save">Uložit</button>`);
+  document.getElementById("bwInput").focus();
+}
+
+function saveBodyWeight() {
+  const kg = kgIn(document.getElementById("bwInput").value);
+  if (kg == null || kg <= 0) { toast("Zadej platnou váhu", "err"); return; }
+  logBodyWeight(kg);
+  save();
+  closeModal();
+  render();
+  toast("Váha zapsána ✓", "ok");
 }
 
 function templateLabel(t) {

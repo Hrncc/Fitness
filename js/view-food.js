@@ -28,9 +28,9 @@ function renderFoodLog() {
       </div>
       ${barHtml(nut.calories, g.dailyCalories, "green")}
       <div class="row mt" style="gap:12px;align-items:flex-start">
-        ${macroBar("Bílk.", nut.protein, g.proteinGrams, "pink", true)}
-        ${macroBar("Sach.", nut.carbs, g.carbsGrams, "cyan", true)}
-        ${macroBar("Tuky", nut.fat, g.fatGrams, "purple", true)}
+        ${macroBar("Bílk.", nut.protein, g.proteinGrams, "mac1", true)}
+        ${macroBar("Sach.", nut.carbs, g.carbsGrams, "mac2", true)}
+        ${macroBar("Tuky", nut.fat, g.fatGrams, "mac3", true)}
       </div>
     </div>`;
 
@@ -128,7 +128,7 @@ function foodFavHtml() {
   return favs.map(f => `
     <div class="list-item" data-act="f-pick-fav" data-id="${f.id}" style="cursor:pointer">
       <div class="grow">
-        <div class="name">⭐ ${esc(f.name)}</div>
+        <div class="name">${esc(f.name)}</div>
         <div class="small">${fmtNum(f.caloriesPer100g)} kcal /100 g</div>
       </div>
       ${sourceBadge(f.source)}
@@ -254,9 +254,9 @@ function foodDayHtml(ds) {
   return `
     <div class="card2" style="margin-bottom:10px">
       <b>${fmtNum(n.calories)} kcal</b> ·
-      <span style="color:var(--pink)">B ${fmtNum(n.protein)} g</span> ·
-      <span style="color:var(--cyan)">S ${fmtNum(n.carbs)} g</span> ·
-      <span style="color:var(--purple)">T ${fmtNum(n.fat)} g</span>
+      <span style="color:var(--mac1)">B ${fmtNum(n.protein)} g</span> ·
+      <span style="color:var(--mac2)">S ${fmtNum(n.carbs)} g</span> ·
+      <span style="color:var(--mac3)">T ${fmtNum(n.fat)} g</span>
       ${calorieGoalMet(ds) ? ` <span class="badge green">cíl splněn</span>` : ""}
     </div>${rows}`;
 }

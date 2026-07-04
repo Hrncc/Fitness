@@ -67,6 +67,7 @@ function defaultState() {
     sessions: [],      // WorkoutSession
     foods: [],         // FoodItem (knihovna: oblíbené, vlastní, použité z API)
     foodLog: [],       // FoodLogEntry
+    bodyLog: [],       // { date, weightKg } — denní tělesná váha, max 1 záznam na den
     goal: { dailyCalories: 2500, proteinGrams: 150, carbsGrams: 280, fatGrams: 80 },
     activeSession: null
   };
@@ -177,6 +178,31 @@ function sessionVolume(sess) {
   let v = 0;
   for (const e of sess.entries) for (const st of e.sets || []) v += (st.reps || 0) * (st.weight || 0);
   return v;
+}
+
+/* ===== Tělesná váha ===== */
+function bodyWeightOn(date) {
+  const e = S.bodyLog.find(b => b.date === date);
+  return e ? e.weightKg : null;
+}
+
+/* Poslední záznam k datu (včetně) — vrací {date, weightKg} nebo null */
+function lastBodyWeight(beforeDate) {
+  let best = null;
+  for (const b of S.bodyLog) {
+    if (beforeDate && b.date > beforeDate) continue;
+    if (!best || b.date > best.date) best = b;
+  }
+  return best;
+}
+
+/* Zapíše/přepíše váhu pro dnešek */
+function logBodyWeight(kg) {
+  const t = todayStr();
+  const e = S.bodyLog.find(b => b.date === t);
+  if (e) e.weightKg = kg;
+  else S.bodyLog.push({ date: t, weightKg: kg });
+  S.bodyLog.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /* ===== Knihovna potravin ===== */

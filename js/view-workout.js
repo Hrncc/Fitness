@@ -1,6 +1,6 @@
 /* ===== Obrazovka: Trénink — log a osobní rekordy =====
-   Barevné významy (jednotné se Souhrnem): váhy = volt (green),
-   kardio = orange, rekordy = pink, stavy: probíhá = yellow. */
+   Barevná logika: volt = akce (tlačítka, chipy), zlatá = rekordy,
+   žlutá = probíhá, neutrální štítky = typ tréninku/sport. */
 "use strict";
 
 const CARDIO_SPORTS = ["Běh", "Chůze", "Kolo", "Plavání", "Veslování", "Švihadlo", "Eliptický", "Turistika", "Jiné"];
@@ -35,7 +35,7 @@ function renderWorkoutStart() {
     <div class="card">
       <div class="h2">Kardio</div>
       <p class="muted" style="margin:0 0 12px">Vyber sport a zapiš čas, vzdálenost, kalorie.</p>
-      <button class="btn full" style="background:var(--orange);color:#0A0B0D;font-weight:800" data-act="w-cardio">Zapsat kardio</button>
+      <button class="btn primary full" data-act="w-cardio">Zapsat kardio</button>
     </div>`;
 }
 
@@ -51,7 +51,7 @@ function renderActiveSession() {
       <div class="set-row">
         <span class="set-num">${j + 1}</span>
         <span class="grow">${fmtNum(st.reps)} × ${fmtWeight(st.weight)}${st.note ? ` <span class="small">· ${esc(st.note)}</span>` : ""}
-          ${st.isPR ? ` <span class="badge pink">PR!</span>` : ""}</span>
+          ${st.isPR ? ` <span class="badge yellow">PR!</span>` : ""}</span>
         <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="w-del-set" data-i="${i}" data-j="${j}">✕</button>
       </div>`).join("");
 
@@ -121,7 +121,7 @@ function addSet(i) {
   if (est1RM(weight, reps) > (prevBest ? prevBest.e1rm : 0)) {
     set.isPR = true;
     entry.prHit = true;
-    toast(`🏆 Nový osobní rekord: ${exName(entry.exerciseId)}!`, "pr");
+    toast(`Nový osobní rekord — ${exName(entry.exerciseId)}!`, "pr");
   }
   entry.sets.push(set);
   save();
@@ -139,7 +139,7 @@ function finishWorkout() {
   S.activeSession = null;
   save();
   render();
-  toast(prCount ? `Trénink uložen — ${prCount}× nový PR! 🏆` : "Trénink uložen ✓", prCount ? "pr" : "ok");
+  toast(prCount ? `Trénink uložen — ${prCount}× nový PR!` : "Trénink uložen ✓", prCount ? "pr" : "ok");
 }
 
 /* ---- Výběr cviku (přidání / výměna v session) ---- */
@@ -161,7 +161,7 @@ function exercisePickerList(query) {
       .filter(e => e.category === cat && (!q || e.name.toLowerCase().includes(q)))
       .map(e => `<div class="list-item" data-act="w-pick-ex" data-exid="${e.id}" style="cursor:pointer">
         <div class="grow name">${esc(e.name)}</div>
-        ${e.isCustom ? `<span class="badge purple">vlastní</span>` : ""}
+        ${e.isCustom ? `<span class="badge neutral">vlastní</span>` : ""}
       </div>`).join("");
     return items ? `<div class="h3" style="margin-top:10px">${cat}</div>${items}` : "";
   }).join("");
@@ -172,7 +172,7 @@ function exercisePickerList(query) {
 function openCardioModal() {
   WV.sportChoice = CARDIO_SPORTS[0];
   const sportChips = CARDIO_SPORTS.map(s =>
-    `<button class="chip sportchip${s === WV.sportChoice ? " on orange" : ""}" data-act="w-sport-chip" data-sport="${s}">${s}</button>`).join("");
+    `<button class="chip sportchip${s === WV.sportChoice ? " on" : ""}" data-act="w-sport-chip" data-sport="${s}">${s}</button>`).join("");
   openModal(`${modalTitle("Zapsat kardio")}
     <label class="field" style="margin-bottom:4px"><span>Sport</span></label>
     <div class="chips">${sportChips}</div>
@@ -183,7 +183,7 @@ function openCardioModal() {
     <label class="field"><span>Kalorie (kcal)</span>
       <input class="input" id="cCal" type="number" inputmode="numeric" placeholder="volitelné"></label>
     <div class="small" id="cPace" style="margin-bottom:14px"></div>
-    <button class="btn full" style="background:var(--orange);color:#0A0B0D;font-weight:800" data-act="w-cardio-save">Uložit kardio</button>`);
+    <button class="btn primary full" data-act="w-cardio-save">Uložit kardio</button>`);
   const upd = () => {
     const d = parseFloat(document.getElementById("cDur").value);
     const k = parseFloat(document.getElementById("cDist").value);
@@ -227,7 +227,7 @@ function renderPRList() {
         <div class="small">${fmtDate(pr.date)}</div>
       </div>
       <div style="text-align:right">
-        <div style="font-weight:700;color:var(--pink)">${fmtWeight(pr.weight)} × ${pr.reps}</div>
+        <div style="font-weight:700;color:var(--yellow)">${fmtWeight(pr.weight)} × ${pr.reps}</div>
         <div class="small">e1RM ${fmtWeight(pr.e1rm)}</div>
       </div>
     </div>`).join("");
@@ -239,7 +239,7 @@ function openPRHistory(exerciseId) {
   const hist = prHistory(exerciseId).slice().reverse();
   const rows = hist.map((h, idx) => `
     <div class="list-item">
-      <span class="badge pink">${idx === 0 ? "aktuální" : "PR"}</span>
+      <span class="badge yellow">${idx === 0 ? "aktuální" : "PR"}</span>
       <div class="grow name">${fmtWeight(h.weight)} × ${h.reps}</div>
       <div style="text-align:right">
         <div class="small">e1RM ${fmtWeight(h.e1rm)}</div>
@@ -255,12 +255,12 @@ function sessionDetailHtml(s) {
   if (s.type === "cardio") {
     const c = s.entries[0] || {};
     return `<div>
-      <div class="row between"><span class="badge orange">${esc(cardioLabel(c))}</span>
+      <div class="row between"><span class="badge neutral">${esc(cardioLabel(c))}</span>
         <button class="btn sm danger" data-act="w-del-session" data-id="${s.id}">Smazat</button></div>
       <div class="card2 mt">
-        <div>⏱ ${fmtNum(c.duration)} min${c.distance ? ` · 📏 ${fmtNum(c.distance, 2)} km` : ""}</div>
-        ${c.pace ? `<div class="muted">Tempo ${fmtNum(c.pace, 2)} min/km</div>` : ""}
-        ${c.calories ? `<div class="muted">🔥 ${fmtNum(c.calories)} kcal</div>` : ""}
+        <div><b>${fmtNum(c.duration)} min</b>${c.distance ? ` · ${fmtNum(c.distance, 2)} km` : ""}</div>
+        ${c.pace ? `<div class="muted">tempo ${fmtNum(c.pace, 2)} min/km</div>` : ""}
+        ${c.calories ? `<div class="muted">${fmtNum(c.calories)} kcal</div>` : ""}
       </div></div>`;
   }
   const blocks = s.entries.map(e => {
@@ -271,7 +271,7 @@ function sessionDetailHtml(s) {
   }).join("");
   return `<div>
     <div class="row between">
-      <span class="badge green">${esc(templateLabel(s.templateUsed))}</span>
+      <span class="badge neutral">${esc(templateLabel(s.templateUsed))}</span>
       <span class="small">objem ${fmtWeight(sessionVolume(s))}</span>
       <button class="btn sm danger" data-act="w-del-session" data-id="${s.id}">Smazat</button>
     </div>${blocks}</div>`;

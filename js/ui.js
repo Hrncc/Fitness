@@ -75,7 +75,7 @@ function calendarHtml(year, month, decorate, clickAct) {
 /* ---- SVG grafy (bez knihoven) ---- */
 
 /* Sloupcový graf: data = [{label, value}] */
-function barChart(data, { color = "orange", height = 170, unit = "" } = {}) {
+function barChart(data, { color = "chart", height = 170, unit = "" } = {}) {
   if (!data.length || data.every(d => !d.value)) return `<div class="empty-note">Zatím žádná data</div>`;
   const W = 600, H = height, padB = 24, padT = 16;
   const max = Math.max(...data.map(d => d.value)) || 1;
@@ -92,7 +92,7 @@ function barChart(data, { color = "orange", height = 170, unit = "" } = {}) {
 }
 
 /* Spojnicový graf: series = [{date, value}], volitelná cílová linka */
-function lineChart(series, { color = "cyan", height = 180, goal = null } = {}) {
+function lineChart(series, { color = "chart", height = 180, goal = null } = {}) {
   const pts = series.filter(p => p.value != null);
   if (pts.length < 2) return `<div class="empty-note">Potřebuji alespoň 2 záznamy pro graf</div>`;
   const W = 600, H = height, padL = 8, padR = 8, padT = 14, padB = 22;
@@ -105,8 +105,8 @@ function lineChart(series, { color = "cyan", height = 180, goal = null } = {}) {
   let extra = "";
   if (goal) {
     extra += `<line x1="${padL}" y1="${y(goal).toFixed(1)}" x2="${W - padR}" y2="${y(goal).toFixed(1)}"
-      stroke="var(--text2)" stroke-width="1.5" stroke-dasharray="6 5" opacity="0.8"/>
-      <text x="${W - padR}" y="${(y(goal) - 5).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--text2)">cíl ${fmtNum(goal)}</text>`;
+      stroke="var(--green)" stroke-width="1.5" stroke-dasharray="6 5" opacity="0.8"/>
+      <text x="${W - padR}" y="${(y(goal) - 5).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--green)">cíl ${fmtNum(goal)}</text>`;
   }
   const dots = pts.map((p, i) =>
     `<circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="3.2" fill="var(--${color})"/>`).join("");
@@ -124,9 +124,9 @@ function lineChart(series, { color = "cyan", height = 180, goal = null } = {}) {
 /* ---- Zdrojový badge potraviny ---- */
 function sourceBadge(source) {
   return {
-    openfoodfacts: `<span class="badge cyan">OFF</span>`,
-    usda: `<span class="badge green">USDA</span>`,
-    custom: `<span class="badge purple">vlastní</span>`
+    openfoodfacts: `<span class="badge neutral">OFF</span>`,
+    usda: `<span class="badge neutral">USDA</span>`,
+    custom: `<span class="badge neutral">vlastní</span>`
   }[source] || "";
 }
 
