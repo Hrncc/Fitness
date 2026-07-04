@@ -112,30 +112,7 @@ function renderToday() {
       </div>`;
   }
 
-  /* -- týdenní strip Po–Ne -- */
-  const monday = mondayOf(today);
-  let strip = "";
-  for (let i = 0; i < 7; i++) {
-    const d = addDays(monday, i);
-    const hasW = sessionsOn(d).length > 0;
-    const hasF = calorieGoalMet(d);
-    strip += `<div class="week-day${d === today ? " today" : ""}">
-      ${CZ_DOW[i]}
-      <div class="dots">
-        <i style="background:${hasW ? "var(--text)" : "var(--bg3)"}"></i>
-        <i style="background:${hasF ? "var(--green)" : "var(--bg3)"}"></i>
-      </div>
-    </div>`;
-  }
-  const weekCard = `
-    <div class="card">
-      <div class="h2">Týden</div>
-      <div class="week-strip">${strip}</div>
-      <div class="small mt"><span style="color:var(--text)">●</span> trénink&nbsp;&nbsp;
-        <span style="color:var(--green)">●</span> kalorický cíl</div>
-    </div>`;
-
-  return hero_date + heroCard + weightCard + workoutCard + weekCard;
+  return hero_date + heroCard + weightCard + workoutCard;
 }
 
 /* ---- Modal zápisu váhy ---- */

@@ -128,7 +128,7 @@ function foodFavHtml() {
   return favs.map(f => `
     <div class="list-item" data-act="f-pick-fav" data-id="${f.id}" style="cursor:pointer">
       <div class="grow">
-        <div class="name">⭐ ${esc(f.name)}</div>
+        <div class="name">${esc(f.name)}</div>
         <div class="small">${fmtNum(f.caloriesPer100g)} kcal /100 g</div>
       </div>
       ${sourceBadge(f.source)}

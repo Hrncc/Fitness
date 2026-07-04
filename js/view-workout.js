@@ -121,7 +121,7 @@ function addSet(i) {
   if (est1RM(weight, reps) > (prevBest ? prevBest.e1rm : 0)) {
     set.isPR = true;
     entry.prHit = true;
-    toast(`🏆 Nový osobní rekord: ${exName(entry.exerciseId)}!`, "pr");
+    toast(`Nový osobní rekord — ${exName(entry.exerciseId)}!`, "pr");
   }
   entry.sets.push(set);
   save();
@@ -139,7 +139,7 @@ function finishWorkout() {
   S.activeSession = null;
   save();
   render();
-  toast(prCount ? `Trénink uložen — ${prCount}× nový PR! 🏆` : "Trénink uložen ✓", prCount ? "pr" : "ok");
+  toast(prCount ? `Trénink uložen — ${prCount}× nový PR!` : "Trénink uložen ✓", prCount ? "pr" : "ok");
 }
 
 /* ---- Výběr cviku (přidání / výměna v session) ---- */
@@ -258,9 +258,9 @@ function sessionDetailHtml(s) {
       <div class="row between"><span class="badge neutral">${esc(cardioLabel(c))}</span>
         <button class="btn sm danger" data-act="w-del-session" data-id="${s.id}">Smazat</button></div>
       <div class="card2 mt">
-        <div>⏱ ${fmtNum(c.duration)} min${c.distance ? ` · 📏 ${fmtNum(c.distance, 2)} km` : ""}</div>
-        ${c.pace ? `<div class="muted">Tempo ${fmtNum(c.pace, 2)} min/km</div>` : ""}
-        ${c.calories ? `<div class="muted">🔥 ${fmtNum(c.calories)} kcal</div>` : ""}
+        <div><b>${fmtNum(c.duration)} min</b>${c.distance ? ` · ${fmtNum(c.distance, 2)} km` : ""}</div>
+        ${c.pace ? `<div class="muted">tempo ${fmtNum(c.pace, 2)} min/km</div>` : ""}
+        ${c.calories ? `<div class="muted">${fmtNum(c.calories)} kcal</div>` : ""}
       </div></div>`;
   }
   const blocks = s.entries.map(e => {
