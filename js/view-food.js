@@ -2,6 +2,7 @@
 "use strict";
 
 const FV = {
+  date: todayStr(),          // zobrazený/zapisovaný den (jen dnešek a zpětně)
   results: [],               // poslední výsledky vyhledávání
   pending: null,             // vybraná potravina čekající na množství
   editId: null,              // id upravovaného záznamu
@@ -12,16 +13,33 @@ function renderFood() {
   return renderFoodLog();
 }
 
-/* ---- Denní log — sekce podle jídel dne ---- */
+/* ---- Denní log — sekce podle jídel dne, s navigací po dnech zpětně ---- */
 function renderFoodLog() {
+  const day = FV.date;
   const today = todayStr();
-  const nut = dayNutrition(today);
+  const isToday = day === today;
+  const nut = dayNutrition(day);
   const g = S.goal;
   const over = nut.calories > g.dailyCalories * 1.05;
 
+  const dayNav = `
+    <div class="card" style="padding:10px 14px">
+      <div class="row between">
+        <button class="btn sm ghost" data-act="f-day-nav" data-dir="-1">‹</button>
+        <div class="center" style="position:relative;flex:1">
+          <b>${isToday ? "Dnes" : fmtDate(day)}</b>
+          ${isToday ? "" : `<div class="small">klepni pro výběr data</div>`}
+          <input type="date" data-change="f-date" value="${day}" max="${today}"
+            style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer">
+        </div>
+        <button class="btn sm ghost" data-act="f-day-nav" data-dir="1" ${isToday ? "disabled" : ""}>›</button>
+      </div>
+      ${isToday ? "" : `<button class="btn sm full mt" style="border-color:var(--green);color:var(--green)" data-act="f-day-today">Zpět na dnešek</button>`}
+    </div>`;
+
   const summary = `
     <div class="card">
-      <div class="h2">Dnešní příjem</div>
+      <div class="h2">${isToday ? "Dnešní příjem" : `Příjem · ${fmtDate(day)}`}</div>
       <div class="row between" style="align-items:baseline;margin-bottom:8px">
         <span class="big-num"${over ? ` style="color:var(--red)"` : ""}>${fmtNum(nut.calories)}</span>
         <span class="muted">z ${fmtNum(g.dailyCalories)} kcal</span>
@@ -77,15 +95,18 @@ function foodEntryName(e) {
 
 /* ---- Modal: přidání jídla ---- */
 function openAddFood(tab = "search") {
-  FV.pending = null; FV.editId = null;
+  FV.pending = null; FV.editId = null; FV.scanFile = null;
+  const body = { search: foodSearchHtml, photo: foodPhotoHtml, fav: foodFavHtml, manual: foodManualHtml }[tab]();
   openModal(`${modalTitle("Přidat jídlo")}
     <div class="subtabs" style="margin-bottom:12px">
       <button class="subtab${tab === "search" ? " on" : ""}" data-act="f-modal-tab" data-tab="search">Hledat</button>
+      <button class="subtab${tab === "photo" ? " on" : ""}" data-act="f-modal-tab" data-tab="photo">Foto</button>
       <button class="subtab${tab === "fav" ? " on" : ""}" data-act="f-modal-tab" data-tab="fav">Oblíbené</button>
       <button class="subtab${tab === "manual" ? " on" : ""}" data-act="f-modal-tab" data-tab="manual">Ručně</button>
     </div>
-    <div id="foodModalBody">${tab === "search" ? foodSearchHtml() : tab === "fav" ? foodFavHtml() : foodManualHtml()}</div>`);
+    <div id="foodModalBody">${body}</div>`);
   if (tab === "search") wireFoodSearch();
+  if (tab === "photo") wirePhotoInput();
 }
 
 function foodSearchHtml() {
@@ -135,18 +156,67 @@ function foodFavHtml() {
     </div>`).join("");
 }
 
-function foodManualHtml() {
+function foodManualHtml(pre = null) {
+  const v = (key, dec) => pre && pre[key] != null ? String(dec ? Math.round(pre[key] * 10) / 10 : pre[key]) : "";
   return `
-    <label class="field"><span>Název *</span><input class="input" id="mName" placeholder="např. Domácí guláš"></label>
+    <label class="field"><span>Název *</span><input class="input" id="mName" placeholder="např. Domácí guláš" value="${esc(v("name"))}"></label>
     <div class="input-row">
-      <label class="field"><span>kcal /100 g *</span><input class="input" id="mKcal" type="number" inputmode="decimal"></label>
-      <label class="field"><span>Bílkoviny /100 g</span><input class="input" id="mProt" type="number" inputmode="decimal"></label>
+      <label class="field"><span>kcal /100 g *</span><input class="input" id="mKcal" type="number" inputmode="decimal" value="${v("caloriesPer100g", 1)}"></label>
+      <label class="field"><span>Bílkoviny /100 g</span><input class="input" id="mProt" type="number" inputmode="decimal" value="${v("proteinPer100g", 1)}"></label>
     </div>
     <div class="input-row">
-      <label class="field"><span>Sacharidy /100 g</span><input class="input" id="mCarb" type="number" inputmode="decimal"></label>
-      <label class="field"><span>Tuky /100 g</span><input class="input" id="mFat" type="number" inputmode="decimal"></label>
+      <label class="field"><span>Sacharidy /100 g</span><input class="input" id="mCarb" type="number" inputmode="decimal" value="${v("carbsPer100g", 1)}"></label>
+      <label class="field"><span>Tuky /100 g</span><input class="input" id="mFat" type="number" inputmode="decimal" value="${v("fatPer100g", 1)}"></label>
     </div>
     <button class="btn primary full" data-act="f-manual-next">Pokračovat →</button>`;
+}
+
+/* ---- Foto etikety → Claude přečte hodnoty ---- */
+function foodPhotoHtml() {
+  return `
+    <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none">
+    <button class="btn ghost full" data-act="f-photo-pick" style="border-style:dashed;min-height:56px">Vyfotit / vybrat etiketu</button>
+    <div id="photoPreviewWrap" class="mt" style="display:none">
+      <img id="photoPreview" alt="Náhled etikety"
+        style="width:100%;max-height:260px;object-fit:contain;border-radius:16px;background:var(--bg2)">
+      <button class="btn primary full mt" data-act="f-scan">Přečíst etiketu</button>
+    </div>
+    <div id="photoStatus"></div>
+    <p class="small mt">Fotku nutriční tabulky přečte Claude a předvyplní hodnoty na 100 g —
+    před uložením je zkontroluješ. Vyžaduje Claude API klíč (Nastavení).</p>`;
+}
+
+function wirePhotoInput() {
+  const inp = document.getElementById("photoInput");
+  inp.addEventListener("change", () => {
+    const file = inp.files && inp.files[0];
+    if (!file) return;
+    FV.scanFile = file;
+    const img = document.getElementById("photoPreview");
+    img.src = URL.createObjectURL(file);
+    document.getElementById("photoPreviewWrap").style.display = "";
+    document.getElementById("photoStatus").innerHTML = "";
+  });
+}
+
+async function runLabelScan() {
+  if (!FV.scanFile) { toast("Nejdřív vyfoť nebo vyber etiketu", "err"); return; }
+  const status = document.getElementById("photoStatus");
+  status.innerHTML = `<div class="spin" style="margin:16px auto 6px"></div>
+    <div class="small center">Claude čte etiketu…</div>`;
+  try {
+    const r = await FoodAPI.scanLabel(FV.scanFile);
+    // přepnutí na ruční formulář s předvyplněnými hodnotami ke kontrole
+    document.getElementById("foodModalBody").innerHTML = `
+      <div class="card2" style="margin-bottom:12px">
+        <span class="badge green">Přečteno z fotky</span>
+        ${r.note ? `<div class="small mt">${esc(r.note)}</div>` : ""}
+        <div class="small mt">Zkontroluj hodnoty, případně je uprav, a pokračuj.</div>
+      </div>
+      ${foodManualHtml(r)}`;
+  } catch (e) {
+    status.innerHTML = `<div class="small mt" style="color:var(--red)">${esc(e.message)}</div>`;
+  }
 }
 
 /* ---- Krok množství (společný pro všechny cesty) ---- */

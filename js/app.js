@@ -122,6 +122,8 @@ const ACTIONS = {
   /* ---- Jídlo ---- */
   "f-add": () => openAddFood("search"),
   "f-modal-tab": d => openAddFood(d.tab),
+  "f-photo-pick": () => document.getElementById("photoInput").click(),
+  "f-scan": () => runLabelScan(),
   "f-meal-chip": d => {
     FV.mealChoice = d.meal || null;
     document.querySelectorAll(".mealchip").forEach(c =>
