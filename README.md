@@ -46,6 +46,7 @@ Data se pak automaticky ukládají do Sheetu při každé změně a načítají 
 
 - **Open Food Facts** — balené/značkové produkty, bez klíče.
 - **USDA FoodData Central** — základní potraviny. Bez klíče se používá `DEMO_KEY` (30 dotazů/hod). Vlastní klíč zdarma na <https://fdc.nal.usda.gov/api-key-signup.html> → vlož v appce do Nastavení.
+- **Foto etikety (Claude)** — vyfoť nutriční tabulku a Claude z ní přečte hodnoty na 100 g; ty je zkontroluješ, zadáš snědené gramy a appka makra přepočítá. Vyžaduje Claude API klíč z <https://console.anthropic.com> (Nastavení → Claude API klíč; ukládá se jen lokálně). Jeden sken stojí zlomek centu (model Haiku).
 - Ruční zápis jako fallback (Jídlo → Přidat jídlo → Ručně).
 
 ## Zálohy

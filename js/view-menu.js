@@ -1,7 +1,7 @@
 /* ===== Obrazovky z hamburger menu ===== */
 "use strict";
 
-const APP_VERSION = "1.4.0";
+const APP_VERSION = "1.5.0";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -330,7 +330,10 @@ function renderSettings() {
         </select></label>
       <label class="field"><span>USDA FoodData Central API klíč</span>
         <input class="input" id="setUsda" placeholder="prázdné = DEMO_KEY (30 dotazů/hod)" value="${esc(st.usdaApiKey)}"></label>
-      <p class="small" style="margin:0">Klíč zdarma: fdc.nal.usda.gov/api-key-signup.html</p>
+      <p class="small" style="margin:0 0 12px">Klíč zdarma: fdc.nal.usda.gov/api-key-signup.html</p>
+      <label class="field"><span>Claude API klíč (čtení etiket z fotky)</span>
+        <input class="input" id="setAnthropic" type="password" placeholder="sk-ant-…" value="${esc(st.anthropicApiKey)}"></label>
+      <p class="small" style="margin:0">Klíč vytvoříš na console.anthropic.com. Ukládá se jen v tomto zařízení a posílá se pouze na api.anthropic.com.</p>
     </div>
     <button class="btn primary full" data-act="set-save">Uložit nastavení</button>`;
 }
@@ -339,6 +342,7 @@ function saveSettings() {
   Settings.set({
     gasWebAppUrl: document.getElementById("setGas").value.trim(),
     usdaApiKey: document.getElementById("setUsda").value.trim(),
+    anthropicApiKey: document.getElementById("setAnthropic").value.trim(),
     weightUnit: document.getElementById("setUnit").value
   });
   S.goal = {
