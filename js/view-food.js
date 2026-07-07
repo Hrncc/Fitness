@@ -2,6 +2,7 @@
 "use strict";
 
 const FV = {
+  date: todayStr(),          // zobrazený/zapisovaný den (jen dnešek a zpětně)
   results: [],               // poslední výsledky vyhledávání
   pending: null,             // vybraná potravina čekající na množství
   editId: null,              // id upravovaného záznamu
@@ -12,16 +13,33 @@ function renderFood() {
   return renderFoodLog();
 }
 
-/* ---- Denní log — sekce podle jídel dne ---- */
+/* ---- Denní log — sekce podle jídel dne, s navigací po dnech zpětně ---- */
 function renderFoodLog() {
+  const day = FV.date;
   const today = todayStr();
-  const nut = dayNutrition(today);
+  const isToday = day === today;
+  const nut = dayNutrition(day);
   const g = S.goal;
   const over = nut.calories > g.dailyCalories * 1.05;
 
+  const dayNav = `
+    <div class="card" style="padding:10px 14px">
+      <div class="row between">
+        <button class="btn sm ghost" data-act="f-day-nav" data-dir="-1">‹</button>
+        <div class="center" style="position:relative;flex:1">
+          <b>${isToday ? "Dnes" : fmtDate(day)}</b>
+          ${isToday ? "" : `<div class="small">klepni pro výběr data</div>`}
+          <input type="date" data-change="f-date" value="${day}" max="${today}"
+            style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer">
+        </div>
+        <button class="btn sm ghost" data-act="f-day-nav" data-dir="1" ${isToday ? "disabled" : ""}>›</button>
+      </div>
+      ${isToday ? "" : `<button class="btn sm full mt" style="border-color:var(--green);color:var(--green)" data-act="f-day-today">Zpět na dnešek</button>`}
+    </div>`;
+
   const summary = `
     <div class="card">
-      <div class="h2">Dnešní příjem</div>
+      <div class="h2">${isToday ? "Dnešní příjem" : `Příjem · ${fmtDate(day)}`}</div>
       <div class="row between" style="align-items:baseline;margin-bottom:8px">
         <span class="big-num"${over ? ` style="color:var(--red)"` : ""}>${fmtNum(nut.calories)}</span>
         <span class="muted">z ${fmtNum(g.dailyCalories)} kcal</span>
@@ -34,7 +52,7 @@ function renderFoodLog() {
       </div>
     </div>`;
 
-  const entries = foodLogOn(today);
+  const entries = foodLogOn(day);
   const entryRow = e => `
     <div class="list-item">
       <div class="grow">
@@ -66,7 +84,8 @@ function renderFoodLog() {
       ${unassigned.map(entryRow).join("")}
     </div>` : "";
 
-  return `<button class="btn primary full" style="margin-bottom:14px" data-act="f-add">+ Přidat jídlo</button>`
+  return dayNav
+    + `<button class="btn primary full" style="margin-bottom:14px" data-act="f-add">+ Přidat jídlo${isToday ? "" : ` · ${fmtDate(day)}`}</button>`
     + summary + mealCards + unassignedCard;
 }
 
@@ -249,7 +268,7 @@ function saveAmount() {
   } else {
     const foodItemId = item.id || upsertFood(item);
     S.foodLog.push({
-      id: uid(), date: todayStr(), mealType: meal,
+      id: uid(), date: FV.date, mealType: meal,
       foodItemId, amountGrams: grams,
       calories: Math.round((item.caloriesPer100g || 0) * k),
       protein: r1(item.proteinPer100g), carbs: r1(item.carbsPer100g), fat: r1(item.fatPer100g)
@@ -259,7 +278,7 @@ function saveAmount() {
   save();
   closeModal();
   render();
-  toast("Zapsáno ✓", "ok");
+  toast(FV.date === todayStr() ? "Zapsáno ✓" : `Zapsáno k ${fmtDate(FV.date)} ✓`, "ok");
 }
 
 function manualFoodNext() {
