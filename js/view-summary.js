@@ -176,7 +176,7 @@ function openDaySummary(ds) {
   openModal(`${modalTitle(fmtDate(ds))}
     <div class="h3">Trénink</div>${workoutHtml}
     <div class="h3" style="margin-top:18px">Strava</div>${foodDayHtml(ds)}
-    ${ds <= todayStr() ? `<button class="btn primary full mt" data-act="sum-add-food" data-date="${ds}">+ Přidat jídlo do tohoto dne</button>` : ""}`);
+    <button class="btn primary full mt" data-act="sum-add-food" data-date="${ds}">+ Přidat jídlo do tohoto dne</button>`);
 }
 
 function prCountInRange(from) {

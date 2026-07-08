@@ -22,17 +22,18 @@ function renderFoodLog() {
   const g = S.goal;
   const over = nut.calories > g.dailyCalories * 1.05;
 
+  const hint = isToday ? "" : (day > today ? "budoucí den · plánování" : "klepni pro výběr data");
   const dayNav = `
     <div class="card" style="padding:10px 14px">
       <div class="row between">
         <button class="btn sm ghost" data-act="f-day-nav" data-dir="-1">‹</button>
         <div class="center" style="position:relative;flex:1">
           <b>${isToday ? "Dnes" : fmtDate(day)}</b>
-          ${isToday ? "" : `<div class="small">klepni pro výběr data</div>`}
-          <input type="date" data-change="f-date" value="${day}" max="${today}"
+          ${hint ? `<div class="small">${hint}</div>` : ""}
+          <input type="date" data-change="f-date" value="${day}"
             style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer">
         </div>
-        <button class="btn sm ghost" data-act="f-day-nav" data-dir="1" ${isToday ? "disabled" : ""}>›</button>
+        <button class="btn sm ghost" data-act="f-day-nav" data-dir="1">›</button>
       </div>
       ${isToday ? "" : `<button class="btn sm full mt" style="border-color:var(--green);color:var(--green)" data-act="f-day-today">Zpět na dnešek</button>`}
     </div>`;

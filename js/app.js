@@ -128,9 +128,7 @@ const ACTIONS = {
 
   /* ---- Jídlo ---- */
   "f-day-nav": d => {
-    const nd = addDays(FV.date, Number(d.dir));
-    if (nd > todayStr()) return;
-    FV.date = nd;
+    FV.date = addDays(FV.date, Number(d.dir));
     render();
   },
   "f-day-today": () => { FV.date = todayStr(); render(); },
@@ -237,7 +235,7 @@ document.addEventListener("change", e => {
   if (!t) return;
   if (t.dataset.change === "s-exercise") { SV.exerciseId = t.value; render(); }
   if (t.dataset.change === "f-date") {
-    if (t.value && t.value <= todayStr()) { FV.date = t.value; render(); }
+    if (t.value) { FV.date = t.value; render(); }
   }
 });
 
