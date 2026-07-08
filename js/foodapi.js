@@ -6,34 +6,64 @@
 const FoodAPI = {
   APP_UA: "FitnessLogPWA/1.0 (martas.hrncir@icloud.com)",
 
-  /* --- Open Food Facts — full-text search (legacy v1) --- */
+  /* --- Open Food Facts — full-text search (legacy v1) ---
+     Nejdřív česká databáze (cz.), při málo výsledcích doplní světová. */
   async searchOFF(query) {
+    let list = await this._offQuery("https://cz.openfoodfacts.org", query);
+    if (list.length < 3) {
+      const world = await this._offQuery("https://world.openfoodfacts.org", query);
+      const seen = new Set(list.map(x => x.sourceId));
+      list = list.concat(world.filter(x => !seen.has(x.sourceId)));
+    }
+    return list.slice(0, 12);
+  },
+
+  async _offQuery(base, query) {
     // Vlastní User-Agent hlavičku nelze z prohlížeče poslat (vyvolala by CORS
     // preflight, který search.pl neobslouží) — posílá se UA prohlížeče a appka
     // se identifikuje parametrem app_name dle doporučení OFF pro webové appky.
-    const url = "https://world.openfoodfacts.org/cgi/search.pl"
+    const url = base + "/cgi/search.pl"
       + "?search_terms=" + encodeURIComponent(query)
-      + "&json=1&page_size=10&action=process"
+      + "&json=1&page_size=10&action=process&lc=cs"
       + "&fields=code,product_name,brands,nutriments,serving_size"
       + "&app_name=" + encodeURIComponent(this.APP_UA);
     const res = await fetch(url);
     if (!res.ok) throw new Error("OFF HTTP " + res.status);
     const data = await res.json();
-    return (data.products || []).map(p => {
-      const n = p.nutriments || {};
-      let kcal = num(n["energy-kcal_100g"]);
-      if (kcal == null && n["energy_100g"] != null) kcal = num(n["energy_100g"]) / 4.184; // kJ → kcal
-      return {
-        source: "openfoodfacts",
-        sourceId: p.code || null,
-        name: [p.product_name, p.brands].filter(Boolean).join(" — ") || "(bez názvu)",
-        caloriesPer100g: round1(kcal),
-        proteinPer100g: round1(num(n["proteins_100g"])),
-        carbsPer100g: round1(num(n["carbohydrates_100g"])),
-        fatPer100g: round1(num(n["fat_100g"])),
-        servingSize: p.serving_size || null
-      };
-    }).filter(f => f.caloriesPer100g != null);
+    return (data.products || []).map(p => this._mapOFF(p)).filter(f => f && f.caloriesPer100g != null);
+  },
+
+  _mapOFF(p) {
+    const n = p.nutriments || {};
+    let kcal = num(n["energy-kcal_100g"]);
+    if (kcal == null && n["energy_100g"] != null) kcal = num(n["energy_100g"]) / 4.184; // kJ → kcal
+    // "30 g" / "250ml" → velikost porce v gramech (ml ≈ g)
+    const m = /([\d]+[.,]?\d*)\s*(g|ml)/i.exec(p.serving_size || "");
+    return {
+      source: "openfoodfacts",
+      sourceId: p.code || null,
+      name: [p.product_name, p.brands].filter(Boolean).join(" — ") || "(bez názvu)",
+      caloriesPer100g: round1(kcal),
+      proteinPer100g: round1(num(n["proteins_100g"])),
+      carbsPer100g: round1(num(n["carbohydrates_100g"])),
+      fatPer100g: round1(num(n["fat_100g"])),
+      servingSize: p.serving_size || null,
+      servingGrams: m ? round1(parseFloat(m[1].replace(",", "."))) : null,
+      servingName: p.serving_size || null
+    };
+  },
+
+  /* --- Detail produktu podle čárového kódu (OFF v2) --- */
+  async lookupBarcode(code) {
+    const url = "https://world.openfoodfacts.org/api/v2/product/" + encodeURIComponent(code)
+      + ".json?fields=code,product_name,brands,nutriments,serving_size";
+    const res = await fetch(url);
+    if (!res.ok && res.status !== 404) throw new Error("OFF HTTP " + res.status);
+    const data = await res.json().catch(() => ({}));
+    if (data.status !== 1 || !data.product) throw new Error("Produkt s tímto kódem není v databázi");
+    const item = this._mapOFF(data.product);
+    if (item.caloriesPer100g == null) throw new Error("Produkt nemá vyplněné nutriční hodnoty");
+    return item;
   },
 
   /* --- USDA FoodData Central — Foundation + SR Legacy --- */
@@ -98,7 +128,30 @@ Pokud tabulka uvádí hodnoty jen na porci, přepočítej je na 100 g podle uved
 "found" = false, pokud na fotce žádná nutriční tabulka není.
 "note" = krátké upozornění česky (např. přepočteno z porce, hůř čitelné hodnoty) — jinak prázdný řetězec.`,
 
-  async scanLabel(file) {
+  MEAL_SCHEMA: {
+    type: "object",
+    properties: {
+      found: { type: "boolean" },
+      name: { type: "string" },
+      estimatedGrams: { type: "number" },
+      caloriesPer100g: { type: "number" },
+      proteinPer100g: { type: "number" },
+      carbsPer100g: { type: "number" },
+      fatPer100g: { type: "number" },
+      note: { type: "string" }
+    },
+    required: ["found", "name", "estimatedGrams", "caloriesPer100g", "proteinPer100g", "carbsPer100g", "fatPer100g", "note"],
+    additionalProperties: false
+  },
+
+  MEAL_PROMPT: `Na fotce je jídlo (talíř, miska, svačina…). Odhadni jeho nutriční složení:
+- "name": krátký český název jídla (např. "Kuřecí s rýží a zeleninou")
+- "estimatedGrams": odhad celkové hmotnosti porce na fotce v gramech
+- hodnoty NA 100 g: kcal, bílkoviny, sacharidy, tuky (v gramech)
+- "note": krátce česky, z čeho odhad vychází a jak je nejistý
+"found" = false, pokud na fotce žádné jídlo není.`,
+
+  async _claudeVision(file, prompt, schema) {
     const key = (Settings.get().anthropicApiKey || "").trim();
     if (!key) throw new Error("Chybí Claude API klíč — vlož ho v Nastavení");
     const base64 = await imageToJpegBase64(file);
@@ -113,12 +166,12 @@ Pokud tabulka uvádí hodnoty jen na porci, přepočítej je na 100 g podle uved
       body: JSON.stringify({
         model: "claude-haiku-4-5",
         max_tokens: 1024,
-        output_config: { format: { type: "json_schema", schema: this.LABEL_SCHEMA } },
+        output_config: { format: { type: "json_schema", schema } },
         messages: [{
           role: "user",
           content: [
             { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64 } },
-            { type: "text", text: this.LABEL_PROMPT }
+            { type: "text", text: prompt }
           ]
         }]
       })
@@ -127,9 +180,21 @@ Pokud tabulka uvádí hodnoty jen na porci, přepočítej je na 100 g podle uved
     if (!res.ok) throw new Error((data.error && data.error.message) || "HTTP " + res.status);
     if (data.stop_reason === "refusal") throw new Error("Model fotku odmítl zpracovat");
     const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
-    const out = JSON.parse(text);
+    return JSON.parse(text);
+  },
+
+  async scanLabel(file) {
+    const out = await this._claudeVision(file, this.LABEL_PROMPT, this.LABEL_SCHEMA);
     if (!out.found || !out.caloriesPer100g) {
       throw new Error(out.note || "Na fotce se nepodařilo najít nutriční tabulku");
+    }
+    return out;
+  },
+
+  async scanMeal(file) {
+    const out = await this._claudeVision(file, this.MEAL_PROMPT, this.MEAL_SCHEMA);
+    if (!out.found || !out.caloriesPer100g) {
+      throw new Error(out.note || "Na fotce se nepodařilo rozpoznat jídlo");
     }
     return out;
   },

@@ -68,6 +68,8 @@ function defaultState() {
     foods: [],         // FoodItem (knihovna: oblíbené, vlastní, použité z API)
     foodLog: [],       // FoodLogEntry
     bodyLog: [],       // { date, weightKg } — denní tělesná váha, max 1 záznam na den
+    recipes: [],       // { id, name, portions, items: [{ foodItemId, grams }] }
+    deletedIds: [],    // tombstony smazaných záznamů (pro slévání při syncu)
     goal: { dailyCalories: 2500, proteinGrams: 150, carbsGrams: 280, fatGrams: 80 },
     activeSession: null
   };
@@ -109,6 +111,44 @@ function getExercise(id) { return S.exercises.find(e => e.id === id); }
 function exName(id) { const e = getExercise(id); return e ? e.name : "(smazaný cvik)"; }
 function getTemplate(id) { return S.templates.find(t => t.id === id); }
 function getFood(id) { return S.foods.find(f => f.id === id); }
+function getRecipe(id) { return S.recipes.find(r => r.id === id); }
+
+/* Tombston pro sync — aby se smazaný záznam nevrátil z druhého zařízení */
+function markDeleted(id) {
+  if (!id) return;
+  S.deletedIds.push(id);
+  if (S.deletedIds.length > 500) S.deletedIds = S.deletedIds.slice(-500);
+}
+
+/* Poslední zapsané série daného cviku (mimo aktivní session) — pro hint „minule" */
+function lastExerciseSets(exerciseId, excludeSessionId) {
+  let best = null;
+  for (const s of S.sessions) {
+    if (s.type !== "weights" || s.id === excludeSessionId) continue;
+    for (const e of s.entries) {
+      if (e.exerciseId === exerciseId && (e.sets || []).length) {
+        if (!best || s.date > best.date) best = { date: s.date, sets: e.sets };
+      }
+    }
+  }
+  return best;
+}
+
+/* Součty receptu (gramy + makra) přes položky z knihovny */
+function recipeTotals(r) {
+  const t = { grams: 0, kcal: 0, protein: 0, carbs: 0, fat: 0 };
+  for (const it of r.items || []) {
+    const f = getFood(it.foodItemId);
+    if (!f || !it.grams) continue;
+    const k = it.grams / 100;
+    t.grams += it.grams;
+    t.kcal += (f.caloriesPer100g || 0) * k;
+    t.protein += (f.proteinPer100g || 0) * k;
+    t.carbs += (f.carbsPer100g || 0) * k;
+    t.fat += (f.fatPer100g || 0) * k;
+  }
+  return t;
+}
 
 function sessionsOn(date) { return S.sessions.filter(s => s.date === date); }
 function foodLogOn(date) { return S.foodLog.filter(f => f.date === date); }
@@ -221,6 +261,8 @@ function upsertFood(item) {
     proteinPer100g: item.proteinPer100g,
     carbsPer100g: item.carbsPer100g,
     fatPer100g: item.fatPer100g,
+    servingGrams: item.servingGrams || null,   // velikost porce v g (pro zadávání po kusech)
+    servingName: item.servingName || null,
     isFavorite: false
   };
   S.foods.push(f);
