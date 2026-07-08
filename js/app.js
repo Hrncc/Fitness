@@ -66,6 +66,13 @@ const ACTIONS = {
     render();
   },
   "sum-cal-day": d => openDaySummary(d.date),
+  "sum-add-food": d => {
+    FV.date = d.date;
+    App.route = { tab: "food", page: null };
+    closeModal();
+    render();
+    openAddFood("search");
+  },
 
   /* tělesná váha */
   "bw-open": () => openBodyWeightModal(),
@@ -120,6 +127,11 @@ const ACTIONS = {
   },
 
   /* ---- Jídlo ---- */
+  "f-day-nav": d => {
+    FV.date = addDays(FV.date, Number(d.dir));
+    render();
+  },
+  "f-day-today": () => { FV.date = todayStr(); render(); },
   "f-add": () => openAddFood("search"),
   "f-modal-tab": d => openAddFood(d.tab),
   "f-photo-pick": () => document.getElementById("photoInput").click(),
@@ -222,6 +234,9 @@ document.addEventListener("change", e => {
   const t = e.target.closest("[data-change]");
   if (!t) return;
   if (t.dataset.change === "s-exercise") { SV.exerciseId = t.value; render(); }
+  if (t.dataset.change === "f-date") {
+    if (t.value) { FV.date = t.value; render(); }
+  }
 });
 
 document.getElementById("modalBackdrop").addEventListener("click", closeModal);
