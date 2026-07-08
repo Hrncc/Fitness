@@ -1,14 +1,16 @@
 /* ===== UI komponenty: modal, toast, kalendář, progress bary, SVG grafy ===== */
 "use strict";
 
-/* ---- Toast ---- */
+/* ---- Toast (volitelně s akčním tlačítkem, např. Vrátit) ---- */
 let _toastTimer;
-function toast(msg, kind = "") {
+function toast(msg, kind = "", action = null) {
   const t = document.getElementById("toast");
-  t.textContent = msg;
+  t.innerHTML = esc(msg) + (action
+    ? ` <button class="toast-btn" data-act="${action.act}">${esc(action.label)}</button>` : "");
   t.className = "toast show" + (kind ? " " + kind : "");
+  t.style.pointerEvents = action ? "auto" : "none";
   clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+  _toastTimer = setTimeout(() => t.classList.remove("show"), action ? 6000 : 2600);
 }
 
 /* ---- Modal (bottom sheet) ---- */
@@ -91,12 +93,16 @@ function barChart(data, { color = "chart", height = 170, unit = "" } = {}) {
   return `<div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${bars}${labels}</svg></div>`;
 }
 
-/* Spojnicový graf: series = [{date, value}], volitelná cílová linka */
-function lineChart(series, { color = "chart", height = 180, goal = null } = {}) {
+/* Spojnicový graf: series = [{date, value}], volitelná cílová linka.
+   raw = druhá sada bodů (stejné indexy jako series) vykreslená jako tlumené tečky —
+   používá se pro denní hodnoty váhy pod klouzavým průměrem. */
+function lineChart(series, { color = "chart", height = 180, goal = null, raw = null } = {}) {
   const pts = series.filter(p => p.value != null);
   if (pts.length < 2) return `<div class="empty-note">Potřebuji alespoň 2 záznamy pro graf</div>`;
   const W = 600, H = height, padL = 8, padR = 8, padT = 14, padB = 22;
-  const vals = pts.map(p => p.value).concat(goal ? [goal] : []);
+  const vals = pts.map(p => p.value)
+    .concat(goal ? [goal] : [])
+    .concat(raw ? raw.filter(p => p.value != null).map(p => p.value) : []);
   const min = Math.min(...vals) * 0.92, max = Math.max(...vals) * 1.05 || 1;
   const x = i => padL + (i / (pts.length - 1)) * (W - padL - padR);
   const y = v => padT + (1 - (v - min) / (max - min || 1)) * (H - padT - padB);
@@ -110,10 +116,16 @@ function lineChart(series, { color = "chart", height = 180, goal = null } = {}) 
   }
   const dots = pts.map((p, i) =>
     `<circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="3.2" fill="var(--${color})"/>`).join("");
+  let rawDots = "";
+  if (raw) {
+    rawDots = raw.map((p, i) => p.value == null ? "" :
+      `<circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="2.4" fill="var(--text3)" opacity="0.7"/>`).join("");
+  }
   const firstLbl = pts[0].date ? fmtDate(pts[0].date) : "";
   const lastLbl = pts[pts.length - 1].date ? fmtDate(pts[pts.length - 1].date) : "";
   return `<div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
     ${extra}
+    ${rawDots}
     <path d="${path}" fill="none" stroke="var(--${color})" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
     ${dots}
     <text x="${padL}" y="${H - 6}" font-size="11" fill="var(--text3)">${firstLbl}</text>

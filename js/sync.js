@@ -1,10 +1,41 @@
 /* ===== Cloud sync — Google Apps Script Web App =====
-   Strategie: last-write-wins podle updatedAt. Celý stav se ukládá/čte najednou.
-   POST záměrně bez Content-Type application/json (text/plain nevyvolá CORS preflight,
-   který GAS neumí obsloužit). */
+   Strategie: záznamové kolekce (tréninky, jídla, váha…) se slévají podle id,
+   takže změny ze dvou zařízení se neztratí. Smazané záznamy hlídají tombstony
+   (deletedIds). Skalární pole (cíl, aktivní session) bere novější stav.
+   POST záměrně bez Content-Type application/json (text/plain nevyvolá CORS
+   preflight, který GAS neumí obsloužit). */
 "use strict";
 
 const DIRTY_KEY = "fitapp_dirty";
+
+/* Sloučení lokálního a cloudového stavu */
+function mergeStates(local, cloud) {
+  if (!cloud) return local;
+  const localNewer = (local.updatedAt || 0) >= (cloud.updatedAt || 0);
+  const newer = localNewer ? local : cloud;
+  const older = localNewer ? cloud : local;
+  const tomb = new Set([...(local.deletedIds || []), ...(cloud.deletedIds || [])]);
+
+  // sjednocení podle klíče; při konfliktu stejného id vyhrává novější stav
+  const byId = (key, idOf = x => x.id) => {
+    const map = new Map();
+    for (const x of (older[key] || [])) map.set(idOf(x), x);
+    for (const x of (newer[key] || [])) map.set(idOf(x), x);
+    return [...map.values()].filter(x => !tomb.has(idOf(x)));
+  };
+
+  const out = Object.assign({}, older, newer); // skaláry (goal, activeSession…) z novějšího
+  out.exercises = byId("exercises");
+  out.templates = byId("templates");
+  out.sessions = byId("sessions").sort((a, b) => a.date.localeCompare(b.date));
+  out.foods = byId("foods");
+  out.foodLog = byId("foodLog");
+  out.recipes = byId("recipes");
+  out.bodyLog = byId("bodyLog", x => x.date).sort((a, b) => a.date.localeCompare(b.date));
+  out.deletedIds = [...tomb].slice(-500);
+  out.updatedAt = Math.max(local.updatedAt || 0, cloud.updatedAt || 0);
+  return out;
+}
 
 const Sync = {
   status: "off",       // off | ok | pending | error
@@ -61,12 +92,14 @@ const Sync = {
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || "Server vrátil chybu");
       const cloud = data.state;
-      if (cloud && (cloud.updatedAt || 0) > (S.updatedAt || 0)) {
-        replaceState(cloud);
+      if (cloud) {
+        const merged = mergeStates(S, cloud);
+        const changedVsCloud = JSON.stringify(merged) !== JSON.stringify(Object.assign(defaultState(), cloud));
+        replaceState(merged);
         document.dispatchEvent(new CustomEvent("staterefresh"));
-      } else if ((S.updatedAt || 0) > ((cloud && cloud.updatedAt) || 0)) {
-        // lokální data jsou novější → nahraj je
-        this.scheduleSave();
+        if (changedVsCloud) this.scheduleSave(); // lokální novinky pošli zpět
+      } else if ((S.updatedAt || 0) > 0) {
+        this.scheduleSave(); // v cloudu ještě nic není → nahraj lokální stav
       }
       if (!localStorage.getItem(DIRTY_KEY)) this.setStatus("ok");
       return true;

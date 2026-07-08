@@ -144,27 +144,72 @@ function renderSummary() {
       ${lineChart(kcalSeries, { color: "chart", goal: S.goal.dailyCalories })}
     </div>`;
 
-  /* -- tělesná váha -- */
+  /* -- tělesná váha: denní hodnoty (tečky) + 7denní klouzavý průměr (křivka) -- */
   const inRangeW = S.bodyLog.filter(b => b.date >= from);
-  const wSeries = (inRangeW.length >= 2 ? inRangeW : S.bodyLog)
-    .map(b => ({ date: b.date, value: Math.round(kgOut(b.weightKg) * 10) / 10 }));
+  const wl = inRangeW.length >= 2 ? inRangeW : S.bodyLog;
+  const maSeries = wl.map(b => {
+    const v = movingAvgAt(S.bodyLog, b.date);
+    return { date: b.date, value: v == null ? null : Math.round(kgOut(v) * 10) / 10 };
+  });
+  const rawSeries = wl.map(b => ({ date: b.date, value: Math.round(kgOut(b.weightKg) * 10) / 10 }));
   const latest = lastBodyWeight();
   let weightDelta = "";
   if (inRangeW.length >= 2) {
-    const diff = kgOut(inRangeW[inRangeW.length - 1].weightKg) - kgOut(inRangeW[0].weightKg);
-    weightDelta = `<div class="stat"><div class="val">${diff > 0 ? "+" : ""}${fmtNum(diff, 1)} ${weightUnit()}</div><div class="lbl">změna za ${days} dní</div></div>`;
+    const d1 = movingAvgAt(S.bodyLog, inRangeW[0].date);
+    const d2 = movingAvgAt(S.bodyLog, inRangeW[inRangeW.length - 1].date);
+    const diff = kgOut(d2) - kgOut(d1);
+    weightDelta = `<div class="stat"><div class="val">${diff > 0 ? "+" : ""}${fmtNum(diff, 1)} ${weightUnit()}</div><div class="lbl">trend za ${days} dní</div></div>`;
   }
   const weightCard = `
     <div class="card">
-      <div class="h2">Tělesná váha</div>
+      <div class="h2">Tělesná váha <span class="small">(křivka = 7denní průměr, tečky = denní)</span></div>
       <div class="stat-grid">
         <div class="stat"><div class="val">${latest ? fmtWeight(latest.weightKg, false) : "—"} ${weightUnit()}</div><div class="lbl">aktuální (${latest ? fmtDate(latest.date) : "bez záznamu"})</div></div>
         ${weightDelta || `<div class="stat"><div class="val">${S.bodyLog.length}</div><div class="lbl">záznamů celkem</div></div>`}
       </div>
-      <div class="mt">${lineChart(wSeries, { color: "chart" })}</div>
+      <div class="mt">${lineChart(maSeries, { color: "chart", raw: rawSeries })}</div>
     </div>`;
 
-  return rangeTabs + calendarCard + workoutStats + volumeChart + exerciseChart + prCard + weightCard + foodStats + foodChart;
+  /* -- bilance po týdnech: Ø příjem vs změna vážního trendu -- */
+  const weekRows = [];
+  const mon0 = mondayOf(todayStr());
+  for (let i = 3; i >= 0; i--) {
+    const start = addDays(mon0, -7 * i);
+    const end = addDays(start, 6);
+    const kcals = [];
+    for (let dd = start; dd <= end && dd <= todayStr(); dd = addDays(dd, 1)) {
+      const n = dayNutrition(dd);
+      if (n.count) kcals.push(n.calories);
+    }
+    const avgKcal = kcals.length ? Math.round(kcals.reduce((a, b) => a + b, 0) / kcals.length) : null;
+    const m1 = movingAvgAt(S.bodyLog, start);
+    const m2 = movingAvgAt(S.bodyLog, end);
+    const dW = (m1 != null && m2 != null) ? kgOut(m2) - kgOut(m1) : null;
+    if (avgKcal == null && dW == null) continue;
+    const s = parseDate(start), e = parseDate(end);
+    weekRows.push(`
+      <div class="list-item">
+        <div class="grow name">${s.getDate()}.${s.getMonth() + 1}.–${e.getDate()}.${e.getMonth() + 1}.</div>
+        <span class="small" style="font-weight:700">${avgKcal != null ? `Ø ${fmtNum(avgKcal)} kcal` : "—"}</span>
+        <span style="font-weight:700;min-width:80px;text-align:right">${dW != null ? `${dW > 0 ? "+" : ""}${fmtNum(dW, 1)} ${weightUnit()}` : "—"}</span>
+      </div>`);
+  }
+  const balanceCard = weekRows.length ? `
+    <div class="card">
+      <div class="h2">Bilance po týdnech <span class="small">(Ø příjem · změna váhy)</span></div>
+      ${weekRows.join("")}
+      <p class="small mt">Změna váhy je počítaná ze 7denního průměru, ne z denních výkyvů.</p>
+    </div>` : "";
+
+  return rangeTabs + calendarCard + workoutStats + volumeChart + exerciseChart + prCard + weightCard + balanceCard + foodStats + foodChart;
+}
+
+/* 7denní klouzavý průměr váhy k danému datu (kg); null bez záznamů v okně */
+function movingAvgAt(list, date) {
+  const from = addDays(date, -6);
+  const win = list.filter(x => x.date >= from && x.date <= date);
+  if (!win.length) return null;
+  return win.reduce((s, x) => s + x.weightKg, 0) / win.length;
 }
 
 /* Detail dne: tréninky + strava v jednom modalu */

@@ -33,12 +33,14 @@ icons/                ikony PWA
 
 ## Cloud sync (Google Sheets)
 
+Podrobný návod krok za krokem: **[SETUP_SYNC.md](SETUP_SYNC.md)**. Ve zkratce:
+
 1. Vytvoř nový Google Sheet.
 2. **Rozšíření → Apps Script**, vlož obsah `apps-script/Code.gs`, ulož.
 3. **Nasadit → Nové nasazení → Webová aplikace**: Spustit jako **Já**, přístup **Kdokoli**.
 4. Zkopíruj URL webové aplikace (`…/exec`) a vlož ji v appce do **Nastavení → Apps Script Web App URL**.
 
-Data se pak automaticky ukládají do Sheetu při každé změně a načítají při startu (novější verze vyhrává). Indikátor stavu je tečka v horní liště: 🟢 ok, 🟡 probíhá, 🔴 offline/chyba.
+Data se ukládají při každé změně a načítají při startu. Změny z více zařízení se **slévají podle záznamů** (nic se nepřepíše), smazané položky hlídají tombstony. Skript navíc drží **denní zálohy** za posledních 7 dní (skryté listy `SNAP_…`). Indikátor stavu je tečka v horní liště: 🟢 ok, 🟡 probíhá, 🔴 offline/chyba.
 
 > ⚠️ Exec URL funguje jako přístupový klíč — ukládá se jen lokálně v zařízení, nikam ji nesdílej a nedávej do veřejného repozitáře.
 

@@ -48,6 +48,18 @@ function openDrawer(open) {
   document.getElementById("drawerBackdrop").classList.toggle("open", open);
 }
 
+/* ===== Undo — mazání bez potvrzovacích dialogů =====
+   Před destruktivní operací se uloží snapshot stavu; toast nabídne Vrátit. */
+let UNDO_SNAP = null;
+function withUndo(msg, fn) {
+  const snap = JSON.stringify(S);
+  fn();
+  save();
+  render();
+  UNDO_SNAP = snap;
+  toast(msg, "", { label: "Vrátit", act: "app-undo" });
+}
+
 /* ===== Akce (event delegation přes data-act) ===== */
 const ACTIONS = {
   /* navigace */
@@ -56,6 +68,15 @@ const ACTIONS = {
   "drawer-open": () => openDrawer(true),
   "drawer-close": () => openDrawer(false),
   "modal-close": () => closeModal(),
+  "app-undo": () => {
+    if (!UNDO_SNAP) return;
+    replaceState(JSON.parse(UNDO_SNAP));
+    UNDO_SNAP = null;
+    save();
+    render();
+    toast("Obnoveno ✓", "ok");
+  },
+  "app-reload": () => location.reload(),
 
   /* sjednocený kalendář (Souhrn) */
   "cal-nav": d => {
@@ -80,6 +101,8 @@ const ACTIONS = {
 
   /* ---- Trénink ---- */
   "w-sub": d => { WV.sub = d.sub; render(); },
+  "w-day-nav": d => { WV.date = addDays(WV.date, Number(d.dir)); render(); },
+  "w-day-today": () => { WV.date = todayStr(); render(); },
   "w-begin": d => beginWorkout(d.template === "custom" ? null : d.template),
   "w-cardio": () => openCardioModal(),
   "w-cardio-save": () => saveCardio(),
@@ -111,20 +134,14 @@ const ACTIONS = {
     save(); closeModal(); render();
   },
   "w-finish": () => finishWorkout(),
-  "w-cancel-ask": () => confirmModal("Zrušit rozpracovaný trénink? Zapsané série se zahodí.", "w-cancel-yes", "", "Zahodit"),
-  "w-cancel-yes": () => {
-    S.activeSession = null;
-    save(); closeModal(); render();
-    toast("Trénink zrušen");
-  },
+  "w-cancel": () => withUndo("Trénink zrušen", () => { S.activeSession = null; }),
   "w-pr-history": d => openPRHistory(d.exid),
   "w-detail": d => openSessionDetail(d.id),
-  "w-del-session": d => confirmModal("Smazat tento trénink? Ovlivní to i historii rekordů.", "w-del-session-yes", `data-id="${d.id}"`),
-  "w-del-session-yes": d => {
+  "w-del-session": d => withUndo("Trénink smazán", () => {
     S.sessions = S.sessions.filter(s => s.id !== d.id);
-    save(); closeModal(); render();
-    toast("Trénink smazán");
-  },
+    markDeleted(d.id);
+    closeModal();
+  }),
 
   /* ---- Jídlo ---- */
   "f-day-nav": d => {
@@ -135,7 +152,17 @@ const ACTIONS = {
   "f-add": () => openAddFood("search"),
   "f-modal-tab": d => openAddFood(d.tab),
   "f-photo-pick": () => document.getElementById("photoInput").click(),
-  "f-scan": () => runLabelScan(),
+  "f-scan": () => runLabelScan(false),
+  "f-scan-meal": () => runLabelScan(true),
+  "f-barcode": () => document.getElementById("barcodeInput").click(),
+  "f-pick-recipe": d => pickRecipe(d.id),
+  "f-copy-open": () => openCopyModal(),
+  "f-copy-chip": d => {
+    FV.copyMeal = d.meal;
+    document.querySelectorAll(".copychip").forEach(c =>
+      c.classList.toggle("on", c.dataset.meal === d.meal));
+  },
+  "f-copy-do": () => doCopyDay(),
   "f-meal-chip": d => {
     FV.mealChoice = d.meal || null;
     document.querySelectorAll(".mealchip").forEach(c =>
@@ -146,11 +173,10 @@ const ACTIONS = {
   "f-manual-next": () => manualFoodNext(),
   "f-amount-save": () => saveAmount(),
   "f-entry-edit": d => editFoodEntry(d.id),
-  "f-entry-del": d => {
+  "f-entry-del": d => withUndo("Záznam smazán", () => {
     S.foodLog = S.foodLog.filter(e => e.id !== d.id);
-    save(); render();
-    toast("Záznam smazán");
-  },
+    markDeleted(d.id);
+  }),
 
   /* ---- Souhrn ---- */
   "s-range": d => { SV.range = d.range; render(); },
@@ -161,10 +187,32 @@ const ACTIONS = {
   "el-add": () => openExerciseForm(null),
   "el-edit": d => openExerciseForm(d.id),
   "el-save": d => saveExercise(d.id || null),
-  "el-del-ask": d => confirmModal("Smazat vlastní cvik? Odebere se i ze šablon.", "el-del-yes", `data-id="${d.id}"`),
-  "el-del-yes": d => deleteExercise(d.id),
+  "el-del": d => withUndo("Cvik smazán", () => {
+    S.exercises = S.exercises.filter(e => e.id !== d.id);
+    for (const t of S.templates) t.exercises = t.exercises.filter(x => x !== d.id);
+    markDeleted(d.id);
+    closeModal();
+  }),
 
   /* ---- Workout Templates ---- */
+  "tpl-new": () => openTemplateNameModal(null),
+  "tpl-rename": d => openTemplateNameModal(d.tpl),
+  "tpl-name-save": d => {
+    const name = document.getElementById("tplName").value.trim();
+    if (!name) { toast("Zadej název šablony", "err"); return; }
+    if (d.tpl) {
+      const t = getTemplate(d.tpl);
+      if (t) t.name = name;
+    } else {
+      S.templates.push({ id: uid(), name, exercises: [] });
+    }
+    save(); closeModal(); render();
+    toast("Šablona uložena ✓", "ok");
+  },
+  "tpl-del": d => withUndo("Šablona smazána", () => {
+    S.templates = S.templates.filter(t => t.id !== d.tpl);
+    markDeleted(d.tpl);
+  }),
   "tpl-add": d => openTplPicker(d.tpl),
   "tpl-pick": d => {
     const t = getTemplate(MV.tplTarget);
@@ -192,12 +240,29 @@ const ACTIONS = {
   },
   "fl-edit": d => openFoodEdit(d.id),
   "fl-save": d => saveFoodEdit(d.id),
-  "fl-del-ask": d => confirmModal("Odebrat potravinu z knihovny? Zapsaná jídla zůstanou.", "fl-del-yes", `data-id="${d.id}"`),
-  "fl-del-yes": d => {
+  "fl-del": d => withUndo("Potravina odebrána", () => {
     S.foods = S.foods.filter(f => f.id !== d.id);
-    save(); closeModal(); render();
-    toast("Potravina odebrána");
+    markDeleted(d.id);
+  }),
+
+  /* ---- Recepty ---- */
+  "rl-new": () => openRecipeForm(null),
+  "rl-edit": d => openRecipeForm(d.id),
+  "rl-del": d => withUndo("Recept smazán", () => {
+    S.recipes = S.recipes.filter(r => r.id !== d.id);
+    markDeleted(d.id);
+  }),
+  "rc-add-item": () => { captureRecipeForm(); renderRecipePicker(); },
+  "rc-pick": d => { MV.rcPickId = d.id; renderRecipeGrams(); },
+  "rc-item-add": () => {
+    const grams = parseFloat(document.getElementById("rcGrams").value);
+    if (!grams || grams <= 0) { toast("Zadej gramy", "err"); return; }
+    MV.rc.items.push({ foodItemId: MV.rcPickId, grams });
+    renderRecipeModal();
   },
+  "rc-item-rm": d => { captureRecipeForm(); MV.rc.items.splice(Number(d.i), 1); renderRecipeModal(); },
+  "rc-back": () => renderRecipeModal(),
+  "rc-save": () => saveRecipe(),
 
   /* ---- Export / Nastavení ---- */
   "exp-share": () => exportShare(),
@@ -237,6 +302,17 @@ document.addEventListener("change", e => {
   if (t.dataset.change === "f-date") {
     if (t.value) { FV.date = t.value; render(); }
   }
+  if (t.dataset.change === "w-date") {
+    if (t.value) { WV.date = t.value; render(); }
+  }
+  if (t.dataset.change === "f-unit") {
+    // přepnutí jednotek znovu otevře krok množství se zachovanou volbou jídla dne
+    const meal = FV.mealChoice;
+    openAmountStep(FV.pending, FV.pendingExisting, t.value);
+    FV.mealChoice = meal;
+    document.querySelectorAll(".mealchip").forEach(c =>
+      c.classList.toggle("on", (c.dataset.meal || "") === (meal || "")));
+  }
 });
 
 document.getElementById("modalBackdrop").addEventListener("click", closeModal);
@@ -250,5 +326,16 @@ render();
 Sync.init();
 
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
-  navigator.serviceWorker.register("sw.js").catch(e => console.warn("SW:", e));
+  navigator.serviceWorker.register("sw.js").then(reg => {
+    // upozornění na novou verzi appky (soubory se stáhly, projeví se po obnovení)
+    reg.addEventListener("updatefound", () => {
+      const w = reg.installing;
+      if (!w) return;
+      w.addEventListener("statechange", () => {
+        if (w.state === "installed" && navigator.serviceWorker.controller) {
+          toast("K dispozici je nová verze appky", "", { label: "Obnovit", act: "app-reload" });
+        }
+      });
+    });
+  }).catch(e => console.warn("SW:", e));
 }

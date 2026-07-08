@@ -1,12 +1,14 @@
 /* ===== Obrazovky z hamburger menu ===== */
 "use strict";
 
-const APP_VERSION = "1.6.1";
+const APP_VERSION = "1.7.0";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
   exQuery: "",
-  tplTarget: null   // šablona, do které se přidává cvik
+  tplTarget: null,  // šablona, do které se přidává cvik
+  rc: null,         // rozpracovaný recept (builder)
+  rcPickId: null    // vybraná potravina při přidávání do receptu
 };
 
 /* ================= Exercise Library ================= */
@@ -53,7 +55,7 @@ function openExerciseDetail(id) {
     ${e.isCustom ? `
       <div class="row" style="gap:8px">
         <button class="btn grow" data-act="el-edit" data-id="${id}">Upravit</button>
-        <button class="btn danger grow" data-act="el-del-ask" data-id="${id}">Smazat</button>
+        <button class="btn danger grow" data-act="el-del" data-id="${id}">Smazat</button>
       </div>` : ""}`);
 }
 
@@ -84,13 +86,6 @@ function saveExercise(id) {
   toast("Cvik uložen ✓", "ok");
 }
 
-function deleteExercise(id) {
-  S.exercises = S.exercises.filter(e => e.id !== id);
-  for (const t of S.templates) t.exercises = t.exercises.filter(x => x !== id);
-  save(); closeModal(); render();
-  toast("Cvik smazán");
-}
-
 /* ================= Workout Templates ================= */
 function renderTemplates() {
   const cards = S.templates.map(t => {
@@ -103,12 +98,29 @@ function renderTemplates() {
       </div>`).join("");
     return `
       <div class="card" style="border-color:var(--green)">
-        <div class="h2" style="color:var(--green)">${esc(t.name)}</div>
+        <div class="row between">
+          <span class="h2" style="color:var(--green);margin:0">${esc(t.name)}</span>
+          <div class="row" style="gap:4px">
+            <button class="btn sm ghost" data-act="tpl-rename" data-tpl="${t.id}">✎</button>
+            <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="tpl-del" data-tpl="${t.id}">✕</button>
+          </div>
+        </div>
         ${rows || `<div class="empty-note">Šablona je prázdná</div>`}
         <button class="btn ghost full mt" style="border-style:dashed" data-act="tpl-add" data-tpl="${t.id}">+ Přidat cvik</button>
       </div>`;
   }).join("");
-  return `<p class="muted" style="margin:0 0 12px">Trvalá úprava šablon A/B. Jednorázové změny dělej přímo v tréninku.</p>` + cards;
+  return `<p class="muted" style="margin:0 0 12px">Trvalá správa šablon. Jednorázové změny dělej přímo v tréninku.</p>`
+    + cards
+    + `<button class="btn ghost full" style="border-style:dashed" data-act="tpl-new">+ Nová šablona</button>`;
+}
+
+function openTemplateNameModal(id) {
+  const t = id ? getTemplate(id) : null;
+  openModal(`${modalTitle(t ? "Přejmenovat šablonu" : "Nová šablona")}
+    <label class="field"><span>Název</span>
+      <input class="input" id="tplName" placeholder="např. Trénink C, Nohy…" value="${esc(t ? t.name : "")}"></label>
+    <button class="btn primary full" data-act="tpl-name-save" data-tpl="${id || ""}">Uložit</button>`);
+  document.getElementById("tplName").focus();
 }
 
 function openTplPicker(tplId) {
@@ -136,9 +148,32 @@ function tplPickerList(query) {
 
 /* ================= Food Library ================= */
 function renderFoodLib() {
+  const recipeRows = S.recipes.map(r => {
+    const t = recipeTotals(r);
+    const perPortion = r.portions > 0 ? t.kcal / r.portions : t.kcal;
+    return `
+    <div class="list-item">
+      <div class="grow">
+        <div class="name">${esc(r.name)}</div>
+        <div class="small">${r.items.length} položek · ${fmtNum(perPortion)} kcal / porce (${r.portions || 1} porcí)</div>
+      </div>
+      <button class="btn sm ghost" data-act="rl-edit" data-id="${r.id}">✎</button>
+      <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="rl-del" data-id="${r.id}">✕</button>
+    </div>`;
+  }).join("");
+  const recipesCard = `
+    <div class="card">
+      <div class="row between">
+        <span class="h2" style="margin:0">Recepty</span>
+        <button class="btn sm primary" data-act="rl-new">+ Nový</button>
+      </div>
+      ${recipeRows ? `<div class="mt">${recipeRows}</div>`
+        : `<div class="empty-note" style="padding:14px">Složená jídla z více potravin — jednou vytvoříš, pak zapisuješ po porcích.</div>`}
+    </div>`;
+
   const foods = [...S.foods].sort((a, b) =>
     (b.isFavorite - a.isFavorite) || a.name.localeCompare(b.name, "cs"));
-  if (!foods.length) return `<div class="card"><div class="empty-note">Knihovna je prázdná.<br>Položky se ukládají automaticky při zápisu jídla.</div></div>`;
+  if (!foods.length) return recipesCard + `<div class="card"><div class="empty-note">Knihovna je prázdná.<br>Položky se ukládají automaticky při zápisu jídla.</div></div>`;
   const rows = foods.map(f => `
     <div class="list-item">
       <button class="iconbtn" style="width:34px;height:34px;font-size:19px;color:${f.isFavorite ? "var(--green)" : "var(--text3)"}" data-act="fl-star" data-id="${f.id}">${f.isFavorite ? "★" : "☆"}</button>
@@ -148,10 +183,109 @@ function renderFoodLib() {
       </div>
       ${sourceBadge(f.source)}
       <button class="btn sm ghost" data-act="fl-edit" data-id="${f.id}">✎</button>
-      <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="fl-del-ask" data-id="${f.id}">✕</button>
+      <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="fl-del" data-id="${f.id}">✕</button>
     </div>`).join("");
-  return `<div class="card"><div class="h2">Knihovna potravin</div>${rows}
+  return recipesCard + `<div class="card"><div class="h2">Knihovna potravin</div>${rows}
     <p class="small mt">★ = oblíbené (rychlý výběr při zápisu jídla)</p></div>`;
+}
+
+/* ---- Builder receptu (kroky: formulář → výběr potraviny → gramy) ---- */
+function openRecipeForm(id) {
+  MV.rc = id
+    ? JSON.parse(JSON.stringify(getRecipe(id)))
+    : { id: null, name: "", portions: 1, items: [] };
+  renderRecipeModal();
+}
+
+function captureRecipeForm() {
+  const n = document.getElementById("rcName");
+  const p = document.getElementById("rcPortions");
+  if (n) MV.rc.name = n.value.trim();
+  if (p) MV.rc.portions = Math.max(1, parseInt(p.value, 10) || 1);
+}
+
+function renderRecipeModal() {
+  const r = MV.rc;
+  const rows = r.items.map((it, i) => {
+    const f = getFood(it.foodItemId);
+    return `<div class="list-item">
+      <div class="grow">
+        <div class="name">${esc(f ? f.name : "(smazaná potravina)")}</div>
+        <div class="small">${fmtNum(it.grams)} g</div>
+      </div>
+      <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="rc-item-rm" data-i="${i}">✕</button>
+    </div>`;
+  }).join("");
+  const t = recipeTotals(r);
+  openModal(`${modalTitle(r.id ? "Upravit recept" : "Nový recept")}
+    <label class="field"><span>Název *</span>
+      <input class="input" id="rcName" placeholder="např. Proteinová kaše" value="${esc(r.name)}"></label>
+    <label class="field"><span>Počet porcí</span>
+      <input class="input" id="rcPortions" type="number" inputmode="numeric" min="1" value="${r.portions || 1}"></label>
+    <div class="h3" style="margin-top:4px">Položky</div>
+    ${rows || `<div class="empty-note" style="padding:12px">Zatím žádné položky</div>`}
+    <button class="btn ghost full mt" style="border-style:dashed" data-act="rc-add-item">+ Přidat položku</button>
+    ${t.grams ? `<div class="card2 mt"><b>Celkem:</b> ${fmtNum(t.grams)} g · ${fmtNum(t.kcal)} kcal ·
+      B ${fmtNum(t.protein, 1)} · S ${fmtNum(t.carbs, 1)} · T ${fmtNum(t.fat, 1)} g
+      ${r.portions > 1 ? `<div class="small mt">1 porce ≈ ${fmtNum(t.grams / r.portions)} g · ${fmtNum(t.kcal / r.portions)} kcal</div>` : ""}</div>` : ""}
+    <button class="btn primary full mt" data-act="rc-save">Uložit recept</button>`);
+}
+
+function renderRecipePicker(query = "") {
+  const q = query.trim().toLowerCase();
+  const list = S.foods
+    .filter(f => !q || f.name.toLowerCase().includes(q))
+    .sort((a, b) => (b.isFavorite - a.isFavorite) || a.name.localeCompare(b.name, "cs"))
+    .map(f => `<div class="list-item" data-act="rc-pick" data-id="${f.id}" style="cursor:pointer">
+      <div class="grow">
+        <div class="name">${esc(f.name)}</div>
+        <div class="small">${fmtNum(f.caloriesPer100g)} kcal /100 g</div>
+      </div>${sourceBadge(f.source)}
+    </div>`).join("");
+  openModal(`${modalTitle("Přidat položku receptu")}
+    <input class="input" id="rcPickSearch" placeholder="Hledat v knihovně…" style="margin-bottom:10px">
+    <div id="rcPickList">${list || `<div class="empty-note">Knihovna je prázdná — potraviny se do ní ukládají při zápisu jídla</div>`}</div>
+    <button class="btn ghost full mt" data-act="rc-back">← Zpět na recept</button>`);
+  const inp = document.getElementById("rcPickSearch");
+  inp.addEventListener("input", () => {
+    // překreslí jen seznam
+    const qq = inp.value.trim().toLowerCase();
+    document.getElementById("rcPickList").innerHTML = S.foods
+      .filter(f => !qq || f.name.toLowerCase().includes(qq))
+      .map(f => `<div class="list-item" data-act="rc-pick" data-id="${f.id}" style="cursor:pointer">
+        <div class="grow"><div class="name">${esc(f.name)}</div>
+        <div class="small">${fmtNum(f.caloriesPer100g)} kcal /100 g</div></div>${sourceBadge(f.source)}
+      </div>`).join("") || `<div class="empty-note">Nic nenalezeno</div>`;
+  });
+  inp.focus();
+}
+
+function renderRecipeGrams() {
+  const f = getFood(MV.rcPickId);
+  if (!f) return;
+  openModal(`${modalTitle(f.name)}
+    <label class="field"><span>Množství v receptu (g) *</span>
+      <input class="input" id="rcGrams" type="number" inputmode="decimal" value="${f.servingGrams || 100}"></label>
+    <button class="btn primary full" data-act="rc-item-add">Přidat do receptu</button>
+    <button class="btn ghost full mt" data-act="rc-back">← Zpět</button>`);
+  document.getElementById("rcGrams").focus();
+}
+
+function saveRecipe() {
+  captureRecipeForm();
+  const r = MV.rc;
+  if (!r.name) { toast("Zadej název receptu", "err"); return; }
+  if (!r.items.length) { toast("Přidej alespoň jednu položku", "err"); return; }
+  if (r.id) {
+    const i = S.recipes.findIndex(x => x.id === r.id);
+    if (i >= 0) S.recipes[i] = r;
+  } else {
+    r.id = uid();
+    S.recipes.push(r);
+  }
+  MV.rc = null;
+  save(); closeModal(); render();
+  toast("Recept uložen ✓", "ok");
 }
 
 function openFoodEdit(id) {
@@ -169,6 +303,13 @@ function openFoodEdit(id) {
       <label class="field"><span>Sacharidy</span><input class="input" id="flCarb" type="number" value="${f.carbsPer100g}"></label>
       <label class="field"><span>Tuky</span><input class="input" id="flFat" type="number" value="${f.fatPer100g}"></label>
     </div>` : `<p class="small" style="margin:0 0 12px">Nutriční hodnoty z ${f.source === "usda" ? "USDA" : "Open Food Facts"} nelze upravovat — jen přejmenovat.</p>`}
+    <div class="input-row">
+      <label class="field"><span>Porce (g)</span>
+        <input class="input" id="flSrvG" type="number" inputmode="decimal" placeholder="např. 30" value="${f.servingGrams || ""}"></label>
+      <label class="field"><span>Název porce</span>
+        <input class="input" id="flSrvN" placeholder="ks / plátek / porce" value="${esc(f.servingName || "")}"></label>
+    </div>
+    <p class="small" style="margin:0 0 12px">S vyplněnou porcí jde při zápisu zadávat počet kusů místo gramů.</p>
     <button class="btn primary full" data-act="fl-save" data-id="${id}">Uložit</button>`);
 }
 
@@ -183,6 +324,8 @@ function saveFoodEdit(id) {
     f.carbsPer100g = parseFloat(document.getElementById("flCarb").value) || 0;
     f.fatPer100g = parseFloat(document.getElementById("flFat").value) || 0;
   }
+  f.servingGrams = parseFloat(document.getElementById("flSrvG").value) || null;
+  f.servingName = document.getElementById("flSrvN").value.trim() || null;
   save(); closeModal(); render();
   toast("Uloženo ✓", "ok");
 }
