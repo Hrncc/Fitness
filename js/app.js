@@ -188,6 +188,13 @@ const ACTIONS = {
   "el-edit": d => openExerciseForm(d.id),
   "el-save": d => saveExercise(d.id || null),
   "el-del": d => withUndo("Cvik smazán", () => {
+    // zapeč jméno do historie, ať se v detailech tréninků dál zobrazuje
+    const name = exName(d.id);
+    for (const s of S.sessions) {
+      for (const en of s.entries || []) {
+        if (en.exerciseId === d.id) en.exerciseName = name;
+      }
+    }
     S.exercises = S.exercises.filter(e => e.id !== d.id);
     for (const t of S.templates) t.exercises = t.exercises.filter(x => x !== d.id);
     markDeleted(d.id);

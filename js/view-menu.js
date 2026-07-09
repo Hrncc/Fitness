@@ -1,7 +1,7 @@
 /* ===== Obrazovky z hamburger menu ===== */
 "use strict";
 
-const APP_VERSION = "1.7.0";
+const APP_VERSION = "1.7.1";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -52,11 +52,10 @@ function openExerciseDetail(id) {
     </div>
     <p class="muted" style="margin:0 0 16px">${esc(e.description || "Bez popisu")}</p>
     ${pr ? `<button class="btn ghost full" style="margin-bottom:8px" data-act="w-pr-history" data-exid="${id}">Historie rekordů</button>` : ""}
-    ${e.isCustom ? `
-      <div class="row" style="gap:8px">
-        <button class="btn grow" data-act="el-edit" data-id="${id}">Upravit</button>
-        <button class="btn danger grow" data-act="el-del" data-id="${id}">Smazat</button>
-      </div>` : ""}`);
+    <div class="row" style="gap:8px">
+      <button class="btn grow" data-act="el-edit" data-id="${id}">Upravit</button>
+      <button class="btn danger grow" data-act="el-del" data-id="${id}">Smazat</button>
+    </div>`);
 }
 
 function openExerciseForm(id) {
