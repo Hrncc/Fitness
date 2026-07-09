@@ -75,7 +75,87 @@ function defaultState() {
   };
 }
 
+/* ===== Tréninkový plán od trenéra (ONLINE COACHING — OBECNÁ TABULKA) =====
+   Jednorázová migrace: založí cviky Full Body A/B/C s poznámkami trenéra
+   a nastaví šablony. Stabilní id (cp-*) zabraňují duplikaci přes sync. */
+const COACH_PLAN = {
+  flag: "coachPlanV1",
+  A: {
+    name: "Full Body A",
+    items: [
+      ["cp-a1", "Mrtvý brouk + výdrž v planku", "Core", "3× 10 / 20–30 s — Mrtvý brouk s vytaženýma lopatkama do stropu (flexe břicha). V planku podsazená pánev, mačkám břicho co nejvíc po co nejkratší dobu."],
+      ["cp-a2", "Dřep / Výpad / Kachnička", "Nohy", "2× 12/10/8."],
+      ["cp-a3", "Leg press", "Nohy", "3× 8–15 — Kontrolované negativum, maximální rozsah."],
+      ["cp-a4", "Zakopávání vleže", "Nohy", "3× 12–20 — Kontrolované negativum, nepropínám kolena."],
+      ["cp-a5", "Stahování horní kladky", "Záda", "3× 8–12 — Středně široký neutrální adaptér."],
+      ["cp-a6", "Tlak na multipressu na hrudník", "Hrudník", "3× 8–12."],
+      ["cp-a7", "Rear delt pec flys", "Ramena", "2× 8–15."],
+      ["cp-a8", "Biceps s jednoručkama", "Biceps", "2–3× 8–12 — Nejedu kladiva, vytahuju malíček co nejvíc nahoru."],
+      ["cp-a9", "Kliky na bradlech na klečícím stroji", "Triceps", "2–3× 8–15."]
+    ]
+  },
+  B: {
+    name: "Full Body B",
+    items: [
+      ["cp-b1", "Leg raises", "Core", "3× 12–15 — Snažím se co nejvíc podsadit pánev, odlepit zadek od podložky."],
+      ["cp-b2", "Předkopávání", "Nohy", "3× 10–15 — Jediný cvik, kde můžu jít bezpečně do propnutí kolene — vymáčknu z něj maximum."],
+      ["cp-b3", "Pendulum", "Nohy", "3× 8–12 — Plný rozsah pohybu, zadek až k patám, nepropínám kolena. Tlačím přes pánev, ne ramena."],
+      ["cp-b4", "Hip thrusty na stroji (s pásem)", "Nohy", "3× 8–15 — Dolů kontrolovaná brzda, nahoře zmáčknout půlky k sobě."],
+      ["cp-b5", "Pec deck v záklonu", "Hrudník", "3× 8–12 — Mačkám tužku mezi prsy, neobjímám strom."],
+      ["cp-b6", "Přitahování v sedě", "Záda", "3× 8–12 — Stroj s cihličkami, palce dělají stříšku, zadek vzadu, stahuju lopatky k sobě."],
+      ["cp-b7", "Francouzské tlaky s EZ osou na šikmé lavici", "Triceps", "3× 8–12 — Lavice na 3. stupínek, temeno hlavy na rohu lavičky, lokty za tělo, maximální pokrčení."],
+      ["cp-b8", "3 cesty", "Ramena", "3× 10–12."],
+      ["cp-b9", "Bicepsové zdvihy na skotovce", "Biceps", "3× 10–12 — Skotovka s cihličkami, úzký úchop, plný rozsah pohybu."]
+    ]
+  },
+  C: {
+    name: "Full Body C",
+    items: [
+      ["cp-c1", "Břicho s medicinbálem + přenosy KTB v kliku", "Core", "3× 10–12."],
+      ["cp-c2", "Bulharské dřepy s jednoručkou", "Nohy", "3× 8–12 — Zadní noha na lavičce, přední na bedně bez klínků. Činka v ruce na straně nohy, která NECVIČÍ."],
+      ["cp-c3", "Rumunské mrtvé tahy na beltsquatu", "Nohy", "3× 10–15 — Tlačím zadek dozadu, protahuju zadní stehna, zvedám protlačením pánve dopředu."],
+      ["cp-c4", "Tlaky na ramena s jednoručkama", "Ramena", "3× 8–12."],
+      ["cp-c5", "Přítahy na klečícím stroji", "Záda", "3× 10–12 — Brada nahoru, protlačuju hrudník do stropu, lokty do těla."],
+      ["cp-c6", "Tlaky na prsa na stroji", "Hrudník", "3× 8–12."],
+      ["cp-c7", "Lyžař na kladce + tricepsové stahování", "Triceps", "3× 12–15 / AMRAP — Předklon, rovné tělo, při stahování tlačím ramena dozadu. Triceps: lokty zapíchnuté do těla, maximální pokrčení lokte."],
+      ["cp-c8", "Bicepsové kladiva na kladce", "Biceps", "3× 12–15 — Protažený loket, zápěstí nerotuju a tlačím ho k rameni."],
+      ["cp-c9", "Rozpažky s jednoručkama", "Ramena", "3× 12–15 — Nahoře zastavím, dolů brzdím. Ruce OD těla, lehce před sebe."]
+    ]
+  }
+};
+
+function applyCoachPlan() {
+  if (S[COACH_PLAN.flag]) return;
+  const ensureExercise = ([id, name, category, description]) => {
+    // shoda jménem se stávajícím cvikem → jen doplní plán do popisu
+    const existing = S.exercises.find(e => e.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      existing.description = description;
+      return existing.id;
+    }
+    if (!getExercise(id)) {
+      S.exercises.push({ id, name, category, description, isCustom: true });
+    }
+    return id;
+  };
+  for (const key of ["A", "B", "C"]) {
+    const plan = COACH_PLAN[key];
+    const ids = plan.items.map(ensureExercise);
+    const tpl = getTemplate(key);
+    if (tpl) {
+      tpl.name = plan.name;
+      tpl.exercises = ids;
+    } else {
+      S.templates.push({ id: key, name: plan.name, exercises: ids });
+    }
+  }
+  S[COACH_PLAN.flag] = true;
+  S.updatedAt = Date.now();
+  persist();
+}
+
 let S = loadState();
+applyCoachPlan();
 
 function loadState() {
   try {

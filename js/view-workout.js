@@ -116,6 +116,7 @@ function renderActiveSession() {
       <div class="row between">
         <div class="grow">
           <div class="name" style="font-weight:700">${esc(ex ? ex.name : "?")}</div>
+          ${ex && ex.description ? `<div class="small" style="color:var(--text2)">${esc(ex.description)}</div>` : ""}
           <div class="small">${pr ? `PR: ${fmtWeight(pr.weight)} × ${pr.reps} (e1RM ${fmtWeight(pr.e1rm)})` : "Zatím bez rekordu"}</div>
           ${lastLine ? `<div class="small">${esc(lastLine)}</div>` : ""}
         </div>
