@@ -108,7 +108,17 @@ function replaceState(newState) {
 
 /* ===== Pomocné selektory ===== */
 function getExercise(id) { return S.exercises.find(e => e.id === id); }
-function exName(id) { const e = getExercise(id); return e ? e.name : "(smazaný cvik)"; }
+function exName(id) {
+  const e = getExercise(id);
+  if (e) return e.name;
+  // smazaný cvik: jméno se při mazání zapéká do záznamů v historii
+  for (const s of S.sessions) {
+    for (const en of s.entries || []) {
+      if (en.exerciseId === id && en.exerciseName) return en.exerciseName;
+    }
+  }
+  return "(smazaný cvik)";
+}
 function getTemplate(id) { return S.templates.find(t => t.id === id); }
 function getFood(id) { return S.foods.find(f => f.id === id); }
 function getRecipe(id) { return S.recipes.find(r => r.id === id); }
