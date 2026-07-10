@@ -53,6 +53,12 @@ function fmtNum(n, dec = 0) {
 
 function clamp(n, min, max) { return Math.min(max, Math.max(min, n)); }
 
+/* Desetinné číslo z uživatelského vstupu — bere čárku i tečku
+   (iOS klávesnice v češtině nabízí čárku, type=number ji zahazoval). */
+function parseDec(v) {
+  return parseFloat(String(v ?? "").trim().replace(",", "."));
+}
+
 function debounce(fn, ms) {
   let t;
   return function (...args) {
@@ -73,7 +79,7 @@ function kgOut(kg) {
 }
 /* zadaná hodnota -> kg (interní) */
 function kgIn(val) {
-  const n = parseFloat(val);
+  const n = parseDec(val);
   if (isNaN(n)) return null;
   return weightUnit() === "lb" ? n * KG_PER_LB : n;
 }

@@ -262,7 +262,7 @@ const ACTIONS = {
   "rc-add-item": () => { captureRecipeForm(); renderRecipePicker(); },
   "rc-pick": d => { MV.rcPickId = d.id; renderRecipeGrams(); },
   "rc-item-add": () => {
-    const grams = parseFloat(document.getElementById("rcGrams").value);
+    const grams = parseDec(document.getElementById("rcGrams").value);
     if (!grams || grams <= 0) { toast("Zadej gramy", "err"); return; }
     MV.rc.items.push({ foodItemId: MV.rcPickId, grams });
     renderRecipeModal();
