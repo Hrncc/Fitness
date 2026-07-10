@@ -256,12 +256,12 @@ function foodManualHtml(pre = null) {
   return `
     <label class="field"><span>Název *</span><input class="input" id="mName" placeholder="např. Domácí guláš" value="${esc(v("name"))}"></label>
     <div class="input-row">
-      <label class="field"><span>kcal /100 g *</span><input class="input" id="mKcal" type="number" inputmode="decimal" value="${v("caloriesPer100g", 1)}"></label>
-      <label class="field"><span>Bílkoviny /100 g</span><input class="input" id="mProt" type="number" inputmode="decimal" value="${v("proteinPer100g", 1)}"></label>
+      <label class="field"><span>kcal /100 g *</span><input class="input" id="mKcal" type="text" inputmode="decimal" value="${v("caloriesPer100g", 1)}"></label>
+      <label class="field"><span>Bílkoviny /100 g</span><input class="input" id="mProt" type="text" inputmode="decimal" value="${v("proteinPer100g", 1)}"></label>
     </div>
     <div class="input-row">
-      <label class="field"><span>Sacharidy /100 g</span><input class="input" id="mCarb" type="number" inputmode="decimal" value="${v("carbsPer100g", 1)}"></label>
-      <label class="field"><span>Tuky /100 g</span><input class="input" id="mFat" type="number" inputmode="decimal" value="${v("fatPer100g", 1)}"></label>
+      <label class="field"><span>Sacharidy /100 g</span><input class="input" id="mCarb" type="text" inputmode="decimal" value="${v("carbsPer100g", 1)}"></label>
+      <label class="field"><span>Tuky /100 g</span><input class="input" id="mFat" type="text" inputmode="decimal" value="${v("fatPer100g", 1)}"></label>
     </div>
     <button class="btn primary full" data-act="f-manual-next">Pokračovat →</button>`;
 }
@@ -354,7 +354,7 @@ function openAmountStep(item, existing, unit) {
     </div>
     <div class="input-row">
       <label class="field"><span>${isSrv ? `Počet (1 ≈ ${fmtNum(item.servingGrams)} g)` : "Množství (g) *"}</span>
-        <input class="input" id="amtG" type="number" inputmode="decimal" step="${isSrv ? "0.5" : "1"}" value="${defVal}"></label>
+        <input class="input" id="amtG" type="text" inputmode="decimal" value="${defVal}"></label>
       ${unitSelect}
     </div>
     <label class="field" style="margin-bottom:4px"><span>Jídlo dne</span></label>
@@ -362,7 +362,7 @@ function openAmountStep(item, existing, unit) {
     <div class="card2" id="amtPreview" style="margin-bottom:14px"></div>
     <button class="btn primary full" data-act="f-amount-save">${existing ? "Uložit změny" : "Přidat do dne"}</button>`);
   const upd = () => {
-    const v = parseFloat(document.getElementById("amtG").value) || 0;
+    const v = parseDec(document.getElementById("amtG").value) || 0;
     const g = FV.amountUnit === "srv" ? v * item.servingGrams : v;
     const k = g / 100;
     document.getElementById("amtPreview").innerHTML =
@@ -374,7 +374,7 @@ function openAmountStep(item, existing, unit) {
 
 function saveAmount() {
   const item = FV.pending;
-  const val = parseFloat(document.getElementById("amtG").value);
+  const val = parseDec(document.getElementById("amtG").value);
   const grams = FV.amountUnit === "srv" ? val * item.servingGrams : val;
   const meal = FV.mealChoice || null;
   if (!grams || grams <= 0) { toast("Zadej množství", "err"); return; }
@@ -406,14 +406,14 @@ function saveAmount() {
 
 function manualFoodNext() {
   const name = document.getElementById("mName").value.trim();
-  const kcal = parseFloat(document.getElementById("mKcal").value);
+  const kcal = parseDec(document.getElementById("mKcal").value);
   if (!name || !kcal) { toast("Vyplň název a kalorie", "err"); return; }
   openAmountStep({
     source: "custom", name,
     caloriesPer100g: kcal,
-    proteinPer100g: parseFloat(document.getElementById("mProt").value) || 0,
-    carbsPer100g: parseFloat(document.getElementById("mCarb").value) || 0,
-    fatPer100g: parseFloat(document.getElementById("mFat").value) || 0
+    proteinPer100g: parseDec(document.getElementById("mProt").value) || 0,
+    carbsPer100g: parseDec(document.getElementById("mCarb").value) || 0,
+    fatPer100g: parseDec(document.getElementById("mFat").value) || 0
   });
 }
 

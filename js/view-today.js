@@ -121,8 +121,8 @@ function openBodyWeightModal() {
   const current = bodyWeightOn(today) ?? (lastBodyWeight(today) || {}).weightKg;
   openModal(`${modalTitle("Zapsat váhu")}
     <label class="field"><span>Tělesná váha (${weightUnit()})</span>
-      <input class="input" id="bwInput" type="number" inputmode="decimal" step="0.1"
-        value="${current != null ? fmtNum(kgOut(current), 1).replace(",", ".") : ""}" placeholder="např. 80.5"></label>
+      <input class="input" id="bwInput" type="text" inputmode="decimal"
+        value="${current != null ? fmtNum(kgOut(current), 1) : ""}" placeholder="např. 80,5"></label>
     <button class="btn primary full" data-act="bw-save">Uložit</button>`);
   document.getElementById("bwInput").focus();
 }

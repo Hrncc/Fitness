@@ -1,7 +1,7 @@
 /* ===== Obrazovky z hamburger menu ===== */
 "use strict";
 
-const APP_VERSION = "1.8.0";
+const APP_VERSION = "1.8.1";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -264,7 +264,7 @@ function renderRecipeGrams() {
   if (!f) return;
   openModal(`${modalTitle(f.name)}
     <label class="field"><span>Množství v receptu (g) *</span>
-      <input class="input" id="rcGrams" type="number" inputmode="decimal" value="${f.servingGrams || 100}"></label>
+      <input class="input" id="rcGrams" type="text" inputmode="decimal" value="${f.servingGrams || 100}"></label>
     <button class="btn primary full" data-act="rc-item-add">Přidat do receptu</button>
     <button class="btn ghost full mt" data-act="rc-back">← Zpět</button>`);
   document.getElementById("rcGrams").focus();
@@ -295,16 +295,16 @@ function openFoodEdit(id) {
     <label class="field"><span>Název</span><input class="input" id="flName" value="${esc(f.name)}"></label>
     ${editable ? `
     <div class="input-row">
-      <label class="field"><span>kcal /100 g</span><input class="input" id="flKcal" type="number" value="${f.caloriesPer100g}"></label>
-      <label class="field"><span>Bílkoviny</span><input class="input" id="flProt" type="number" value="${f.proteinPer100g}"></label>
+      <label class="field"><span>kcal /100 g</span><input class="input" id="flKcal" type="text" inputmode="decimal" value="${f.caloriesPer100g}"></label>
+      <label class="field"><span>Bílkoviny</span><input class="input" id="flProt" type="text" inputmode="decimal" value="${f.proteinPer100g}"></label>
     </div>
     <div class="input-row">
-      <label class="field"><span>Sacharidy</span><input class="input" id="flCarb" type="number" value="${f.carbsPer100g}"></label>
-      <label class="field"><span>Tuky</span><input class="input" id="flFat" type="number" value="${f.fatPer100g}"></label>
+      <label class="field"><span>Sacharidy</span><input class="input" id="flCarb" type="text" inputmode="decimal" value="${f.carbsPer100g}"></label>
+      <label class="field"><span>Tuky</span><input class="input" id="flFat" type="text" inputmode="decimal" value="${f.fatPer100g}"></label>
     </div>` : `<p class="small" style="margin:0 0 12px">Nutriční hodnoty z ${f.source === "usda" ? "USDA" : "Open Food Facts"} nelze upravovat — jen přejmenovat.</p>`}
     <div class="input-row">
       <label class="field"><span>Porce (g)</span>
-        <input class="input" id="flSrvG" type="number" inputmode="decimal" placeholder="např. 30" value="${f.servingGrams || ""}"></label>
+        <input class="input" id="flSrvG" type="text" inputmode="decimal" placeholder="např. 30" value="${f.servingGrams || ""}"></label>
       <label class="field"><span>Název porce</span>
         <input class="input" id="flSrvN" placeholder="ks / plátek / porce" value="${esc(f.servingName || "")}"></label>
     </div>
@@ -318,12 +318,12 @@ function saveFoodEdit(id) {
   const name = document.getElementById("flName").value.trim();
   if (name) f.name = name;
   if (f.source === "custom") {
-    f.caloriesPer100g = parseFloat(document.getElementById("flKcal").value) || f.caloriesPer100g;
-    f.proteinPer100g = parseFloat(document.getElementById("flProt").value) || 0;
-    f.carbsPer100g = parseFloat(document.getElementById("flCarb").value) || 0;
-    f.fatPer100g = parseFloat(document.getElementById("flFat").value) || 0;
+    f.caloriesPer100g = parseDec(document.getElementById("flKcal").value) || f.caloriesPer100g;
+    f.proteinPer100g = parseDec(document.getElementById("flProt").value) || 0;
+    f.carbsPer100g = parseDec(document.getElementById("flCarb").value) || 0;
+    f.fatPer100g = parseDec(document.getElementById("flFat").value) || 0;
   }
-  f.servingGrams = parseFloat(document.getElementById("flSrvG").value) || null;
+  f.servingGrams = parseDec(document.getElementById("flSrvG").value) || null;
   f.servingName = document.getElementById("flSrvN").value.trim() || null;
   save(); closeModal(); render();
   toast("Uloženo ✓", "ok");

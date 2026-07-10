@@ -98,7 +98,7 @@ function renderActiveSession() {
     // předvyplnění další série podle minulého tréninku (stejný index, jinak poslední)
     const nextIdx = (entry.sets || []).length;
     const pf = last ? (last.sets[nextIdx] || last.sets[last.sets.length - 1]) : null;
-    const pfWeight = pf ? String(Math.round(kgOut(pf.weight) * 10) / 10) : "";
+    const pfWeight = pf ? fmtNum(kgOut(pf.weight), 1) : "";
     const lastLine = last
       ? `minule ${fmtDate(last.date)}: ${last.sets.map(st => `${st.reps}×${fmtNum(kgOut(st.weight), 1)}`).join(" · ")} ${weightUnit()}`
       : "";
@@ -126,7 +126,7 @@ function renderActiveSession() {
       ${sets ? `<div class="mt">${sets}</div>` : ""}
       <div class="row mt" style="gap:6px">
         <input class="input" id="reps-${i}" type="number" inputmode="numeric" placeholder="Opak." value="${pf ? pf.reps : ""}" style="flex:1">
-        <input class="input" id="weight-${i}" type="number" inputmode="decimal" step="0.5" placeholder="${weightUnit()}" value="${pfWeight}" style="flex:1">
+        <input class="input" id="weight-${i}" type="text" inputmode="decimal" placeholder="${weightUnit()}" value="${pfWeight}" style="flex:1">
         <input class="input" id="note-${i}" type="text" placeholder="Poznámka" style="flex:1.4">
       </div>
       <button class="btn sm full mt" style="border-color:var(--green);color:var(--green)" data-act="w-add-set" data-i="${i}">+ Přidat sérii</button>
@@ -238,16 +238,16 @@ function openCardioModal() {
     <label class="field" style="margin-bottom:4px"><span>Sport</span></label>
     <div class="chips">${sportChips}</div>
     <label class="field"><span>Doba trvání (min) *</span>
-      <input class="input" id="cDur" type="number" inputmode="decimal" placeholder="např. 30"></label>
+      <input class="input" id="cDur" type="text" inputmode="decimal" placeholder="např. 30"></label>
     <label class="field"><span>Vzdálenost (km)</span>
-      <input class="input" id="cDist" type="number" inputmode="decimal" step="0.01" placeholder="volitelné"></label>
+      <input class="input" id="cDist" type="text" inputmode="decimal" placeholder="volitelné"></label>
     <label class="field"><span>Kalorie (kcal)</span>
       <input class="input" id="cCal" type="number" inputmode="numeric" placeholder="volitelné"></label>
     <div class="small" id="cPace" style="margin-bottom:14px"></div>
     <button class="btn primary full" data-act="w-cardio-save">Uložit kardio</button>`);
   const upd = () => {
-    const d = parseFloat(document.getElementById("cDur").value);
-    const k = parseFloat(document.getElementById("cDist").value);
+    const d = parseDec(document.getElementById("cDur").value);
+    const k = parseDec(document.getElementById("cDist").value);
     document.getElementById("cPace").textContent =
       d && k ? `Tempo: ${fmtNum(d / k, 2)} min/km` : "";
   };
@@ -256,9 +256,9 @@ function openCardioModal() {
 }
 
 function saveCardio() {
-  const duration = parseFloat(document.getElementById("cDur").value);
-  const distance = parseFloat(document.getElementById("cDist").value) || null;
-  const calories = parseFloat(document.getElementById("cCal").value) || null;
+  const duration = parseDec(document.getElementById("cDur").value);
+  const distance = parseDec(document.getElementById("cDist").value) || null;
+  const calories = parseDec(document.getElementById("cCal").value) || null;
   if (!duration || duration <= 0) { toast("Zadej dobu trvání", "err"); return; }
   S.sessions.push({
     id: uid(), date: WV.date, type: "cardio", templateUsed: null,
