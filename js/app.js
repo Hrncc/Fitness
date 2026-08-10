@@ -121,6 +121,14 @@ const ACTIONS = {
     save(); render();
   },
   "w-swap-ex": d => openExercisePicker(Number(d.i)),
+  "w-ex-done": d => {
+    S.activeSession.entries[Number(d.i)].done = true;
+    save(); render();
+  },
+  "w-ex-reopen": d => {
+    S.activeSession.entries[Number(d.i)].done = false;
+    save(); render();
+  },
   "w-add-ex": () => openExercisePicker(null),
   "w-pick-ex": d => {
     const a = S.activeSession;

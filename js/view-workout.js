@@ -95,13 +95,28 @@ function renderActiveSession() {
     const ex = getExercise(entry.exerciseId);
     const pr = currentPR(entry.exerciseId);
     const last = lastExerciseSets(entry.exerciseId, a.id);
+    const setCount = (entry.sets || []).length;
+
+    /* hotový cvik → sbalená kompaktní karta, klepnutím se znovu rozbalí */
+    if (entry.done) {
+      const summary = entry.sets.map(st => `${st.reps}×${fmtNum(kgOut(st.weight), 1)}`).join(" · ");
+      return `
+      <div class="card ex-done" data-act="w-ex-reopen" data-i="${i}">
+        <div class="row">
+          <span class="done-check">✓</span>
+          <div class="grow">
+            <div class="name" style="font-weight:700">${esc(ex ? ex.name : "?")}</div>
+            <div class="small">${setCount} ${setCount === 1 ? "série" : setCount < 5 ? "série" : "sérií"} · ${summary} ${weightUnit()}${entry.prHit ? ` · <span style="color:var(--yellow);font-weight:700">PR!</span>` : ""}</div>
+          </div>
+          <span class="small">upravit</span>
+        </div>
+      </div>`;
+    }
+
     // předvyplnění další série podle minulého tréninku (stejný index, jinak poslední)
-    const nextIdx = (entry.sets || []).length;
-    const pf = last ? (last.sets[nextIdx] || last.sets[last.sets.length - 1]) : null;
+    const pf = last ? (last.sets[setCount] || last.sets[last.sets.length - 1]) : null;
     const pfWeight = pf ? fmtNum(kgOut(pf.weight), 1) : "";
-    const lastLine = last
-      ? `minule ${fmtDate(last.date)}: ${last.sets.map(st => `${st.reps}×${fmtNum(kgOut(st.weight), 1)}`).join(" · ")} ${weightUnit()}`
-      : "";
+    const started = setCount > 0;
 
     const sets = (entry.sets || []).map((st, j) => `
       <div class="set-row">
@@ -111,35 +126,44 @@ function renderActiveSession() {
         <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="w-del-set" data-i="${i}" data-j="${j}">✕</button>
       </div>`).join("");
 
+    /* zvýrazněný rekord a minulý výkon */
+    const hints = `
+      ${pr ? `<div class="mt"><span class="badge yellow">PR ${fmtWeight(pr.weight)} × ${pr.reps}</span>
+        <span class="small" style="margin-left:6px">e1RM ${fmtWeight(pr.e1rm)}</span></div>` : ""}
+      ${last ? `<div class="hint-last${pr ? "" : " mt"}">Minule ${fmtDate(last.date)}: &nbsp;<b>${last.sets.map(st => `${st.reps}×${fmtNum(kgOut(st.weight), 1)}`).join(" · ")} ${weightUnit()}</b></div>` : ""}`;
+
     return `
-    <div class="card${entry.prHit ? " pr-flash" : ""}" id="exblock-${i}">
+    <div class="card${started ? " ex-active" : ""}${entry.prHit ? " pr-flash" : ""}" id="exblock-${i}">
       <div class="row between">
         <div class="grow">
-          <div class="name" style="font-weight:700">${esc(ex ? ex.name : "?")}</div>
+          <div class="name" style="font-weight:700">${started ? `<span style="color:var(--green)">●</span> ` : ""}${esc(ex ? ex.name : "?")}</div>
           ${ex && ex.description ? `<div class="small" style="color:var(--text2)">${esc(ex.description)}</div>` : ""}
-          <div class="small">${pr ? `PR: ${fmtWeight(pr.weight)} × ${pr.reps} (e1RM ${fmtWeight(pr.e1rm)})` : "Zatím bez rekordu"}</div>
-          ${lastLine ? `<div class="small">${esc(lastLine)}</div>` : ""}
         </div>
         <button class="btn sm ghost" data-act="w-swap-ex" data-i="${i}">⇄</button>
         <button class="btn sm ghost" style="color:var(--red)" data-act="w-remove-ex" data-i="${i}">✕</button>
       </div>
+      ${hints}
       ${sets ? `<div class="mt">${sets}</div>` : ""}
       <div class="row mt" style="gap:6px">
         <input class="input" id="reps-${i}" type="number" inputmode="numeric" placeholder="Opak." value="${pf ? pf.reps : ""}" style="flex:1">
         <input class="input" id="weight-${i}" type="text" inputmode="decimal" placeholder="${weightUnit()}" value="${pfWeight}" style="flex:1">
         <input class="input" id="note-${i}" type="text" placeholder="Poznámka" style="flex:1.4">
       </div>
-      <button class="btn sm full mt" style="border-color:var(--green);color:var(--green)" data-act="w-add-set" data-i="${i}">+ Přidat sérii</button>
+      <div class="row mt" style="gap:8px">
+        <button class="btn sm grow" style="border-color:var(--green);color:var(--green)" data-act="w-add-set" data-i="${i}">+ Přidat sérii</button>
+        ${started ? `<button class="btn sm success" data-act="w-ex-done" data-i="${i}">✓ Cvik hotový</button>` : ""}
+      </div>
     </div>`;
   }).join("");
 
   const totalSets = a.entries.reduce((n, e) => n + (e.sets || []).length, 0);
+  const doneCount = a.entries.filter(e => e.done).length;
   const dateInfo = a.date !== todayStr() ? ` · ${fmtDate(a.date)}` : "";
   return `
     <div class="card" style="border-color:var(--yellow)">
       <div class="row between">
         <span class="badge yellow">Probíhá — ${esc(sessionLabel(a))}${dateInfo}</span>
-        <span class="small">${totalSets} sérií</span>
+        <span class="small">${doneCount}/${a.entries.length} cviků · ${totalSets} sérií</span>
       </div>
       <p class="small" style="margin:8px 0 0">Úpravy cviků platí jen pro tuto session, šablonu nemění. Předvyplněné hodnoty jsou z minulého tréninku.</p>
     </div>

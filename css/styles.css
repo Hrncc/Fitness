@@ -291,6 +291,24 @@ label.field > span {
 .pr-flash { animation: prflash 1.4s ease 2; border-color: var(--yellow) !important; }
 @keyframes prflash { 50% { box-shadow: 0 0 26px rgba(247,201,72,.5); } }
 
+/* Aktivní trénink: stavy cviků */
+.ex-active { border-color: var(--green); }
+.ex-done {
+  padding: 13px 16px; cursor: pointer; opacity: .72;
+  border-color: transparent;
+}
+.ex-done:active { opacity: 1; }
+.done-check {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  background: var(--green); color: #0A0B0D; font-weight: 900; font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+}
+.hint-last {
+  background: var(--bg2); border-radius: 10px; padding: 8px 11px;
+  font-size: 13px; color: var(--text2); margin-top: 8px;
+}
+.hint-last b { color: var(--text); }
+
 /* ===== Grafy ===== */
 .chart-wrap { width: 100%; overflow: hidden; }
 .chart-wrap svg { width: 100%; height: auto; display: block; }
