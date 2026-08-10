@@ -8,7 +8,7 @@ const App = {
 const TITLES = {
   today: "Dnes", workout: "Trénink", food: "Jídlo", summary: "Souhrn",
   exlib: "Exercise Library", templates: "Workout Templates", foodlib: "Food Library",
-  photos: "Fotky postupu",
+  photos: "Fotky postupu", checkin: "Týdenní check-in",
   export: "Export & Backup", settings: "Nastavení", about: "O aplikaci"
 };
 
@@ -20,7 +20,7 @@ function render() {
   const view = document.getElementById("view");
   view.innerHTML = page ? {
     exlib: renderExLib, templates: renderTemplates, foodlib: renderFoodLib,
-    photos: renderPhotos,
+    photos: renderPhotos, checkin: renderCheckin,
     export: renderExport, settings: renderSettings, about: renderAbout
   }[page]() : {
     today: renderToday, workout: renderWorkout, food: renderFood, summary: renderSummary
@@ -321,6 +321,25 @@ const ACTIONS = {
   "ph-del": d => deletePhoto(d.id),
   "ph-download": d => downloadPhoto(d.id),
 
+  /* ---- Týdenní check-in ---- */
+  "ci-new": () => openCheckinForm(null),
+  "ci-edit": d => openCheckinForm(d.id),
+  "ci-cancel": () => { CV.form = null; CV.editId = null; render(); },
+  "ci-scale": d => {
+    captureCheckinForm();
+    const key = d.key, val = Number(d.val);
+    CV.form.scales[key] = CV.form.scales[key] === val ? undefined : val;
+    if (CV.form.scales[key] === undefined) delete CV.form.scales[key];
+    render();
+  },
+  "ci-save": () => saveCheckin(),
+  "ci-copy": d => copyCheckin(d.id),
+  "ci-del": d => withUndo("Check-in smazán", () => {
+    S.checkins = S.checkins.filter(c => c.id !== d.id);
+    markDeleted(d.id);
+    CV.form = null; CV.editId = null;
+  }),
+
   /* ---- Týdenní rekap ---- */
   "recap-dismiss": d => { Settings.set({ recapDismissed: d.week }); render(); },
 
@@ -368,6 +387,7 @@ document.addEventListener("change", e => {
   }
   if (t.dataset.change === "ph-cmp-a") { PV.cmpA = t.value; render(); }
   if (t.dataset.change === "ph-cmp-b") { PV.cmpB = t.value; render(); }
+  if (t.dataset.change === "ci-trend") { CV.trendKey = t.value; render(); }
   if (t.dataset.change === "f-unit") {
     // přepnutí jednotek znovu otevře krok množství se zachovanou volbou jídla dne
     const meal = FV.mealChoice;

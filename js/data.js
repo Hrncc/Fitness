@@ -69,6 +69,7 @@ function defaultState() {
     foodLog: [],       // FoodLogEntry
     bodyLog: [],       // { date, weightKg } — denní tělesná váha, max 1 záznam na den
     recipes: [],       // { id, name, portions, items: [{ foodItemId, grams }] }
+    checkins: [],      // týdenní check-in (obvody, škály 1–10, dodržování, poznámka)
     milestones: [],    // { id, date } — jednorázově dosažené milníky
     deletedIds: [],    // tombstony smazaných záznamů (pro slévání při syncu)
     goal: { dailyCalories: 2500, proteinGrams: 150, carbsGrams: 280, fatGrams: 80 },
@@ -330,13 +331,59 @@ function lastBodyWeight(beforeDate) {
   return best;
 }
 
-/* Zapíše/přepíše váhu pro dnešek */
-function logBodyWeight(kg) {
-  const t = todayStr();
-  const e = S.bodyLog.find(b => b.date === t);
+/* Zapíše/přepíše váhu pro daný den (výchozí dnešek) */
+function logBodyWeight(kg, date) {
+  const d = date || todayStr();
+  const e = S.bodyLog.find(b => b.date === d);
   if (e) e.weightKg = kg;
-  else S.bodyLog.push({ date: t, weightKg: kg });
+  else S.bodyLog.push({ date: d, weightKg: kg });
   S.bodyLog.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/* ===== Týdenní check-in ===== */
+const MEASURES = [
+  { key: "chest", label: "Prsa" }, { key: "waist", label: "Pas" },
+  { key: "hips", label: "Boky" }, { key: "glutes", label: "Hýždě" },
+  { key: "arm", label: "Paže" }, { key: "thigh", label: "Stehno" },
+  { key: "calf", label: "Lýtko" }
+];
+const SCALES = [
+  { key: "energy", label: "Energie" }, { key: "hunger", label: "Hlad" },
+  { key: "sleep", label: "Spánek" }, { key: "stress", label: "Stres" },
+  { key: "quality", label: "Kvalita tréninků" }
+];
+
+/* nejnovější první */
+function checkinsSorted() {
+  return [...S.checkins].sort((a, b) => b.date.localeCompare(a.date));
+}
+function lastCheckin() { return checkinsSorted()[0] || null; }
+
+/* Kolik dní od posledního check-inu; null = ještě žádný nebyl */
+function daysSinceCheckin() {
+  const last = lastCheckin();
+  if (!last) return null;
+  return Math.round((parseDate(todayStr()) - parseDate(last.date)) / 86400000);
+}
+
+/* Návrhy hodnot z dat, která appka už má (posledních 7 dní) */
+function checkinSuggestions() {
+  const from = addDays(todayStr(), -6);
+  const rated = S.sessions.filter(s => s.date >= from && s.rating);
+  const quality = rated.length
+    ? Math.round(rated.reduce((a, s) => a + s.rating, 0) / rated.length) : null;
+  let logged = 0, met = 0;
+  for (let d = from; d <= todayStr(); d = addDays(d, 1)) {
+    if (dayNutrition(d).count) { logged++; if (calorieGoalMet(d)) met++; }
+  }
+  const latest = lastBodyWeight();
+  return {
+    quality,
+    adherence: logged ? Math.round(met / logged * 100) : null,
+    adherenceNote: logged ? `${met}/${logged} zapsaných dní v kalorickém cíli` : null,
+    weightKg: latest ? latest.weightKg : null,
+    weightAvg: movingAvgAt(S.bodyLog, todayStr())
+  };
 }
 
 /* ===== Milníky =====

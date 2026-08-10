@@ -399,6 +399,17 @@ label.field > span {
   display: flex; align-items: center; justify-content: center;
 }
 
+/* ===== Týdenní check-in ===== */
+.scale-row { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
+.scale-chip {
+  background: var(--bg2); border: none; color: var(--text2);
+  border-radius: 9px; padding: 9px 0; font-size: 12.5px; font-weight: 700;
+  cursor: pointer; text-align: center;
+}
+.scale-chip.on { background: var(--green); color: #0A0B0D; font-weight: 800; }
+.ci-measures { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+.ci-measures label.field { margin-bottom: 10px; }
+
 /* ===== Fotky postupu ===== */
 .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .photo-cell { position: relative; cursor: pointer; }

@@ -112,7 +112,23 @@ function renderToday() {
       </div>`;
   }
 
-  return hero_date + weeklyRecapCard() + heroCard + workoutCard + weightCard;
+  /* -- připomínka check-inu (jen když už appku aktivně používáš) -- */
+  const since = daysSinceCheckin();
+  const active = S.sessions.length > 0 || S.bodyLog.length > 0;
+  const checkinCard = (active && (since === null || since >= 7)) ? `
+    <div class="card">
+      <div class="row between">
+        <div class="grow">
+          <div class="h2" style="margin:0">Týdenní check-in</div>
+          <div class="muted" style="margin-top:4px">${since === null
+            ? "Zatím žádný — obvody a pocity pro trenéra"
+            : `Poslední před ${since} dny`}</div>
+        </div>
+        <button class="btn sm primary" data-act="menu" data-page="checkin">Vyplnit</button>
+      </div>
+    </div>` : "";
+
+  return hero_date + weeklyRecapCard() + heroCard + workoutCard + weightCard + checkinCard;
 }
 
 /* ---- Souhrn statistik za týden (pondělí–neděle) ---- */
