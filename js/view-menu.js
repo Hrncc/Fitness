@@ -1,7 +1,7 @@
 /* ===== Obrazovky z hamburger menu ===== */
 "use strict";
 
-const APP_VERSION = "1.9.0";
+const APP_VERSION = "1.10.0";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -475,7 +475,18 @@ function renderSettings() {
       <p class="small" style="margin:0 0 12px">Klíč zdarma: fdc.nal.usda.gov/api-key-signup.html</p>
       <label class="field"><span>Claude API klíč (čtení etiket z fotky)</span>
         <input class="input" id="setAnthropic" type="password" placeholder="sk-ant-…" value="${esc(st.anthropicApiKey)}"></label>
-      <p class="small" style="margin:0">Klíč vytvoříš na console.anthropic.com. Ukládá se jen v tomto zařízení a posílá se pouze na api.anthropic.com.</p>
+      <p class="small" style="margin:0 0 12px">Klíč vytvoříš na console.anthropic.com. Ukládá se jen v tomto zařízení a posílá se pouze na api.anthropic.com.</p>
+      <label class="field"><span>Pauza mezi sériemi (s, 0 = vypnuto)</span>
+        <input class="input" id="setRest" type="number" inputmode="numeric" value="${st.restSeconds ?? 120}"></label>
+    </div>
+    <div class="card">
+      <div class="h2">Přenos nastavení na jiné zařízení</div>
+      <p class="muted" style="margin:0 0 12px">QR kód přenese sync URL, API klíče a jednotky — na novém zařízení je nemusíš opisovat.</p>
+      <div class="row" style="gap:8px">
+        <button class="btn grow" data-act="set-qr-show">Zobrazit QR</button>
+        <button class="btn grow" data-act="set-qr-scan">Načíst z QR</button>
+      </div>
+      <input type="file" id="qrScanInput" accept="image/*" capture="environment" style="display:none">
     </div>
     <button class="btn primary full" data-act="set-save">Uložit nastavení</button>`;
 }
@@ -485,7 +496,8 @@ function saveSettings() {
     gasWebAppUrl: document.getElementById("setGas").value.trim(),
     usdaApiKey: document.getElementById("setUsda").value.trim(),
     anthropicApiKey: document.getElementById("setAnthropic").value.trim(),
-    weightUnit: document.getElementById("setUnit").value
+    weightUnit: document.getElementById("setUnit").value,
+    restSeconds: Math.max(0, parseInt(document.getElementById("setRest").value, 10) || 0)
   });
   S.goal = {
     dailyCalories: parseInt(document.getElementById("setKcal").value, 10) || 0,
@@ -497,6 +509,51 @@ function saveSettings() {
   if (!Sync.url()) Sync.setStatus("off");
   render();
   toast("Nastavení uloženo ✓", "ok");
+}
+
+/* ================= Přenos nastavení přes QR ================= */
+const QR_PREFIX = "FITAPP1:";
+
+function openQrExport() {
+  const st = Settings.get();
+  const payload = QR_PREFIX + JSON.stringify({
+    g: st.gasWebAppUrl, u: st.usdaApiKey, a: st.anthropicApiKey,
+    w: st.weightUnit, r: st.restSeconds
+  });
+  openModal(`${modalTitle("Nastavení jako QR")}
+    <div class="center" style="background:#fff;border-radius:16px;padding:8px">
+      <canvas id="qrCanvas" style="max-width:100%;height:auto;display:block;margin:0 auto"></canvas>
+    </div>
+    <p class="small mt">Kód obsahuje sync URL a API klíče — nikomu ho neukazuj a neposílej.
+    Na druhém zařízení: Nastavení → Načíst z QR (vyfoť tuhle obrazovku).</p>`);
+  if (!qrToCanvas(payload, document.getElementById("qrCanvas"), 6)) {
+    document.getElementById("qrCanvas").outerHTML =
+      `<div class="small" style="color:var(--red);padding:12px">Nastavení je pro QR moc dlouhé.</div>`;
+  }
+}
+
+async function importQrFile(file) {
+  try {
+    if (!("BarcodeDetector" in window)) throw new Error("Tenhle prohlížeč neumí číst QR z fotky");
+    const bmp = await createImageBitmap(file);
+    const det = new BarcodeDetector({ formats: ["qr_code"] });
+    const codes = await det.detect(bmp);
+    const hit = codes.map(c => c.rawValue).find(v => v && v.startsWith(QR_PREFIX));
+    if (!hit) throw new Error("Na fotce není QR kód s nastavením appky");
+    const p = JSON.parse(hit.slice(QR_PREFIX.length));
+    Settings.set({
+      gasWebAppUrl: p.g || "",
+      usdaApiKey: p.u || "",
+      anthropicApiKey: p.a || "",
+      weightUnit: p.w === "lb" ? "lb" : "kg",
+      restSeconds: Number.isFinite(p.r) ? p.r : 120
+    });
+    render();
+    toast("Nastavení načteno ✓ — Uložit do cloudu / Načíst z cloudu podle potřeby", "ok");
+    Sync.init();
+  } catch (e) {
+    toast(e.message, "err");
+  }
 }
 
 /* ================= O aplikaci ================= */

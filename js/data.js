@@ -11,7 +11,7 @@ const Settings = {
     if (!this._cache) {
       try { this._cache = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; }
       catch (e) { this._cache = {}; }
-      this._cache = Object.assign({ gasWebAppUrl: "", usdaApiKey: "", anthropicApiKey: "", weightUnit: "kg" }, this._cache);
+      this._cache = Object.assign({ gasWebAppUrl: "", usdaApiKey: "", anthropicApiKey: "", weightUnit: "kg", restSeconds: 120 }, this._cache);
     }
     return this._cache;
   },

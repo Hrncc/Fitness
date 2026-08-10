@@ -41,6 +41,12 @@ function wireViewInputs() {
       if (list) list.innerHTML = elListHtml();
     });
   }
+  const qrIn = document.getElementById("qrScanInput");
+  if (qrIn) {
+    qrIn.addEventListener("change", () => {
+      if (qrIn.files && qrIn.files[0]) importQrFile(qrIn.files[0]);
+    });
+  }
 }
 
 function openDrawer(open) {
@@ -142,6 +148,26 @@ const ACTIONS = {
     save(); closeModal(); render();
   },
   "w-finish": () => finishWorkout(),
+  "w-rate-chip": d => {
+    WV.rateVal = Number(d.val);
+    document.querySelectorAll(".ratechip").forEach(c =>
+      c.classList.toggle("on", Number(c.dataset.val) === WV.rateVal));
+  },
+  "w-rate-save": d => {
+    const s = S.sessions.find(x => x.id === d.id);
+    if (s) {
+      s.rating = WV.rateVal || null;
+      s.note = document.getElementById("rateNote").value.trim() || null;
+      save();
+    }
+    closeModal();
+    toast("Hodnocení uloženo ✓", "ok");
+  },
+
+  /* ---- Rest timer ---- */
+  "rest-plus": () => Rest.adjust(30),
+  "rest-minus": () => Rest.adjust(-30),
+  "rest-stop": () => Rest.stop(),
   "w-cancel": () => withUndo("Trénink zrušen", () => { S.activeSession = null; }),
   "w-pr-history": d => openPRHistory(d.exid),
   "w-detail": d => openSessionDetail(d.id),
@@ -280,6 +306,8 @@ const ACTIONS = {
   "rc-save": () => saveRecipe(),
 
   /* ---- Export / Nastavení ---- */
+  "set-qr-show": () => openQrExport(),
+  "set-qr-scan": () => document.getElementById("qrScanInput").click(),
   "exp-share": () => exportShare(),
   "exp-json": () => downloadFile(`fitness-log-${todayStr()}.json`, JSON.stringify(S, null, 2), "application/json"),
   "exp-md": () => downloadFile(`fitness-log-${todayStr()}.md`, buildMarkdown(), "text/markdown"),
@@ -339,6 +367,7 @@ document.addEventListener("syncstatus", () => {
 /* ===== Start ===== */
 render();
 Sync.init();
+Rest.init();
 
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
   navigator.serviceWorker.register("sw.js").then(reg => {

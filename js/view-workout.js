@@ -115,7 +115,10 @@ function renderActiveSession() {
 
     // předvyplnění další série podle minulého tréninku (stejný index, jinak poslední)
     const pf = last ? (last.sets[setCount] || last.sets[last.sets.length - 1]) : null;
-    const pfWeight = pf ? fmtNum(kgOut(pf.weight), 1) : "";
+    const prog = progressionSuggestion(ex, last);
+    // při splněné progresi předvyplň vyšší váhu a spodek rep range
+    const pfReps = prog ? prog.lo : (pf ? pf.reps : "");
+    const pfWeight = prog ? fmtNum(kgOut(prog.next), 1) : (pf ? fmtNum(kgOut(pf.weight), 1) : "");
     const started = setCount > 0;
 
     const sets = (entry.sets || []).map((st, j) => `
@@ -126,11 +129,12 @@ function renderActiveSession() {
         <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="w-del-set" data-i="${i}" data-j="${j}">✕</button>
       </div>`).join("");
 
-    /* zvýrazněný rekord a minulý výkon */
+    /* zvýrazněný rekord, minulý výkon a návrh progrese */
     const hints = `
       ${pr ? `<div class="mt"><span class="badge yellow">PR ${fmtWeight(pr.weight)} × ${pr.reps}</span>
         <span class="small" style="margin-left:6px">e1RM ${fmtWeight(pr.e1rm)}</span></div>` : ""}
-      ${last ? `<div class="hint-last${pr ? "" : " mt"}">Minule ${fmtDate(last.date)}: &nbsp;<b>${last.sets.map(st => `${st.reps}×${fmtNum(kgOut(st.weight), 1)}`).join(" · ")} ${weightUnit()}</b></div>` : ""}`;
+      ${last ? `<div class="hint-last${pr ? "" : " mt"}">Minule ${fmtDate(last.date)}: &nbsp;<b>${last.sets.map(st => `${st.reps}×${fmtNum(kgOut(st.weight), 1)}`).join(" · ")} ${weightUnit()}</b></div>` : ""}
+      ${prog ? `<div class="hint-last hint-prog">Progrese: minule vše ≥ ${prog.topReps} opak. → zkus <b>${fmtWeight(prog.next)}</b></div>` : ""}`;
 
     return `
     <div class="card${started ? " ex-active" : ""}${entry.prHit ? " pr-flash" : ""}" id="exblock-${i}">
@@ -145,7 +149,7 @@ function renderActiveSession() {
       ${hints}
       ${sets ? `<div class="mt">${sets}</div>` : ""}
       <div class="row mt" style="gap:6px">
-        <input class="input" id="reps-${i}" type="number" inputmode="numeric" placeholder="Opak." value="${pf ? pf.reps : ""}" style="flex:1">
+        <input class="input" id="reps-${i}" type="number" inputmode="numeric" placeholder="Opak." value="${pfReps}" style="flex:1">
         <input class="input" id="weight-${i}" type="text" inputmode="decimal" placeholder="${weightUnit()}" value="${pfWeight}" style="flex:1">
         <input class="input" id="note-${i}" type="text" placeholder="Poznámka" style="flex:1.4">
       </div>
@@ -173,6 +177,19 @@ function renderActiveSession() {
       <button class="btn danger" data-act="w-cancel">Zrušit</button>
       <button class="btn success grow" data-act="w-finish">✓ Dokončit trénink</button>
     </div>`;
+}
+
+/* Návrh progrese (double progression): minule všechny série na horní hranici
+   rep range z plánu → zkus vyšší váhu. Range se čte z popisu ("3× 8–12 …"). */
+function progressionSuggestion(ex, last) {
+  if (!ex || !ex.description || !last || !last.sets.length) return null;
+  const m = /×\s*(\d+)\s*[–-]\s*(\d+)/.exec(ex.description);
+  if (!m) return null;
+  const lo = parseInt(m[1], 10), hi = parseInt(m[2], 10);
+  if (!last.sets.every(st => st.reps >= hi)) return null;
+  const maxW = Math.max(...last.sets.map(st => st.weight || 0));
+  if (!maxW) return null;
+  return { lo, topReps: hi, next: maxW + 2.5 };
 }
 
 /* ---- Akce: silový trénink ---- */
@@ -210,6 +227,7 @@ function addSet(i) {
   entry.sets.push(set);
   save();
   render();
+  Rest.start(Settings.get().restSeconds);
 }
 
 function finishWorkout() {
@@ -219,11 +237,30 @@ function finishWorkout() {
     .map(e => ({ exerciseId: e.exerciseId, sets: e.sets.map(({ reps, weight, note }) => ({ reps, weight, note })) }));
   if (!entries.length) { toast("Trénink nemá žádnou zapsanou sérii", "err"); return; }
   const prCount = a.entries.reduce((n, e) => n + (e.sets || []).filter(s => s.isPR).length, 0);
-  S.sessions.push({ id: a.id, date: a.date, type: "weights", templateUsed: a.templateUsed, templateName: a.templateName || null, entries });
+  const sessionId = a.id;
+  S.sessions.push({ id: sessionId, date: a.date, type: "weights", templateUsed: a.templateUsed, templateName: a.templateName || null, entries });
   S.activeSession = null;
+  Rest.stop();
   save();
   render();
   toast(prCount ? `Trénink uložen — ${prCount}× nový PR!` : "Trénink uložen ✓", prCount ? "pr" : "ok");
+  openRatingModal(sessionId);
+}
+
+/* ---- Hodnocení tréninku (kvalita 1–10 + poznámka) ---- */
+function openRatingModal(sessionId) {
+  WV.rateVal = null;
+  const chips = Array.from({ length: 10 }, (_, k) => k + 1).map(n =>
+    `<button class="chip ratechip" data-act="w-rate-chip" data-val="${n}">${n}</button>`).join("");
+  openModal(`${modalTitle("Jak ti trénink sedl?")}
+    <label class="field" style="margin-bottom:4px"><span>Kvalita (1 = nekvalitní, 10 = skvělý)</span></label>
+    <div class="chips">${chips}</div>
+    <label class="field"><span>Poznámka</span>
+      <input class="input" id="rateNote" placeholder="volitelné — pocit, únava, co příště jinak…"></label>
+    <div class="row" style="gap:8px">
+      <button class="btn ghost grow" data-act="modal-close">Přeskočit</button>
+      <button class="btn primary grow" data-act="w-rate-save" data-id="${sessionId}">Uložit</button>
+    </div>`);
 }
 
 /* ---- Výběr cviku (přidání / výměna v session) ---- */
@@ -357,9 +394,11 @@ function sessionDetailHtml(s) {
   return `<div>
     <div class="row between">
       <span class="badge neutral">${esc(sessionLabel(s))}</span>
+      ${s.rating ? `<span class="badge green">${s.rating}/10</span>` : ""}
       <span class="small">objem ${fmtWeight(sessionVolume(s))}</span>
       <button class="btn sm danger" data-act="w-del-session" data-id="${s.id}">Smazat</button>
-    </div>${blocks}</div>`;
+    </div>
+    ${s.note ? `<div class="small mt">„${esc(s.note)}"</div>` : ""}${blocks}</div>`;
 }
 
 function openSessionDetail(id) {

@@ -13,6 +13,56 @@ function toast(msg, kind = "", action = null) {
   _toastTimer = setTimeout(() => t.classList.remove("show"), action ? 6000 : 2600);
 }
 
+/* ---- Rest timer — pauza mezi sériemi ----
+   Cíl v čase se drží v localStorage, takže přežije i zamčení mobilu. */
+const Rest = {
+  KEY: "fitapp_rest_until",
+  timer: null,
+  start(seconds) {
+    if (!seconds || seconds <= 0) return;
+    localStorage.setItem(this.KEY, String(Date.now() + seconds * 1000));
+    this._run();
+  },
+  adjust(deltaSec) {
+    const until = Number(localStorage.getItem(this.KEY) || 0);
+    if (!until) return;
+    localStorage.setItem(this.KEY, String(Math.max(Date.now(), until) + deltaSec * 1000));
+    this._run();
+  },
+  stop() {
+    localStorage.removeItem(this.KEY);
+    clearInterval(this.timer);
+    this.timer = null;
+    document.getElementById("restBar").classList.remove("show", "over");
+  },
+  init() {
+    if (Number(localStorage.getItem(this.KEY) || 0) > Date.now()) this._run();
+  },
+  _run() {
+    const bar = document.getElementById("restBar");
+    bar.classList.add("show");
+    bar.classList.remove("over");
+    clearInterval(this.timer);
+    const tick = () => {
+      const until = Number(localStorage.getItem(this.KEY) || 0);
+      const left = Math.ceil((until - Date.now()) / 1000);
+      if (left <= 0) {
+        document.getElementById("restTime").textContent = "0:00";
+        bar.classList.add("over");
+        clearInterval(this.timer);
+        this.timer = null;
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        setTimeout(() => this.stop(), 5000);
+        return;
+      }
+      document.getElementById("restTime").textContent =
+        `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+    };
+    tick();
+    this.timer = setInterval(tick, 250);
+  }
+};
+
 /* ---- Modal (bottom sheet) ---- */
 function openModal(html) {
   document.getElementById("modal").innerHTML = html;

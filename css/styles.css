@@ -361,6 +361,30 @@ label.field > span {
   text-transform: uppercase; letter-spacing: .12em; margin-top: 4px;
 }
 
+/* ===== Rest timer (pauza mezi sériemi) ===== */
+.restbar {
+  position: fixed; z-index: 45;
+  left: 14px; right: 14px;
+  bottom: calc(var(--nav-h) + 22px + env(safe-area-inset-bottom));
+  max-width: 500px; margin: 0 auto;
+  display: none; align-items: center; gap: 10px;
+  background: var(--bg3); border: 1px solid var(--stroke);
+  border-radius: 999px; padding: 8px 10px 8px 18px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.45);
+}
+.restbar.show { display: flex; }
+.restbar.over { background: var(--green); }
+.restbar.over .restbar-label, .restbar.over .restbar-time { color: #0A0B0D; }
+.restbar-label {
+  font-size: 10.5px; font-weight: 900; color: var(--text2);
+  text-transform: uppercase; letter-spacing: .12em;
+}
+.restbar-time { font-size: 19px; font-weight: 900; flex: 1; letter-spacing: .02em; }
+
+/* zvýrazněný návrh progrese */
+.hint-prog { background: var(--green-bg); color: var(--green); font-weight: 700; }
+.hint-prog b { color: var(--green); }
+
 .spin {
   width: 18px; height: 18px; border: 2px solid var(--bg3); border-top-color: var(--green);
   border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto;

@@ -55,7 +55,38 @@ function renderSummary() {
         <div class="stat"><div class="val">${fmtWeight(totalVolume, false)}</div><div class="lbl">celkový objem (${weightUnit()})</div></div>
         <div class="stat"><div class="val" style="color:var(--yellow)">${prCountInRange(from)}</div><div class="lbl">nových PR</div></div>
       </div>
+      ${(() => {
+        const rated = sessions.filter(s => s.rating);
+        if (!rated.length) return "";
+        const avg = rated.reduce((a, s) => a + s.rating, 0) / rated.length;
+        return `<p class="small mt" style="margin-bottom:0">Ø kvalita tréninků: <b style="color:var(--text)">${fmtNum(avg, 1)}/10</b> (${rated.length} hodnocení)</p>`;
+      })()}
     </div>`;
+
+  /* -- objem podle partií -- */
+  const catVol = {};
+  for (const s of weights) {
+    for (const e of s.entries) {
+      const cat = (getExercise(e.exerciseId) || {}).category || "Ostatní";
+      let v = 0;
+      for (const st of e.sets || []) v += (st.reps || 0) * (st.weight || 0);
+      if (v) catVol[cat] = (catVol[cat] || 0) + v;
+    }
+  }
+  const catRows = Object.entries(catVol).sort((a, b) => b[1] - a[1]);
+  const catMax = catRows.length ? catRows[0][1] : 0;
+  const categoryCard = catRows.length ? `
+    <div class="card">
+      <div class="h2">Objem podle partií <span class="small">(${weightUnit()}, posledních ${days} dní)</span></div>
+      ${catRows.map(([cat, v]) => `
+        <div class="mt">
+          <div class="row between" style="margin-bottom:4px">
+            <span class="small" style="font-weight:700;color:var(--text)">${esc(cat)}</span>
+            <span class="small">${fmtNum(kgOut(v))}</span>
+          </div>
+          <div class="bar mini"><div style="width:${(v / catMax * 100).toFixed(1)}%;background:var(--chart)"></div></div>
+        </div>`).join("")}
+    </div>` : "";
 
   /* -- objem po týdnech (posledních 8 týdnů) -- */
   const weeksData = [];
@@ -201,7 +232,7 @@ function renderSummary() {
       <p class="small mt">Změna váhy je počítaná ze 7denního průměru, ne z denních výkyvů.</p>
     </div>` : "";
 
-  return rangeTabs + calendarCard + workoutStats + volumeChart + exerciseChart + prCard + weightCard + balanceCard + foodStats + foodChart;
+  return rangeTabs + calendarCard + workoutStats + volumeChart + categoryCard + exerciseChart + prCard + weightCard + balanceCard + foodStats + foodChart;
 }
 
 /* 7denní klouzavý průměr váhy k danému datu (kg); null bez záznamů v okně */
