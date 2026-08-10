@@ -381,9 +381,42 @@ label.field > span {
 }
 .restbar-time { font-size: 19px; font-weight: 900; flex: 1; letter-spacing: .02em; }
 
-/* zvýrazněný návrh progrese */
+/* zvýrazněný návrh progrese a „blízko rekordu" */
 .hint-prog { background: var(--green-bg); color: var(--green); font-weight: 700; }
 .hint-prog b { color: var(--green); }
+.hint-near { background: var(--yellow-bg); color: var(--yellow); font-weight: 700; }
+.hint-near b { color: var(--yellow); }
+
+/* ===== Týdenní rekap ===== */
+.recap-card { border-color: var(--stroke); }
+.recap-rows { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--text2); }
+.recap-rows b { color: var(--text); font-size: 15px; }
+
+/* ===== Milníky ===== */
+.ms-badge {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  background: var(--yellow-bg); font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ===== Fotky postupu ===== */
+.photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.photo-cell { position: relative; cursor: pointer; }
+.photo-cell img {
+  width: 100%; aspect-ratio: 3/4; object-fit: cover;
+  border-radius: 12px; display: block; background: var(--bg2);
+}
+.photo-cell span {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 12px 6px 5px; border-radius: 0 0 12px 12px;
+  font-size: 10.5px; font-weight: 700; text-align: center; color: #fff;
+  background: linear-gradient(transparent, rgba(0,0,0,.75));
+}
+.photo-cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.photo-cmp img {
+  width: 100%; aspect-ratio: 3/4; object-fit: cover;
+  border-radius: 14px; display: block; background: var(--bg2); margin-bottom: 8px;
+}
 
 .spin {
   width: 18px; height: 18px; border: 2px solid var(--bg3); border-top-color: var(--green);

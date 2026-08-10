@@ -2,7 +2,7 @@
    Cache-first pro vlastní soubory, síť pro externí API (OFF, USDA, GAS). */
 "use strict";
 
-const CACHE = "fitapp-v14";
+const CACHE = "fitapp-v15";
 const SHELL = [
   "./",
   "./index.html",
@@ -10,6 +10,7 @@ const SHELL = [
   "./css/styles.css",
   "./js/util.js",
   "./js/qr.js",
+  "./js/photos.js",
   "./js/data.js",
   "./js/sync.js",
   "./js/foodapi.js",

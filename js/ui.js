@@ -37,6 +37,7 @@ const Rest = {
   },
   init() {
     if (Number(localStorage.getItem(this.KEY) || 0) > Date.now()) this._run();
+    else localStorage.removeItem(this.KEY); // doběhlá pauza z minula
   },
   _run() {
     const bar = document.getElementById("restBar");

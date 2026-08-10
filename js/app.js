@@ -8,6 +8,7 @@ const App = {
 const TITLES = {
   today: "Dnes", workout: "Trénink", food: "Jídlo", summary: "Souhrn",
   exlib: "Exercise Library", templates: "Workout Templates", foodlib: "Food Library",
+  photos: "Fotky postupu",
   export: "Export & Backup", settings: "Nastavení", about: "O aplikaci"
 };
 
@@ -19,6 +20,7 @@ function render() {
   const view = document.getElementById("view");
   view.innerHTML = page ? {
     exlib: renderExLib, templates: renderTemplates, foodlib: renderFoodLib,
+    photos: renderPhotos,
     export: renderExport, settings: renderSettings, about: renderAbout
   }[page]() : {
     today: renderToday, workout: renderWorkout, food: renderFood, summary: renderSummary
@@ -45,6 +47,12 @@ function wireViewInputs() {
   if (qrIn) {
     qrIn.addEventListener("change", () => {
       if (qrIn.files && qrIn.files[0]) importQrFile(qrIn.files[0]);
+    });
+  }
+  const phIn = document.getElementById("photoAddInput");
+  if (phIn) {
+    phIn.addEventListener("change", () => {
+      if (phIn.files && phIn.files[0]) openPhotoSaveModal(phIn.files[0]);
     });
   }
 }
@@ -306,6 +314,16 @@ const ACTIONS = {
   "rc-save": () => saveRecipe(),
 
   /* ---- Export / Nastavení ---- */
+  /* ---- Fotky postupu ---- */
+  "ph-add": () => document.getElementById("photoAddInput").click(),
+  "ph-save": () => savePhoto(),
+  "ph-detail": d => openPhotoDetail(d.id),
+  "ph-del": d => deletePhoto(d.id),
+  "ph-download": d => downloadPhoto(d.id),
+
+  /* ---- Týdenní rekap ---- */
+  "recap-dismiss": d => { Settings.set({ recapDismissed: d.week }); render(); },
+
   "set-qr-show": () => openQrExport(),
   "set-qr-scan": () => document.getElementById("qrScanInput").click(),
   "exp-share": () => exportShare(),
@@ -348,6 +366,8 @@ document.addEventListener("change", e => {
   if (t.dataset.change === "w-date") {
     if (t.value) { WV.date = t.value; render(); }
   }
+  if (t.dataset.change === "ph-cmp-a") { PV.cmpA = t.value; render(); }
+  if (t.dataset.change === "ph-cmp-b") { PV.cmpB = t.value; render(); }
   if (t.dataset.change === "f-unit") {
     // přepnutí jednotek znovu otevře krok množství se zachovanou volbou jídla dne
     const meal = FV.mealChoice;

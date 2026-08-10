@@ -31,6 +31,7 @@ function mergeStates(local, cloud) {
   out.foods = byId("foods");
   out.foodLog = byId("foodLog");
   out.recipes = byId("recipes");
+  out.milestones = byId("milestones");
   out.bodyLog = byId("bodyLog", x => x.date).sort((a, b) => a.date.localeCompare(b.date));
   out.deletedIds = [...tomb].slice(-500);
   out.updatedAt = Math.max(local.updatedAt || 0, cloud.updatedAt || 0);

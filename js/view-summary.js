@@ -232,7 +232,22 @@ function renderSummary() {
       <p class="small mt">Změna váhy je počítaná ze 7denního průměru, ne z denních výkyvů.</p>
     </div>` : "";
 
-  return rangeTabs + calendarCard + workoutStats + volumeChart + categoryCard + exerciseChart + prCard + weightCard + balanceCard + foodStats + foodChart;
+  /* -- milníky -- */
+  const done = achievedMilestones();
+  const nextUp = MILESTONES.find(m => !done.some(d => d.id === m.id));
+  const milestoneCard = (done.length || nextUp) ? `
+    <div class="card">
+      <div class="h2">Milníky <span class="small">(${done.length}/${MILESTONES.length})</span></div>
+      ${done.slice(0, 6).map(m => `
+        <div class="list-item">
+          <span class="ms-badge">🏅</span>
+          <div class="grow name">${esc(m.def.title())}</div>
+          <span class="small">${fmtDate(m.date)}</span>
+        </div>`).join("")}
+      ${nextUp ? `<div class="small mt">Další v hledáčku: <b style="color:var(--text)">${esc(nextUp.title())}</b></div>` : ""}
+    </div>` : "";
+
+  return rangeTabs + calendarCard + workoutStats + volumeChart + categoryCard + exerciseChart + prCard + milestoneCard + weightCard + balanceCard + foodStats + foodChart;
 }
 
 /* 7denní klouzavý průměr váhy k danému datu (kg); null bez záznamů v okně */

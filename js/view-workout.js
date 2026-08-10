@@ -129,12 +129,14 @@ function renderActiveSession() {
         <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="w-del-set" data-i="${i}" data-j="${j}">✕</button>
       </div>`).join("");
 
-    /* zvýrazněný rekord, minulý výkon a návrh progrese */
+    /* zvýrazněný rekord, minulý výkon, návrh progrese a „blízko rekordu" */
+    const near = nearPRHint(entry, pr);
     const hints = `
       ${pr ? `<div class="mt"><span class="badge yellow">PR ${fmtWeight(pr.weight)} × ${pr.reps}</span>
         <span class="small" style="margin-left:6px">e1RM ${fmtWeight(pr.e1rm)}</span></div>` : ""}
       ${last ? `<div class="hint-last${pr ? "" : " mt"}">Minule ${fmtDate(last.date)}: &nbsp;<b>${last.sets.map(st => `${st.reps}×${fmtNum(kgOut(st.weight), 1)}`).join(" · ")} ${weightUnit()}</b></div>` : ""}
-      ${prog ? `<div class="hint-last hint-prog">Progrese: minule vše ≥ ${prog.topReps} opak. → zkus <b>${fmtWeight(prog.next)}</b></div>` : ""}`;
+      ${prog ? `<div class="hint-last hint-prog">Progrese: minule vše ≥ ${prog.topReps} opak. → zkus <b>${fmtWeight(prog.next)}</b></div>` : ""}
+      ${near ? `<div class="hint-last hint-near">${near}</div>` : ""}`;
 
     return `
     <div class="card${started ? " ex-active" : ""}${entry.prHit ? " pr-flash" : ""}" id="exblock-${i}">
@@ -190,6 +192,26 @@ function progressionSuggestion(ex, last) {
   const maxW = Math.max(...last.sets.map(st => st.weight || 0));
   if (!maxW) return null;
   return { lo, topReps: hi, next: maxW + 2.5 };
+}
+
+/* „Blízko rekordu" — po zapsané sérii spočítá, co chybí k PR.
+   Ukazuje se jen dokud rekord v této session nepadl. */
+function nearPRHint(entry, pr) {
+  const sets = entry.sets || [];
+  if (!pr || !sets.length || sets.some(s => s.isPR)) return null;
+  const last = sets[sets.length - 1];
+  if (!last.weight || !last.reps) return null;
+  for (let extra = 1; extra <= 3; extra++) {
+    if (est1RM(last.weight, last.reps + extra) > pr.e1rm) {
+      return `Blízko rekordu — ještě <b>${extra} opakování</b> navíc při ${fmtWeight(last.weight)} a máš PR`;
+    }
+  }
+  for (const add of [1.25, 2.5, 5]) {
+    if (est1RM(last.weight + add, last.reps) > pr.e1rm) {
+      return `Blízko rekordu — přidej <b>${fmtWeight(add)}</b> při ${last.reps} opak. a máš PR`;
+    }
+  }
+  return null;
 }
 
 /* ---- Akce: silový trénink ---- */

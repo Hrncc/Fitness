@@ -1,7 +1,7 @@
 /* ===== Obrazovky z hamburger menu ===== */
 "use strict";
 
-const APP_VERSION = "1.10.0";
+const APP_VERSION = "1.11.0";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -334,7 +334,8 @@ function renderExport() {
   return `
     <div class="card">
       <div class="h2">Export &amp; Backup</div>
-      <p class="muted" style="margin:0 0 14px">Záloha nad rámec automatického cloud syncu. JSON lze později importovat, Markdown je čitelný souhrn.</p>
+      <p class="muted" style="margin:0 0 14px">Záloha nad rámec automatického cloud syncu. JSON lze později importovat, Markdown je čitelný souhrn.
+      Fotky postupu součástí nejsou — stahují se jednotlivě v galerii.</p>
       <button class="btn primary full" data-act="exp-share">📤 Export &amp; Share</button>
       <div class="row mt" style="gap:8px">
         <button class="btn grow" data-act="exp-json">Stáhnout JSON</button>
@@ -509,6 +510,153 @@ function saveSettings() {
   if (!Sync.url()) Sync.setStatus("off");
   render();
   toast("Nastavení uloženo ✓", "ok");
+}
+
+/* ================= Fotky postupu ================= */
+const PV = { items: null, loading: false, urls: [], modalUrl: null, cmpA: null, cmpB: null, pendingFile: null };
+
+function photoUrl(rec) {
+  const u = URL.createObjectURL(rec.blob);
+  PV.urls.push(u);
+  return u;
+}
+
+function renderPhotos() {
+  // uvolnit objectURL z předchozího vykreslení (obrázky se vytvářejí znovu)
+  PV.urls.forEach(u => URL.revokeObjectURL(u));
+  PV.urls = [];
+
+  if (PV.items === null) {
+    if (!PV.loading) {
+      PV.loading = true;
+      Photos.list().then(list => {
+        PV.items = list;
+        PV.loading = false;
+        if (App.route.page === "photos") render();
+      }).catch(e => {
+        PV.items = []; PV.loading = false;
+        toast("Fotky se nepodařilo načíst: " + e.message, "err");
+      });
+    }
+    return `<div class="card"><div class="spin" style="margin:24px auto"></div></div>`;
+  }
+
+  const items = PV.items;
+  const addBtn = `
+    <input type="file" id="photoAddInput" accept="image/*" style="display:none">
+    <button class="btn primary full" style="margin-bottom:14px" data-act="ph-add">+ Přidat fotku</button>`;
+
+  if (!items.length) {
+    return addBtn + `<div class="card"><div class="empty-note">
+      Zatím žádné fotky.<br>Foť se jednou týdně za stejných podmínek —<br>u tvarování postavy ukážou fotky změnu, kterou váha neukáže.
+    </div></div>`;
+  }
+
+  /* porovnání dvou fotek — výchozí nejstarší vs. nejnovější */
+  let compare = "";
+  if (items.length >= 2) {
+    const ids = items.map(p => p.id);
+    if (!ids.includes(PV.cmpA)) PV.cmpA = items[items.length - 1].id; // nejstarší
+    if (!ids.includes(PV.cmpB)) PV.cmpB = items[0].id;                // nejnovější
+    const a = items.find(p => p.id === PV.cmpA), b = items.find(p => p.id === PV.cmpB);
+    const opts = (sel) => items.map(p =>
+      `<option value="${p.id}"${p.id === sel ? " selected" : ""}>${fmtDate(p.date)}</option>`).join("");
+    const days = Math.round((parseDate(b.date) - parseDate(a.date)) / 86400000);
+    compare = `
+      <div class="card">
+        <div class="h2">Porovnání${days ? ` <span class="small">(rozdíl ${Math.abs(days)} dní)</span>` : ""}</div>
+        <div class="photo-cmp">
+          <div>
+            <img src="${photoUrl(a)}" alt="Fotka ${fmtDate(a.date)}">
+            <select class="input" data-change="ph-cmp-a">${opts(PV.cmpA)}</select>
+          </div>
+          <div>
+            <img src="${photoUrl(b)}" alt="Fotka ${fmtDate(b.date)}">
+            <select class="input" data-change="ph-cmp-b">${opts(PV.cmpB)}</select>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  const grid = items.map(p => `
+    <div class="photo-cell" data-act="ph-detail" data-id="${p.id}">
+      <img src="${photoUrl(p)}" alt="Fotka ${fmtDate(p.date)}" loading="lazy">
+      <span>${fmtDate(p.date)}</span>
+    </div>`).join("");
+
+  return addBtn + compare + `
+    <div class="card">
+      <div class="h2">Galerie <span class="small">(${items.length})</span></div>
+      <div class="photo-grid">${grid}</div>
+      <p class="small mt">Fotky zůstávají jen v tomto zařízení — nejdou do cloud syncu ani do JSON zálohy.
+      Jednotlivě je stáhneš v detailu fotky.</p>
+    </div>`;
+}
+
+/* výběr souboru → potvrzovací modal s datem a poznámkou */
+function openPhotoSaveModal(file) {
+  PV.pendingFile = file;
+  if (PV.modalUrl) URL.revokeObjectURL(PV.modalUrl);
+  PV.modalUrl = URL.createObjectURL(file);
+  openModal(`${modalTitle("Přidat fotku")}
+    <img src="${PV.modalUrl}" alt="Náhled" style="width:100%;max-height:300px;object-fit:contain;border-radius:16px;background:var(--bg2)">
+    <label class="field mt"><span>Datum</span>
+      <input class="input" id="phDate" type="date" value="${todayStr()}"></label>
+    <label class="field"><span>Poznámka</span>
+      <input class="input" id="phNote" placeholder="volitelné — např. ráno nalačno"></label>
+    <button class="btn primary full" data-act="ph-save">Uložit fotku</button>`);
+}
+
+async function savePhoto() {
+  if (!PV.pendingFile) return;
+  const date = document.getElementById("phDate").value || todayStr();
+  const note = document.getElementById("phNote").value.trim();
+  try {
+    await Photos.add(PV.pendingFile, date, note);
+    PV.pendingFile = null;
+    PV.items = null; // vynutí načtení
+    closeModal();
+    render();
+    toast("Fotka uložena ✓", "ok");
+  } catch (e) {
+    toast("Uložení selhalo: " + e.message, "err");
+  }
+}
+
+function openPhotoDetail(id) {
+  const p = (PV.items || []).find(x => x.id === id);
+  if (!p) return;
+  if (PV.modalUrl) URL.revokeObjectURL(PV.modalUrl);
+  PV.modalUrl = URL.createObjectURL(p.blob);
+  openModal(`${modalTitle(fmtDate(p.date))}
+    <img src="${PV.modalUrl}" alt="Fotka ${fmtDate(p.date)}" style="width:100%;max-height:60vh;object-fit:contain;border-radius:16px;background:var(--bg2)">
+    ${p.note ? `<p class="muted mt">${esc(p.note)}</p>` : ""}
+    <div class="row mt" style="gap:8px">
+      <button class="btn grow" data-act="ph-download" data-id="${id}">Stáhnout</button>
+      <button class="btn danger grow" data-act="ph-del" data-id="${id}">Smazat</button>
+    </div>`);
+}
+
+async function deletePhoto(id) {
+  try {
+    await Photos.remove(id);
+    PV.items = null;
+    closeModal();
+    render();
+    toast("Fotka smazána");
+  } catch (e) {
+    toast("Smazání selhalo: " + e.message, "err");
+  }
+}
+
+function downloadPhoto(id) {
+  const p = (PV.items || []).find(x => x.id === id);
+  if (!p) return;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(p.blob);
+  a.download = `fotka-${p.date}.jpg`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 
 /* ================= Přenos nastavení přes QR ================= */

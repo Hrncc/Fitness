@@ -69,6 +69,7 @@ function defaultState() {
     foodLog: [],       // FoodLogEntry
     bodyLog: [],       // { date, weightKg } — denní tělesná váha, max 1 záznam na den
     recipes: [],       // { id, name, portions, items: [{ foodItemId, grams }] }
+    milestones: [],    // { id, date } — jednorázově dosažené milníky
     deletedIds: [],    // tombstony smazaných záznamů (pro slévání při syncu)
     goal: { dailyCalories: 2500, proteinGrams: 150, carbsGrams: 280, fatGrams: 80 },
     activeSession: null
@@ -156,6 +157,7 @@ function applyCoachPlan() {
 
 let S = loadState();
 applyCoachPlan();
+/* backfill milníků je až na konci souboru — MILESTONES je const níž */
 
 function loadState() {
   try {
@@ -177,6 +179,7 @@ function persist() {
 function save() {
   S.updatedAt = Date.now();
   persist();
+  checkMilestones();
   Sync.scheduleSave();
 }
 
@@ -184,6 +187,7 @@ function save() {
 function replaceState(newState) {
   S = Object.assign(defaultState(), newState);
   persist();
+  checkMilestones(true); // cizí data: milníky jen doplnit, bez oslav
 }
 
 /* ===== Pomocné selektory ===== */
@@ -335,6 +339,76 @@ function logBodyWeight(kg) {
   S.bodyLog.sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/* ===== Milníky =====
+   Jednorázové, nedají se „ztratit" (na rozdíl od streaku). Kontrolují se
+   při každém save(); při importu/syncu se dosažené jen tiše doplní. */
+const MILESTONES = [
+  { id: "w1", title: () => "První trénink", test: st => st.workouts >= 1 },
+  { id: "w10", title: () => "10 tréninků", test: st => st.workouts >= 10 },
+  { id: "w25", title: () => "25 tréninků", test: st => st.workouts >= 25 },
+  { id: "w50", title: () => "50 tréninků", test: st => st.workouts >= 50 },
+  { id: "w100", title: () => "100 tréninků", test: st => st.workouts >= 100 },
+  { id: "w200", title: () => "200 tréninků", test: st => st.workouts >= 200 },
+  { id: "vol10", title: () => "10 tun nazvedáno", test: st => st.volume >= 10000 },
+  { id: "vol50", title: () => "50 tun nazvedáno", test: st => st.volume >= 50000 },
+  { id: "vol100", title: () => "100 tun nazvedáno", test: st => st.volume >= 100000 },
+  { id: "vol250", title: () => "250 tun nazvedáno", test: st => st.volume >= 250000 },
+  { id: "kg60", title: () => `${fmtWeight(60)} v jedné sérii`, test: st => st.maxSetWeight >= 60 },
+  { id: "kg100", title: () => `${fmtWeight(100)} v jedné sérii`, test: st => st.maxSetWeight >= 100 },
+  { id: "kg140", title: () => `${fmtWeight(140)} v jedné sérii`, test: st => st.maxSetWeight >= 140 },
+  { id: "pr10", title: () => "Rekord v 10 cvicích", test: st => st.prs >= 10 },
+  { id: "cardio10", title: () => "10 kardio tréninků", test: st => st.cardio >= 10 },
+  { id: "weigh30", title: () => "30 vážení", test: st => st.weighIns >= 30 },
+  { id: "food30", title: () => "30 dní zapsané stravy", test: st => st.foodDays >= 30 },
+  { id: "food100", title: () => "100 dní zapsané stravy", test: st => st.foodDays >= 100 }
+];
+
+function milestoneStats() {
+  let volume = 0, maxSetWeight = 0;
+  for (const s of S.sessions) {
+    if (s.type !== "weights") continue;
+    volume += sessionVolume(s);
+    for (const e of s.entries) {
+      for (const st of e.sets || []) if ((st.weight || 0) > maxSetWeight) maxSetWeight = st.weight;
+    }
+  }
+  return {
+    workouts: S.sessions.length,
+    cardio: S.sessions.filter(s => s.type === "cardio").length,
+    volume, maxSetWeight,
+    prs: allPRs().length,
+    weighIns: S.bodyLog.length,
+    foodDays: new Set(S.foodLog.map(f => f.date)).size
+  };
+}
+
+/* Doplní nově dosažené milníky. silent = jen zaznamenat (start appky, import). */
+function checkMilestones(silent) {
+  if (!Array.isArray(S.milestones)) S.milestones = [];
+  const have = new Set(S.milestones.map(m => m.id));
+  const st = milestoneStats();
+  const fresh = MILESTONES.filter(m => !have.has(m.id) && m.test(st));
+  if (!fresh.length) return [];
+  for (const m of fresh) S.milestones.push({ id: m.id, date: todayStr() });
+  persist();
+  if (!silent) {
+    const first = fresh[0];
+    const msg = fresh.length > 1
+      ? `Milník: ${first.title()} (+${fresh.length - 1} další)`
+      : `Milník: ${first.title()}`;
+    // se zpožděním, ať nepřebije toast akce, která milník spustila
+    setTimeout(() => toast(msg, "pr"), 2800);
+  }
+  return fresh;
+}
+
+function achievedMilestones() {
+  return (S.milestones || [])
+    .map(m => ({ ...m, def: MILESTONES.find(d => d.id === m.id) }))
+    .filter(m => m.def)
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
+
 /* ===== Knihovna potravin ===== */
 /* Uloží položku z API do knihovny (bez duplicit), vrátí id */
 function upsertFood(item) {
@@ -358,3 +432,6 @@ function upsertFood(item) {
   S.foods.push(f);
   return f.id;
 }
+
+/* Stávající data: už dosažené milníky doplnit tiše (bez oslavných toastů) */
+checkMilestones(true);

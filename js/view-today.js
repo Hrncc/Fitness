@@ -112,7 +112,69 @@ function renderToday() {
       </div>`;
   }
 
-  return hero_date + heroCard + workoutCard + weightCard;
+  return hero_date + weeklyRecapCard() + heroCard + workoutCard + weightCard;
+}
+
+/* ---- Souhrn statistik za týden (pondělí–neděle) ---- */
+function weekStats(from, to) {
+  const sess = S.sessions.filter(s => s.date >= from && s.date <= to);
+  const weights = sess.filter(s => s.type === "weights");
+  const ids = new Set(S.sessions.filter(s => s.type === "weights").flatMap(s => s.entries.map(e => e.exerciseId)));
+  let prs = 0;
+  for (const id of ids) prs += prHistory(id).filter(h => h.date >= from && h.date <= to).length;
+  const kcals = [];
+  for (let d = from; d <= to; d = addDays(d, 1)) {
+    const n = dayNutrition(d);
+    if (n.count) kcals.push(n.calories);
+  }
+  return {
+    sessions: sess.length,
+    weights: weights.length,
+    cardio: sess.length - weights.length,
+    volume: weights.reduce((v, s) => v + sessionVolume(s), 0),
+    prs,
+    loggedDays: kcals.length,
+    avgKcal: kcals.length ? Math.round(kcals.reduce((a, b) => a + b, 0) / kcals.length) : null
+  };
+}
+
+/* ---- Rekap minulého týdne — motivace z reálného pokroku, ne ze streaku ----
+   Zavře se na křížek a do dalšího pondělí se neukáže. */
+function weeklyRecapCard() {
+  const thisMon = mondayOf(todayStr());
+  const lastMon = addDays(thisMon, -7);
+  const lastSun = addDays(thisMon, -1);
+  if (Settings.get().recapDismissed === lastMon) return "";
+
+  const w = weekStats(lastMon, lastSun);
+  if (!w.sessions && !w.loggedDays) return ""; // prázdný týden nemá co shrnovat
+
+  const prev = weekStats(addDays(lastMon, -7), addDays(lastMon, -1));
+  const volPct = prev.volume > 0 ? Math.round((w.volume / prev.volume - 1) * 100) : null;
+  const ma1 = movingAvgAt(S.bodyLog, lastMon), ma2 = movingAvgAt(S.bodyLog, lastSun);
+  const dW = (ma1 != null && ma2 != null) ? kgOut(ma2) - kgOut(ma1) : null;
+
+  const s = parseDate(lastMon), e = parseDate(lastSun);
+  const rows = [];
+  if (w.sessions) {
+    rows.push(`<b>${w.sessions}</b> ${w.sessions === 1 ? "trénink" : w.sessions < 5 ? "tréninky" : "tréninků"}${w.cardio ? ` <span class="small">(z toho ${w.cardio}× kardio)</span>` : ""}`);
+  }
+  if (w.volume) {
+    rows.push(`objem <b>${fmtNum(kgOut(w.volume))} ${weightUnit()}</b>${volPct != null
+      ? ` <span style="color:var(--${volPct >= 0 ? "green" : "text2"})">${volPct >= 0 ? "+" : ""}${volPct} %</span>` : ""}`);
+  }
+  if (w.prs) rows.push(`<b style="color:var(--yellow)">${w.prs}×</b> nový rekord`);
+  if (w.avgKcal != null) rows.push(`Ø <b>${fmtNum(w.avgKcal)} kcal</b> <span class="small">(${w.loggedDays} ${w.loggedDays === 1 ? "den" : w.loggedDays < 5 ? "dny" : "dní"})</span>`);
+  if (dW != null && Math.abs(dW) >= 0.05) rows.push(`váha <b>${dW > 0 ? "+" : ""}${fmtNum(dW, 1)} ${weightUnit()}</b>`);
+
+  return `
+    <div class="card recap-card">
+      <div class="row between">
+        <span class="h2" style="margin:0">Minulý týden · ${s.getDate()}.${s.getMonth() + 1}.–${e.getDate()}.${e.getMonth() + 1}.</span>
+        <button class="iconbtn" style="width:30px;height:30px" data-act="recap-dismiss" data-week="${lastMon}">✕</button>
+      </div>
+      <div class="recap-rows">${rows.map(r => `<div>${r}</div>`).join("")}</div>
+    </div>`;
 }
 
 /* ---- Modal zápisu váhy ---- */
