@@ -1,12 +1,13 @@
 /* ===== Obrazovky z hamburger menu ===== */
 "use strict";
 
-const APP_VERSION = "1.13.0";
+const APP_VERSION = "1.14.0";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
   exQuery: "",
   tplTarget: null,  // šablona, do které se přidává cvik
+  reportRange: "month",
   rc: null,         // rozpracovaný recept (builder)
   rcPickId: null    // vybraná potravina při přidávání do receptu
 };
@@ -331,7 +332,20 @@ function saveFoodEdit(id) {
 
 /* ================= Export & Backup ================= */
 function renderExport() {
+  const chips = REPORT_RANGES.map(r =>
+    `<button class="chip rngchip${MV.reportRange === r.id ? " on" : ""}" data-act="rep-range" data-range="${r.id}">${r.label}</button>`).join("");
   return `
+    <div class="card">
+      <div class="h2">Report pro Clauda / trenéra</div>
+      <p class="muted" style="margin:0 0 10px">Čitelný přehled tréninků, progrese, váhy a stravy — zkopíruj a vlož do chatu.
+      Neobsahuje sync URL ani API klíče.</p>
+      <div class="chips">${chips}</div>
+      <div class="row" style="gap:8px">
+        <button class="btn primary grow" data-act="rep-copy">Zkopírovat</button>
+        <button class="btn grow" data-act="rep-share">Sdílet</button>
+      </div>
+      <button class="btn ghost sm full mt" data-act="rep-preview">Zobrazit náhled</button>
+    </div>
     <div class="card">
       <div class="h2">Export &amp; Backup</div>
       <p class="muted" style="margin:0 0 14px">Záloha nad rámec automatického cloud syncu. JSON lze později importovat, Markdown je čitelný souhrn.
@@ -348,6 +362,56 @@ function renderExport() {
       <input type="file" id="impFile" accept=".json,application/json" class="input">
       <button class="btn danger full mt" data-act="exp-import">Importovat</button>
     </div>`;
+}
+
+/* ---- Report: kopírování, sdílení, náhled ---- */
+
+/* Starší, ale spolehlivá cesta — funguje i tam, kde Clipboard API nemá
+   oprávnění. Musí proběhnout synchronně v rámci klepnutí. */
+function legacyCopy(text) {
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0";
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length); // iOS Safari
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch (e) { return false; }
+}
+
+function copyReport() {
+  const text = buildCoachReport(MV.reportRange);
+  const kb = Math.round(text.length / 1024 * 10) / 10;
+  if (legacyCopy(text)) { toast(`Report zkopírován (${kb} kB) ✓`, "ok"); return; }
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text)
+      .then(() => toast(`Report zkopírován (${kb} kB) ✓`, "ok"))
+      .catch(() => showReportModal(text, "Zkopírování selhalo — označ text a zkopíruj ručně."));
+    return;
+  }
+  showReportModal(text, "Prohlížeč neumí kopírovat do schránky — označ text a zkopíruj ručně.");
+}
+
+async function shareReport() {
+  const text = buildCoachReport(MV.reportRange);
+  if (!navigator.share) { copyReport(); return; }
+  try {
+    await navigator.share({ title: "Fitness Log — report", text });
+  } catch (e) {
+    if (e.name !== "AbortError") copyReport();
+  }
+}
+
+function showReportModal(text, note) {
+  openModal(`${modalTitle("Report")}
+    ${note ? `<p class="small" style="margin:0 0 10px;color:var(--red)">${esc(note)}</p>` : ""}
+    <textarea class="input" rows="14" style="font-size:12px;line-height:1.5"
+      onclick="this.select()">${esc(text)}</textarea>
+    <button class="btn primary full mt" data-act="rep-copy">Zkopírovat</button>`);
 }
 
 function buildMarkdown() {

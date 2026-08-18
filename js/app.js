@@ -354,6 +354,12 @@ const ACTIONS = {
 
   "set-qr-show": () => openQrExport(),
   "set-qr-scan": () => document.getElementById("qrScanInput").click(),
+  /* ---- Report pro Clauda ---- */
+  "rep-range": d => { MV.reportRange = d.range; render(); },
+  "rep-copy": () => copyReport(),
+  "rep-share": () => shareReport(),
+  "rep-preview": () => showReportModal(buildCoachReport(MV.reportRange)),
+
   "exp-share": () => exportShare(),
   "exp-json": () => downloadFile(`fitness-log-${todayStr()}.json`, JSON.stringify(S, null, 2), "application/json"),
   "exp-md": () => downloadFile(`fitness-log-${todayStr()}.md`, buildMarkdown(), "text/markdown"),
