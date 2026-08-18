@@ -8,6 +8,7 @@ const CARDIO_SPORTS = ["Běh", "Chůze", "Kolo", "Plavání", "Veslování", "Š
 const WV = {
   sub: "log",                 // log | pr
   date: todayStr(),           // den, do kterého se zapisuje (i zpětně/dopředně)
+  openIdx: null,              // rozbalený cvik v aktivní session (akordeon)
   pickerIndex: null,          // null = přidání cviku, číslo = výměna na indexu
   sportChoice: CARDIO_SPORTS[0]
 };
@@ -96,19 +97,39 @@ function renderActiveSession() {
     const pr = currentPR(entry.exerciseId);
     const last = lastExerciseSets(entry.exerciseId, a.id);
     const setCount = (entry.sets || []).length;
+    const isOpen = WV.openIdx === i;
+    const summary = entry.sets.map(st => `${st.reps}×${fmtNum(kgOut(st.weight), 1)}`).join(" · ");
+    const setWord = n => n === 1 ? "série" : n < 5 ? "série" : "sérií";
 
-    /* hotový cvik → sbalená kompaktní karta, klepnutím se znovu rozbalí */
-    if (entry.done) {
-      const summary = entry.sets.map(st => `${st.reps}×${fmtNum(kgOut(st.weight), 1)}`).join(" · ");
+    /* --- sbalený hotový cvik --- */
+    if (entry.done && !isOpen) {
       return `
-      <div class="card ex-done" data-act="w-ex-reopen" data-i="${i}">
+      <div class="card ex-done" id="exblock-${i}" data-act="w-ex-open" data-i="${i}">
         <div class="row">
           <span class="done-check">✓</span>
           <div class="grow">
             <div class="name" style="font-weight:700">${esc(ex ? ex.name : "?")}</div>
-            <div class="small">${setCount} ${setCount === 1 ? "série" : setCount < 5 ? "série" : "sérií"} · ${summary} ${weightUnit()}${entry.prHit ? ` · <span style="color:var(--yellow);font-weight:700">PR!</span>` : ""}</div>
+            <div class="small">${setCount} ${setWord(setCount)} · ${summary} ${weightUnit()}${entry.prHit ? ` · <span style="color:var(--yellow);font-weight:700">PR!</span>` : ""}</div>
           </div>
           <span class="small">upravit</span>
+        </div>
+      </div>`;
+    }
+
+    /* --- sbalený cvik (nezačatý nebo rozdělaný) --- */
+    if (!isOpen) {
+      const sub = setCount
+        ? `${setCount} ${setWord(setCount)} · ${summary} ${weightUnit()}`
+        : (planShort(ex) || "klepni pro zápis");
+      return `
+      <div class="card ex-collapsed${setCount ? " ex-active" : ""}" id="exblock-${i}" data-act="w-ex-open" data-i="${i}">
+        <div class="row">
+          <span class="ex-num">${i + 1}</span>
+          <div class="grow">
+            <div class="name" style="font-weight:700">${esc(ex ? ex.name : "?")}</div>
+            <div class="small">${esc(sub)}</div>
+          </div>
+          <span class="ex-chevron">›</span>
         </div>
       </div>`;
     }
@@ -139,10 +160,11 @@ function renderActiveSession() {
       ${near ? `<div class="hint-last hint-near">${near}</div>` : ""}`;
 
     return `
-    <div class="card${started ? " ex-active" : ""}${entry.prHit ? " pr-flash" : ""}" id="exblock-${i}">
-      <div class="row between">
+    <div class="card ex-open${entry.prHit ? " pr-flash" : ""}" id="exblock-${i}">
+      <div class="row between" data-act="w-ex-close">
+        <span class="ex-num${entry.done ? " done" : ""}">${entry.done ? "✓" : i + 1}</span>
         <div class="grow">
-          <div class="name" style="font-weight:700">${started ? `<span style="color:var(--green)">●</span> ` : ""}${esc(ex ? ex.name : "?")}</div>
+          <div class="name" style="font-weight:700">${esc(ex ? ex.name : "?")}</div>
           ${ex && ex.description ? `<div class="small" style="color:var(--text2)">${esc(ex.description)}</div>` : ""}
         </div>
         <button class="btn sm ghost" data-act="w-swap-ex" data-i="${i}">⇄</button>
@@ -157,7 +179,7 @@ function renderActiveSession() {
       </div>
       <div class="row mt" style="gap:8px">
         <button class="btn sm grow" style="border-color:var(--green);color:var(--green)" data-act="w-add-set" data-i="${i}">+ Přidat sérii</button>
-        ${started ? `<button class="btn sm success" data-act="w-ex-done" data-i="${i}">✓ Cvik hotový</button>` : ""}
+        ${started ? `<button class="btn sm success" data-act="w-ex-done" data-i="${i}">${entry.done ? "✓ Hotovo — zavřít" : "✓ Cvik hotový"}</button>` : ""}
       </div>
     </div>`;
   }).join("");
@@ -179,6 +201,13 @@ function renderActiveSession() {
       <button class="btn danger" data-act="w-cancel">Zrušit</button>
       <button class="btn success grow" data-act="w-finish">✓ Dokončit trénink</button>
     </div>`;
+}
+
+/* Krátký plán z popisu cviku ("3× 8–15 — Kontrolované negativum…" → "3× 8–15") */
+function planShort(ex) {
+  if (!ex || !ex.description) return "";
+  const head = ex.description.split("—")[0].trim();
+  return head.length <= 24 ? head : "";
 }
 
 /* Návrh progrese (double progression): minule všechny série na horní hranici
@@ -217,6 +246,7 @@ function nearPRHint(entry, pr) {
 /* ---- Akce: silový trénink ---- */
 function beginWorkout(templateId) {
   const tpl = getTemplate(templateId);
+  WV.openIdx = null; // start: všechny cviky sbalené
   S.activeSession = {
     id: uid(),
     date: WV.date,
@@ -262,6 +292,7 @@ function finishWorkout() {
   const sessionId = a.id;
   S.sessions.push({ id: sessionId, date: a.date, type: "weights", templateUsed: a.templateUsed, templateName: a.templateName || null, entries });
   S.activeSession = null;
+  WV.openIdx = null;
   Rest.stop();
   save();
   render();

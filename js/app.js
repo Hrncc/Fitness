@@ -132,15 +132,22 @@ const ACTIONS = {
   },
   "w-remove-ex": d => {
     S.activeSession.entries.splice(Number(d.i), 1);
+    WV.openIdx = null; // indexy se posunuly
     save(); render();
   },
   "w-swap-ex": d => openExercisePicker(Number(d.i)),
+  /* akordeon: rozbalený je vždy nejvýš jeden cvik */
+  "w-ex-open": d => {
+    const i = Number(d.i);
+    WV.openIdx = WV.openIdx === i ? null : i;
+    render();
+    const el = document.getElementById("exblock-" + i);
+    if (el && WV.openIdx === i) el.scrollIntoView({ block: "center", behavior: "smooth" });
+  },
+  "w-ex-close": () => { WV.openIdx = null; render(); },
   "w-ex-done": d => {
     S.activeSession.entries[Number(d.i)].done = true;
-    save(); render();
-  },
-  "w-ex-reopen": d => {
-    S.activeSession.entries[Number(d.i)].done = false;
+    WV.openIdx = null;   // po dokončení se cvik sbalí
     save(); render();
   },
   "w-add-ex": () => openExercisePicker(null),
@@ -150,8 +157,10 @@ const ACTIONS = {
     if (a.entries.some(e => e.exerciseId === d.exid)) { toast("Cvik už v tréninku je", "err"); return; }
     if (WV.pickerIndex == null) {
       a.entries.push({ exerciseId: d.exid, sets: [] });
+      WV.openIdx = a.entries.length - 1;   // nový cvik rovnou rozbal
     } else {
       a.entries[WV.pickerIndex] = { exerciseId: d.exid, sets: [] };
+      WV.openIdx = WV.pickerIndex;
     }
     save(); closeModal(); render();
   },
@@ -176,7 +185,7 @@ const ACTIONS = {
   "rest-plus": () => Rest.adjust(30),
   "rest-minus": () => Rest.adjust(-30),
   "rest-stop": () => Rest.stop(),
-  "w-cancel": () => withUndo("Trénink zrušen", () => { S.activeSession = null; }),
+  "w-cancel": () => withUndo("Trénink zrušen", () => { S.activeSession = null; WV.openIdx = null; }),
   "w-pr-history": d => openPRHistory(d.exid),
   "w-detail": d => openSessionDetail(d.id),
   "w-del-session": d => withUndo("Trénink smazán", () => {

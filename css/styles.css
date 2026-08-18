@@ -291,18 +291,26 @@ label.field > span {
 .pr-flash { animation: prflash 1.4s ease 2; border-color: var(--yellow) !important; }
 @keyframes prflash { 50% { box-shadow: 0 0 26px rgba(247,201,72,.5); } }
 
-/* Aktivní trénink: stavy cviků */
+/* Aktivní trénink: stavy cviků (akordeon — rozbalený je nejvýš jeden) */
 .ex-active { border-color: var(--green); }
+.ex-collapsed { padding: 14px 16px; cursor: pointer; }
+.ex-collapsed:active { background: var(--bg2); }
+.ex-open { border-color: var(--green); }
+.ex-open > .row:first-child { cursor: pointer; }
 .ex-done {
   padding: 13px 16px; cursor: pointer; opacity: .72;
   border-color: transparent;
 }
 .ex-done:active { opacity: 1; }
-.done-check {
+.done-check, .ex-num {
   width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
-  background: var(--green); color: #0A0B0D; font-weight: 900; font-size: 15px;
+  font-weight: 900; font-size: 14px;
   display: flex; align-items: center; justify-content: center;
 }
+.done-check { background: var(--green); color: #0A0B0D; font-size: 15px; }
+.ex-num { background: var(--bg3); color: var(--text2); }
+.ex-num.done { background: var(--green); color: #0A0B0D; }
+.ex-chevron { color: var(--text3); font-size: 22px; font-weight: 700; line-height: 1; }
 .hint-last {
   background: var(--bg2); border-radius: 10px; padding: 8px 11px;
   font-size: 13px; color: var(--text2); margin-top: 8px;
