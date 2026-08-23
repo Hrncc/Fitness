@@ -274,6 +274,8 @@ const ACTIONS = {
   }),
 
   /* ---- Workout Templates ---- */
+  /* akordeon: rozbalená je vždy nejvýš jedna šablona */
+  "tpl-open": d => { MV.tplOpen = MV.tplOpen === d.tpl ? null : d.tpl; render(); },
   "tpl-new": () => openTemplateNameModal(null),
   "tpl-rename": d => openTemplateNameModal(d.tpl),
   "tpl-name-save": d => {
@@ -283,7 +285,9 @@ const ACTIONS = {
       const t = getTemplate(d.tpl);
       if (t) t.name = name;
     } else {
-      S.templates.push({ id: uid(), name, exercises: [] });
+      const id = uid();
+      S.templates.push({ id, name, exercises: [] });
+      MV.tplOpen = id;
     }
     save(); closeModal(); render();
     toast("Šablona uložena ✓", "ok");
@@ -291,6 +295,7 @@ const ACTIONS = {
   "tpl-del": d => withUndo("Šablona smazána", () => {
     S.templates = S.templates.filter(t => t.id !== d.tpl);
     markDeleted(d.tpl);
+    if (MV.tplOpen === d.tpl) MV.tplOpen = null;
   }),
   "tpl-add": d => openTplPicker(d.tpl),
   "tpl-pick": d => {

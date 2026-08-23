@@ -7,6 +7,7 @@ const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
   exQuery: "",
   tplTarget: null,  // šablona, do které se přidává cvik
+  tplOpen: null,    // rozbalená šablona v přehledu (akordeon, max jedna)
   reportRange: "month",
   rc: null,         // rozpracovaný recept (builder)
   rcPickId: null    // vybraná potravina při přidávání do receptu
@@ -88,28 +89,47 @@ function saveExercise(id) {
 
 /* ================= Workout Templates ================= */
 function renderTemplates() {
+  const exWord = n => n === 1 ? "cvik" : n < 5 ? "cviky" : "cviků";
   const cards = S.templates.map(t => {
+    const count = t.exercises.length;
+
+    /* --- sbalená šablona: jen název a počet cviků --- */
+    if (MV.tplOpen !== t.id) {
+      return `
+      <div class="card ex-collapsed" data-act="tpl-open" data-tpl="${t.id}">
+        <div class="row">
+          <div class="grow">
+            <div class="name" style="font-weight:700;color:var(--green)">${esc(t.name)}</div>
+            <div class="small">${count ? `${count} ${exWord(count)}` : "prázdná šablona"}</div>
+          </div>
+          <span class="ex-chevron">›</span>
+        </div>
+      </div>`;
+    }
+
+    /* --- rozbalená šablona: celý seznam cviků a úpravy --- */
     const rows = t.exercises.map((exId, i) => `
       <div class="list-item">
         <div class="grow name">${esc(exName(exId))}</div>
         <button class="btn sm ghost" data-act="tpl-move" data-tpl="${t.id}" data-i="${i}" data-dir="-1" ${i === 0 ? "disabled" : ""}>↑</button>
-        <button class="btn sm ghost" data-act="tpl-move" data-tpl="${t.id}" data-i="${i}" data-dir="1" ${i === t.exercises.length - 1 ? "disabled" : ""}>↓</button>
+        <button class="btn sm ghost" data-act="tpl-move" data-tpl="${t.id}" data-i="${i}" data-dir="1" ${i === count - 1 ? "disabled" : ""}>↓</button>
         <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="tpl-rm" data-tpl="${t.id}" data-i="${i}">✕</button>
       </div>`).join("");
     return `
-      <div class="card" style="border-color:var(--green)">
-        <div class="row between">
+      <div class="card ex-open" id="tplblock-${t.id}">
+        <div class="row between" data-act="tpl-open" data-tpl="${t.id}">
           <span class="h2" style="color:var(--green);margin:0">${esc(t.name)}</span>
           <div class="row" style="gap:4px">
             <button class="btn sm ghost" data-act="tpl-rename" data-tpl="${t.id}">✎</button>
             <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="tpl-del" data-tpl="${t.id}">✕</button>
+            <span class="ex-chevron" style="transform:rotate(90deg)">›</span>
           </div>
         </div>
         ${rows || `<div class="empty-note">Šablona je prázdná</div>`}
         <button class="btn ghost full mt" style="border-style:dashed" data-act="tpl-add" data-tpl="${t.id}">+ Přidat cvik</button>
       </div>`;
   }).join("");
-  return `<p class="muted" style="margin:0 0 12px">Trvalá správa šablon. Jednorázové změny dělej přímo v tréninku.</p>`
+  return `<p class="muted" style="margin:0 0 12px">Trvalá správa šablon. Klepni na šablonu pro seznam cviků. Jednorázové změny dělej přímo v tréninku.</p>`
     + cards
     + `<button class="btn ghost full" style="border-style:dashed" data-act="tpl-new">+ Nová šablona</button>`;
 }
@@ -125,7 +145,8 @@ function openTemplateNameModal(id) {
 
 function openTplPicker(tplId) {
   MV.tplTarget = tplId;
-  openModal(`${modalTitle("Přidat cvik do šablony " + tplId)}
+  const t = getTemplate(tplId);
+  openModal(`${modalTitle("Přidat cvik do " + (t ? t.name : "šablony"))}
     <input class="input" id="exPickSearch" placeholder="Hledat cvik…" style="margin-bottom:10px">
     <div id="exPickList">${tplPickerList("")}</div>`);
   const inp = document.getElementById("exPickSearch");
