@@ -43,9 +43,9 @@ function renderSummary() {
         };
       }, "sum-cal-day")}
       <div class="cal-legend small mt">
-        <span><i style="background:var(--cal-w);box-shadow:inset 0 0 0 1.5px rgba(205,251,81,.5)"></i> silový</span>
-        <span><i style="background:var(--cal-c);box-shadow:inset 0 0 0 1.5px rgba(90,209,245,.5)"></i> kardio</span>
-        <span><i style="background:linear-gradient(135deg,var(--cal-w) 0 50%,var(--cal-c) 50% 100%);box-shadow:inset 0 0 0 1.5px rgba(205,251,81,.4)"></i> obojí</span>
+        <span><i style="background:var(--cal-w);box-shadow:inset 0 0 0 1.5px rgba(90,169,245,.55)"></i> silový</span>
+        <span><i style="background:var(--cal-c);box-shadow:inset 0 0 0 1.5px rgba(255,77,94,.55)"></i> kardio</span>
+        <span><i style="background:linear-gradient(135deg,var(--cal-w) 0 50%,var(--cal-c) 50% 100%);box-shadow:inset 0 0 0 1.5px rgba(90,169,245,.45)"></i> obojí</span>
         <span><i class="dot" style="background:var(--mac1)"></i> splněný kalorický cíl (±10 %)</span>
       </div>
       <div class="small" style="margin-top:6px">Klepni na den — ukáže detail a nabídne zápis tréninku i jídla.</div>
@@ -289,7 +289,7 @@ function dayAddButtons(ds) {
         data-act="sum-add-workout" data-tpl="custom" data-date="${ds}">Libovolný cvik</button>
     </div>
     <div class="row mt" style="gap:8px">
-      <button class="btn sm grow" style="border-color:var(--cyan);color:var(--cyan)"
+      <button class="btn sm grow" style="border-color:var(--green);color:var(--green)"
         data-act="sum-add-cardio" data-date="${ds}">+ Kardio</button>
       <button class="btn sm primary grow" data-act="sum-add-food" data-date="${ds}">+ Jídlo</button>
     </div>`;

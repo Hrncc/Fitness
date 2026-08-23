@@ -17,16 +17,16 @@
   --yellow: #F7C948;  /* zlatá — PR, pending */
   --red: #FF4D5E;     /* chyby, překročení */
 
-  --cyan: #5AD1F5;    /* kardio — jediná barva mimo původní paletu */
+  --blue: #5AA9F5;    /* silový trénink — jediná barva mimo původní paletu */
 
   --green-bg: rgba(205,251,81,.12);
   --yellow-bg: rgba(247,201,72,.13);
   --red-bg: rgba(255,77,94,.13);
-  --cyan-bg: rgba(90,209,245,.13);
+  --blue-bg: rgba(90,169,245,.13);
 
-  /* kalendář — celé políčko podle typu tréninku */
-  --cal-w: rgba(205,251,81,.18);
-  --cal-c: rgba(90,209,245,.18);
+  /* kalendář — celé políčko podle typu tréninku (modrá = silový, červená = kardio) */
+  --cal-w: rgba(90,169,245,.20);
+  --cal-c: rgba(255,77,94,.18);
 
   --mac1: #F4F5F1;    /* bílkoviny — nejsvětlejší */
   --mac2: #AEB3BD;    /* sacharidy — střední */
@@ -276,11 +276,11 @@ label.field > span {
 }
 .cal-day.empty { background: none; cursor: default; }
 /* typ tréninku barví celé políčko; oba typy v jednom dni = diagonální půlka */
-.cal-day.d-weights { background: var(--cal-w); color: var(--green); border-color: rgba(205,251,81,.35); }
-.cal-day.d-cardio { background: var(--cal-c); color: var(--cyan); border-color: rgba(90,209,245,.35); }
+.cal-day.d-weights { background: var(--cal-w); color: var(--blue); border-color: rgba(90,169,245,.4); }
+.cal-day.d-cardio { background: var(--cal-c); color: var(--red); border-color: rgba(255,77,94,.4); }
 .cal-day.d-both {
   background: linear-gradient(135deg, var(--cal-w) 0 50%, var(--cal-c) 50% 100%);
-  color: var(--text); border-color: rgba(205,251,81,.3);
+  color: var(--text); border-color: rgba(90,169,245,.35);
 }
 .cal-day.today { border-color: var(--green); color: var(--text); font-weight: 800; }
 .cal-day .mark {
