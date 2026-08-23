@@ -4,7 +4,6 @@
 "use strict";
 
 const SV = {
-  range: "week",      // week (7 dní) | month (30 dní)
   catRange: "all",    // rozsah karty partií: week | month | all (celá historie)
   exerciseId: null,   // vybraný cvik pro graf progresu
   calY: new Date().getFullYear(),
@@ -12,7 +11,9 @@ const SV = {
 };
 
 function renderSummary() {
-  const days = SV.range === "week" ? 7 : 30;
+  /* Statistické karty jedou na pevném měsíčním okně; rozsah se přepíná
+     jen tam, kde na něm záleží — v kartě Partie. */
+  const days = 30;
   const from = addDays(todayStr(), -(days - 1));
 
   const inRange = s => s.date >= from;
@@ -21,12 +22,6 @@ function renderSummary() {
   const cardio = sessions.filter(s => s.type === "cardio");
   const totalVolume = weights.reduce((v, s) => v + sessionVolume(s), 0);
   const cardioMin = cardio.reduce((v, s) => v + ((s.entries[0] || {}).duration || 0), 0);
-
-  const rangeTabs = `
-    <div class="subtabs">
-      <button class="subtab${SV.range === "week" ? " on" : ""}" data-act="s-range" data-range="week">Týden</button>
-      <button class="subtab${SV.range === "month" ? " on" : ""}" data-act="s-range" data-range="month">Měsíc</button>
-    </div>`;
 
   /* -- sjednocený kalendář: trénink + kalorický cíl -- */
   const calendarCard = `
@@ -122,24 +117,6 @@ function renderSummary() {
       }).join("")}
       <p class="small mt" style="margin-bottom:0">Sloupec = počet sérií (porovnává partie líp než kila).
         Zlatě partie, kterou jsi netrénoval přes 14 dní — „naposledy" je vždy z celé historie.</p>
-    </div>`;
-
-  /* -- objem po týdnech (posledních 8 týdnů) -- */
-  const weeksData = [];
-  let mon = mondayOf(todayStr());
-  for (let i = 7; i >= 0; i--) {
-    const start = addDays(mon, -7 * i);
-    const end = addDays(start, 6);
-    const vol = S.sessions
-      .filter(s => s.type === "weights" && s.date >= start && s.date <= end)
-      .reduce((v, s) => v + sessionVolume(s), 0);
-    const d = parseDate(start);
-    weeksData.push({ label: `${d.getDate()}.${d.getMonth() + 1}.`, value: Math.round(kgOut(vol)) });
-  }
-  const volumeChart = `
-    <div class="card">
-      <div class="h2">Objem po týdnech <span class="small">(${weightUnit()})</span></div>
-      ${barChart(weeksData, { color: "chart" })}
     </div>`;
 
   /* -- progres cviku -- */
@@ -255,7 +232,7 @@ function renderSummary() {
       <p class="small mt">Změna váhy je počítaná ze 7denního průměru, ne z denních výkyvů.</p>
     </div>` : "";
 
-  return rangeTabs + calendarCard + workoutStats + categoryCard + volumeChart + exerciseChart + weightCard + balanceCard + foodStats + foodChart;
+  return calendarCard + categoryCard + workoutStats + exerciseChart + weightCard + balanceCard + foodStats + foodChart;
 }
 
 /* 7denní klouzavý průměr váhy k danému datu (kg); null bez záznamů v okně */
