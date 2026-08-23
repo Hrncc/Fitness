@@ -30,6 +30,11 @@ function addDays(s, n) {
   return dateStr(d);
 }
 
+/* Počet celých dní mezi dvěma datumy (b − a); přes DST se drží zaokrouhlením */
+function daysBetween(a, b) {
+  return Math.round((parseDate(b) - parseDate(a)) / 86400000);
+}
+
 const CZ_MONTHS = ["leden","únor","březen","duben","květen","červen","červenec","srpen","září","říjen","listopad","prosinec"];
 const CZ_DOW = ["Po","Út","St","Čt","Pá","So","Ne"];
 

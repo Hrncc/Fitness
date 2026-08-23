@@ -252,6 +252,7 @@ const ACTIONS = {
 
   /* ---- Souhrn ---- */
   "s-range": d => { SV.range = d.range; render(); },
+  "s-cat-range": d => { SV.catRange = d.range; render(); },
 
   /* ---- Exercise Library ---- */
   "el-cat": d => { MV.exCat = d.cat; render(); },

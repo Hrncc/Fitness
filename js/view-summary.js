@@ -5,6 +5,7 @@
 
 const SV = {
   range: "week",      // week (7 dní) | month (30 dní)
+  catRange: "all",    // rozsah karty partií: week | month | all (celá historie)
   exerciseId: null,   // vybraný cvik pro graf progresu
   calY: new Date().getFullYear(),
   calM: new Date().getMonth()
@@ -69,30 +70,59 @@ function renderSummary() {
       })()}
     </div>`;
 
-  /* -- objem podle partií -- */
-  const catVol = {};
-  for (const s of weights) {
+  /* -- partie: co se dělá málo --
+     Sloupec je počet sérií, ne kila — u core a cviků s vlastní vahou je objem
+     nulový, takže by taková partie vypadala jako netrénovaná. „Naposledy"
+     se počítá vždy z celé historie, ať přepnutý rozsah nelže. */
+  const catStats = {};
+  for (const c of EX_CATEGORIES) catStats[c] = { sets: 0, volume: 0, last: null };
+  const catOf = e => (getExercise(e.exerciseId) || {}).category || "Ostatní";
+  const catFrom = { week: addDays(todayStr(), -6), month: addDays(todayStr(), -29), all: "" }[SV.catRange];
+  for (const s of S.sessions) {
+    if (s.type !== "weights") continue;
     for (const e of s.entries) {
-      const cat = (getExercise(e.exerciseId) || {}).category || "Ostatní";
-      let v = 0;
-      for (const st of e.sets || []) v += (st.reps || 0) * (st.weight || 0);
-      if (v) catVol[cat] = (catVol[cat] || 0) + v;
+      const cat = catOf(e);
+      if (!catStats[cat]) catStats[cat] = { sets: 0, volume: 0, last: null };
+      const st = catStats[cat];
+      if (!(e.sets || []).length) continue;
+      if (!st.last || s.date > st.last) st.last = s.date;
+      if (s.date < catFrom) continue;
+      for (const set of e.sets) {
+        st.sets++;
+        st.volume += (set.reps || 0) * (set.weight || 0);
+      }
     }
   }
-  const catRows = Object.entries(catVol).sort((a, b) => b[1] - a[1]);
-  const catMax = catRows.length ? catRows[0][1] : 0;
-  const categoryCard = catRows.length ? `
+  const catRows = Object.entries(catStats)
+    .sort((a, b) => b[1].sets - a[1].sets || b[1].volume - a[1].volume);
+  const catMaxSets = Math.max(...catRows.map(([, v]) => v.sets), 1);
+  const setWord = n => n === 1 || (n >= 2 && n <= 4) ? "série" : "sérií";
+  const catRangeLabel = { week: "posledních 7 dní", month: "posledních 30 dní", all: "celá historie" }[SV.catRange];
+  const catChips = [["week", "Týden"], ["month", "Měsíc"], ["all", "Vše"]].map(([k, lbl]) =>
+    `<button class="chip${SV.catRange === k ? " on" : ""}" data-act="s-cat-range" data-range="${k}">${lbl}</button>`).join("");
+
+  const categoryCard = `
     <div class="card">
-      <div class="h2">Objem podle partií <span class="small">(${weightUnit()}, posledních ${days} dní)</span></div>
-      ${catRows.map(([cat, v]) => `
+      <div class="h2">Partie <span class="small">(${catRangeLabel})</span></div>
+      <div class="chips">${catChips}</div>
+      ${catRows.map(([cat, v]) => {
+        const gap = v.last == null ? null : daysBetween(v.last, todayStr());
+        const stale = gap == null || gap > 14;
+        const lastTxt = v.last == null ? "netrénováno"
+          : gap === 0 ? "dnes" : gap === 1 ? "včera" : `před ${gap} dny`;
+        return `
         <div class="mt">
           <div class="row between" style="margin-bottom:4px">
-            <span class="small" style="font-weight:700;color:var(--text)">${esc(cat)}</span>
-            <span class="small">${fmtNum(kgOut(v))}</span>
+            <span class="small" style="font-weight:700;color:var(--${v.sets ? "text" : "text3"})">${esc(cat)}</span>
+            <span class="small">${v.sets} ${setWord(v.sets)}${v.volume ? ` · ${fmtNum(kgOut(v.volume))} ${weightUnit()}` : ""}
+              · <span style="${stale ? "color:var(--yellow);font-weight:700" : ""}">${lastTxt}</span></span>
           </div>
-          <div class="bar mini"><div style="width:${(v / catMax * 100).toFixed(1)}%;background:var(--chart)"></div></div>
-        </div>`).join("")}
-    </div>` : "";
+          <div class="bar mini"><div style="width:${(v.sets / catMaxSets * 100).toFixed(1)}%;background:var(--chart)"></div></div>
+        </div>`;
+      }).join("")}
+      <p class="small mt" style="margin-bottom:0">Sloupec = počet sérií (porovnává partie líp než kila).
+        Zlatě partie, kterou jsi netrénoval přes 14 dní — „naposledy" je vždy z celé historie.</p>
+    </div>`;
 
   /* -- objem po týdnech (posledních 8 týdnů) -- */
   const weeksData = [];
@@ -136,19 +166,6 @@ function renderSummary() {
         ${lineChart(series, { color: "chart" })}
       </div>`;
   }
-
-  /* -- přehled PR -- */
-  const prs = allPRs().slice(0, 5);
-  const prCard = prs.length ? `
-    <div class="card">
-      <div class="h2">Poslední rekordy</div>
-      ${prs.map(({ exerciseId, pr }) => `
-        <div class="list-item">
-          <div class="grow"><div class="name">${esc(exName(exerciseId))}</div>
-            <div class="small">${fmtDate(pr.date)}</div></div>
-          <span style="font-weight:700;color:var(--yellow)">${fmtWeight(pr.weight)} × ${pr.reps}</span>
-        </div>`).join("")}
-    </div>` : "";
 
   /* -- strava: statistiky -- */
   const nutDays = [];
@@ -238,22 +255,7 @@ function renderSummary() {
       <p class="small mt">Změna váhy je počítaná ze 7denního průměru, ne z denních výkyvů.</p>
     </div>` : "";
 
-  /* -- milníky -- */
-  const done = achievedMilestones();
-  const nextUp = MILESTONES.find(m => !done.some(d => d.id === m.id));
-  const milestoneCard = (done.length || nextUp) ? `
-    <div class="card">
-      <div class="h2">Milníky <span class="small">(${done.length}/${MILESTONES.length})</span></div>
-      ${done.slice(0, 6).map(m => `
-        <div class="list-item">
-          <span class="ms-badge">🏅</span>
-          <div class="grow name">${esc(m.def.title())}</div>
-          <span class="small">${fmtDate(m.date)}</span>
-        </div>`).join("")}
-      ${nextUp ? `<div class="small mt">Další v hledáčku: <b style="color:var(--text)">${esc(nextUp.title())}</b></div>` : ""}
-    </div>` : "";
-
-  return rangeTabs + calendarCard + workoutStats + volumeChart + categoryCard + exerciseChart + prCard + milestoneCard + weightCard + balanceCard + foodStats + foodChart;
+  return rangeTabs + calendarCard + workoutStats + categoryCard + volumeChart + exerciseChart + weightCard + balanceCard + foodStats + foodChart;
 }
 
 /* 7denní klouzavý průměr váhy k danému datu (kg); null bez záznamů v okně */
