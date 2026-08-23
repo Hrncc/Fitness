@@ -108,6 +108,27 @@ const ACTIONS = {
     render();
     openAddFood("search");
   },
+  /* zápis tréninku přímo ze dne v kalendáři */
+  "sum-add-workout": d => {
+    WV.date = d.date;
+    WV.sub = "log";
+    App.route = { tab: "workout", page: null };
+    closeModal();
+    if (S.activeSession) {
+      render();
+      toast("Nejdřív dokonči nebo zruš probíhající trénink", "err");
+      return;
+    }
+    beginWorkout(d.tpl === "custom" ? null : d.tpl);
+  },
+  "sum-add-cardio": d => {
+    WV.date = d.date;
+    WV.sub = "log";
+    App.route = { tab: "workout", page: null };
+    closeModal();
+    render();
+    openCardioModal();
+  },
 
   /* tělesná váha */
   "bw-open": () => openBodyWeightModal(),

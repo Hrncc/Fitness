@@ -32,17 +32,23 @@ function renderSummary() {
     <div class="card">
       <div class="h2">Kalendář</div>
       ${calendarHtml(SV.calY, SV.calM, ds => {
-        const w = sessionsOn(ds).length > 0;
+        const sess = sessionsOn(ds);
+        const hasW = sess.some(s => s.type === "weights");
+        const hasC = sess.some(s => s.type === "cardio");
         const f = calorieGoalMet(ds);
-        if (!w && !f) return null;
+        if (!hasW && !hasC && !f) return null;
         return {
-          cls: "", mark:
-            (w ? `<i style="background:var(--text)"></i>` : "") +
-            (f ? `<i style="background:var(--green)"></i>` : "")
+          cls: hasW && hasC ? "d-both" : hasW ? "d-weights" : hasC ? "d-cardio" : "",
+          mark: f ? `<i style="background:var(--mac1)"></i>` : ""
         };
       }, "sum-cal-day")}
-      <div class="small mt"><span style="color:var(--text)">●</span> trénink&nbsp;&nbsp;
-        <span style="color:var(--green)">●</span> splněný kalorický cíl (±10 %) — klikni na den pro detail</div>
+      <div class="cal-legend small mt">
+        <span><i style="background:var(--cal-w);box-shadow:inset 0 0 0 1.5px rgba(205,251,81,.5)"></i> silový</span>
+        <span><i style="background:var(--cal-c);box-shadow:inset 0 0 0 1.5px rgba(90,209,245,.5)"></i> kardio</span>
+        <span><i style="background:linear-gradient(135deg,var(--cal-w) 0 50%,var(--cal-c) 50% 100%);box-shadow:inset 0 0 0 1.5px rgba(205,251,81,.4)"></i> obojí</span>
+        <span><i class="dot" style="background:var(--mac1)"></i> splněný kalorický cíl (±10 %)</span>
+      </div>
+      <div class="small" style="margin-top:6px">Klepni na den — ukáže detail a nabídne zápis tréninku i jídla.</div>
     </div>`;
 
   /* -- trénink: statistiky -- */
@@ -267,7 +273,26 @@ function openDaySummary(ds) {
   openModal(`${modalTitle(fmtDate(ds))}
     <div class="h3">Trénink</div>${workoutHtml}
     <div class="h3" style="margin-top:18px">Strava</div>${foodDayHtml(ds)}
-    <button class="btn primary full mt" data-act="sum-add-food" data-date="${ds}">+ Přidat jídlo do tohoto dne</button>`);
+    <div class="h3" style="margin-top:18px">Přidat do tohoto dne</div>
+    ${dayAddButtons(ds)}`);
+}
+
+/* Zápis tréninku i jídla přímo ze dne v kalendáři — šablony spouští session
+   rovnou s datem daného dne (WV.date), kardio otevře svůj formulář. */
+function dayAddButtons(ds) {
+  const tplBtns = S.templates.map(t =>
+    `<button class="btn sm" style="flex:1 1 40%;border-color:var(--green);color:var(--green)"
+      data-act="sum-add-workout" data-tpl="${t.id}" data-date="${ds}">${esc(t.name)}</button>`).join("");
+  return `
+    <div class="row" style="flex-wrap:wrap;gap:8px">${tplBtns}
+      <button class="btn sm" style="flex:1 1 40%;border-color:var(--green);color:var(--green)"
+        data-act="sum-add-workout" data-tpl="custom" data-date="${ds}">Libovolný cvik</button>
+    </div>
+    <div class="row mt" style="gap:8px">
+      <button class="btn sm grow" style="border-color:var(--cyan);color:var(--cyan)"
+        data-act="sum-add-cardio" data-date="${ds}">+ Kardio</button>
+      <button class="btn sm primary grow" data-act="sum-add-food" data-date="${ds}">+ Jídlo</button>
+    </div>`;
 }
 
 function prCountInRange(from) {
