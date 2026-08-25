@@ -388,7 +388,7 @@ const ACTIONS = {
 
   "exp-share": () => exportShare(),
   "exp-json": () => downloadFile(`fitness-log-${todayStr()}.json`, JSON.stringify(S, null, 2), "application/json"),
-  "exp-md": () => downloadFile(`fitness-log-${todayStr()}.md`, buildMarkdown(), "text/markdown"),
+  "exp-md": () => downloadFile(`fitness-log-${todayStr()}.md`, buildMarkdown(reportRangeArg()), "text/markdown"),
   "exp-import": () => importBackup(),
   "set-save": () => saveSettings(),
   "set-sync-now": async () => {
@@ -425,6 +425,27 @@ document.addEventListener("change", e => {
   }
   if (t.dataset.change === "w-date") {
     if (t.value) { WV.date = t.value; render(); }
+  }
+  /* vlastní rozsahy „od–do": konec se posune, aby nešel před začátek */
+  if (t.dataset.change === "rep-from" && t.value) {
+    MV.repFrom = t.value;
+    if (MV.repTo < MV.repFrom) MV.repTo = MV.repFrom;
+    render();
+  }
+  if (t.dataset.change === "rep-to" && t.value) {
+    MV.repTo = t.value;
+    if (MV.repFrom > MV.repTo) MV.repFrom = MV.repTo;
+    render();
+  }
+  if (t.dataset.change === "cat-from" && t.value) {
+    SV.catFrom = t.value;
+    if (SV.catTo < SV.catFrom) SV.catTo = SV.catFrom;
+    render();
+  }
+  if (t.dataset.change === "cat-to" && t.value) {
+    SV.catTo = t.value;
+    if (SV.catFrom > SV.catTo) SV.catFrom = SV.catTo;
+    render();
   }
   if (t.dataset.change === "ph-cmp-a") { PV.cmpA = t.value; render(); }
   if (t.dataset.change === "ph-cmp-b") { PV.cmpB = t.value; render(); }

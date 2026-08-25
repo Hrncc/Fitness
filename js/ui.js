@@ -125,6 +125,19 @@ function calendarHtml(year, month, decorate, clickAct) {
   <div class="cal-grid">${cells}</div>`;
 }
 
+/* ---- Vlastní rozsah datumů „od–do" ----
+   Změny chodí přes data-change="<prefix>-from" / "<prefix>-to".
+   Stejné datum v obou polích = jeden den. */
+function dateRangeRow(prefix, from, to) {
+  return `
+    <div class="row mt" style="gap:8px;margin-bottom:12px">
+      <label class="field grow" style="margin:0"><span>Od</span>
+        <input class="input" type="date" data-change="${prefix}-from" value="${from}"></label>
+      <label class="field grow" style="margin:0"><span>Do</span>
+        <input class="input" type="date" data-change="${prefix}-to" value="${to}"></label>
+    </div>`;
+}
+
 /* ---- SVG grafy (bez knihoven) ---- */
 
 /* Sloupcový graf: data = [{label, value}] */

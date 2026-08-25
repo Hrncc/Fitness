@@ -9,11 +9,29 @@ const REPORT_RANGES = [
   { id: "all", label: "Vše", days: null }
 ];
 
-function buildCoachReport(rangeId = "month") {
-  const range = REPORT_RANGES.find(r => r.id === rangeId) || REPORT_RANGES[1];
+/* Rozsah reportu: id z REPORT_RANGES, nebo vlastní { from, to } (obojí včetně).
+   Vrací { from, to, days, label }; days je null u celé historie. */
+function resolveReportRange(rangeId = "month") {
   const today = todayStr();
+  if (rangeId && typeof rangeId === "object") {
+    let { from, to } = rangeId;
+    if (from > to) [from, to] = [to, from];
+    const days = daysBetween(from, to) + 1;
+    return { from, to, days, label: from === to ? fmtDate(from) : `${fmtDate(from)} – ${fmtDate(to)} (${days} dní)` };
+  }
+  const range = REPORT_RANGES.find(r => r.id === rangeId) || REPORT_RANGES[1];
   const from = range.days ? addDays(today, -(range.days - 1)) : "0000-01-01";
-  const inRange = d => d >= from && d <= today;
+  return {
+    from, to: today, days: range.days,
+    label: range.days ? `posledních ${range.days} dní (${fmtDate(from)} – ${fmtDate(today)})` : "celá historie"
+  };
+}
+
+/* rangeId je buď id z REPORT_RANGES, nebo vlastní rozsah { from, to } */
+function buildCoachReport(rangeId = "month") {
+  const today = todayStr();
+  const { from, to, days, label: rangeLabel } = resolveReportRange(rangeId);
+  const inRange = d => d >= from && d <= to;
 
   const L = [];
   const u = weightUnit();
@@ -21,7 +39,7 @@ function buildCoachReport(rangeId = "month") {
 
   /* --- hlavička --- */
   L.push(`# Fitness Log — report`);
-  L.push(`Vygenerováno: ${fmtDate(today)} · rozsah: ${range.days ? `posledních ${range.days} dní (${fmtDate(from)} – ${fmtDate(today)})` : "celá historie"}`);
+  L.push(`Vygenerováno: ${fmtDate(today)} · rozsah: ${rangeLabel}`);
   L.push("");
 
   /* --- cíl a nastavení --- */
@@ -37,13 +55,13 @@ function buildCoachReport(rangeId = "month") {
   const cardio = sess.filter(s => s.type === "cardio");
   const volume = weights.reduce((v, s) => v + sessionVolume(s), 0);
   const rated = sess.filter(s => s.rating);
-  const prCount = countPRsInRange(from, today);
+  const prCount = countPRsInRange(from, to);
   const foodDays = [...new Set(S.foodLog.filter(f => inRange(f.date)).map(f => f.date))];
   const kcals = foodDays.map(d => dayNutrition(d).calories);
   const avgKcal = kcals.length ? Math.round(kcals.reduce((a, b) => a + b, 0) / kcals.length) : null;
   const goalDays = foodDays.filter(d => calorieGoalMet(d)).length;
-  const totalDays = range.days || (S.sessions.length
-    ? Math.round((parseDate(today) - parseDate([...S.sessions].sort((a, b) => a.date.localeCompare(b.date))[0].date)) / 86400000) + 1
+  const totalDays = days || (S.sessions.length
+    ? daysBetween([...S.sessions].sort((a, b) => a.date.localeCompare(b.date))[0].date, to) + 1
     : 0);
 
   L.push(`## Souhrn období`);
@@ -61,11 +79,11 @@ function buildCoachReport(rangeId = "month") {
   L.push("");
 
   /* --- frekvence a pauzy --- */
-  const allDates = [...S.sessions].map(s => s.date).filter(d => d <= today).sort();
+  const allDates = [...S.sessions].map(s => s.date).filter(d => d <= to).sort();
   if (allDates.length) {
     L.push(`## Frekvence`);
     const last = allDates[allDates.length - 1];
-    const ago = Math.round((parseDate(today) - parseDate(last)) / 86400000);
+    const ago = daysBetween(last, to);
     L.push(`- Poslední trénink: ${fmtDate(last)}${ago > 0 ? ` (před ${ago} ${ago === 1 ? "dnem" : ago < 5 ? "dny" : "dny"})` : " (dnes)"}`);
     let maxGap = 0, gapFrom = "", gapTo = "";
     for (let i = 1; i < allDates.length; i++) {
@@ -78,10 +96,10 @@ function buildCoachReport(rangeId = "month") {
 
   /* --- objem po týdnech (posledních 8) --- */
   const weeks = [];
-  let mon = mondayOf(today);
+  let mon = mondayOf(to);
   for (let i = 7; i >= 0; i--) {
     const start = addDays(mon, -7 * i), end = addDays(start, 6);
-    const ws = S.sessions.filter(s => s.date >= start && s.date <= end && s.date <= today);
+    const ws = S.sessions.filter(s => s.date >= start && s.date <= end && s.date <= to);
     const wv = ws.filter(s => s.type === "weights");
     if (!ws.length) continue;
     weeks.push({ start, weights: wv.length, cardio: ws.length - wv.length, vol: wv.reduce((v, s) => v + sessionVolume(s), 0) });
@@ -99,7 +117,7 @@ function buildCoachReport(rangeId = "month") {
 
   /* --- progrese cviků (z celé historie) --- */
   const hist = {};
-  for (const s of [...S.sessions].filter(s => s.type === "weights" && s.date <= today).sort((a, b) => a.date.localeCompare(b.date))) {
+  for (const s of [...S.sessions].filter(s => s.type === "weights" && s.date <= to).sort((a, b) => a.date.localeCompare(b.date))) {
     for (const e of s.entries) {
       const sets = e.sets || [];
       if (!sets.length) continue;
@@ -164,14 +182,14 @@ function buildCoachReport(rangeId = "month") {
   }
 
   /* --- váha --- */
-  const bl = S.bodyLog.filter(b => b.date <= today);
+  const bl = S.bodyLog.filter(b => b.date <= to);
   if (bl.length) {
     L.push(`## Tělesná váha`);
     const recent = bl.slice(-10);
     L.push(recent.map(b => `${fmtDate(b.date)}: ${w(b.weightKg)}`).join(" · "));
-    const ma = movingAvgAt(S.bodyLog, today);
+    const ma = movingAvgAt(S.bodyLog, to);
     if (ma != null && bl.length >= 3) {
-      const maBefore = movingAvgAt(S.bodyLog, addDays(today, -(range.days || 30)));
+      const maBefore = movingAvgAt(S.bodyLog, addDays(to, -(days || 30)));
       L.push(`- 7denní průměr: **${w(ma)}**` +
         (maBefore != null ? ` · změna za období: ${kgOut(ma) - kgOut(maBefore) >= 0 ? "+" : ""}${fmtNum(kgOut(ma) - kgOut(maBefore), 1)} ${u}` : ""));
     }
@@ -191,7 +209,7 @@ function buildCoachReport(rangeId = "month") {
   }
 
   /* --- check-iny --- */
-  const cis = checkinsSorted().filter(c => c.date <= today).slice(0, 3);
+  const cis = checkinsSorted().filter(c => c.date <= to).slice(0, 3);
   if (cis.length) {
     L.push(`## Týdenní check-iny`);
     for (const c of cis) {
@@ -212,9 +230,9 @@ function buildCoachReport(rangeId = "month") {
   /* --- upozornění na chybějící data --- */
   const missing = [];
   if (!foodDays.length) missing.push("strava nebyla v tomto období zapsána");
-  else if (range.days && foodDays.length < range.days * 0.5) missing.push(`strava zapsána jen ${foodDays.length} z ${range.days} dní`);
+  else if (days && foodDays.length < days * 0.5) missing.push(`strava zapsána jen ${foodDays.length} z ${days} dní`);
   if (!bl.length) missing.push("váha nebyla zapsána");
-  else if (lw && Math.round((parseDate(today) - parseDate(lw.date)) / 86400000) > 14) missing.push(`poslední vážení je staré ${Math.round((parseDate(today) - parseDate(lw.date)) / 86400000)} dní`);
+  else if (lw && daysBetween(lw.date, to) > 14) missing.push(`poslední vážení je staré ${daysBetween(lw.date, to)} dní`);
   if (!cis.length) missing.push("žádný týdenní check-in");
   L.push(`---`);
   L.push(missing.length

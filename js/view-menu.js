@@ -9,6 +9,8 @@ const MV = {
   tplTarget: null,  // šablona, do které se přidává cvik
   tplOpen: null,    // rozbalená šablona v přehledu (akordeon, max jedna)
   reportRange: "month",
+  repFrom: addDays(todayStr(), -6),  // vlastní rozsah reportu (od–do včetně)
+  repTo: todayStr(),
   rc: null,         // rozpracovaný recept (builder)
   rcPickId: null    // vybraná potravina při přidávání do receptu
 };
@@ -353,7 +355,7 @@ function saveFoodEdit(id) {
 
 /* ================= Export & Backup ================= */
 function renderExport() {
-  const chips = REPORT_RANGES.map(r =>
+  const chips = REPORT_RANGES.concat([{ id: "custom", label: "Vlastní" }]).map(r =>
     `<button class="chip rngchip${MV.reportRange === r.id ? " on" : ""}" data-act="rep-range" data-range="${r.id}">${r.label}</button>`).join("");
   return `
     <div class="card">
@@ -361,6 +363,7 @@ function renderExport() {
       <p class="muted" style="margin:0 0 10px">Čitelný přehled tréninků, progrese, váhy a stravy — zkopíruj a vlož do chatu.
       Neobsahuje sync URL ani API klíče.</p>
       <div class="chips">${chips}</div>
+      ${MV.reportRange === "custom" ? dateRangeRow("rep", MV.repFrom, MV.repTo) : ""}
       <div class="row" style="gap:8px">
         <button class="btn primary grow" data-act="rep-copy">Zkopírovat</button>
         <button class="btn grow" data-act="rep-share">Sdílet</button>
@@ -376,6 +379,7 @@ function renderExport() {
         <button class="btn grow" data-act="exp-json">Stáhnout JSON</button>
         <button class="btn grow" data-act="exp-md">Stáhnout Markdown</button>
       </div>
+      <p class="small mt" style="margin-bottom:0">JSON je vždy kompletní záloha. Markdown a report nahoře jdou omezit na vybraný rozsah.</p>
     </div>
     <div class="card">
       <div class="h2">Import zálohy</div>
@@ -383,6 +387,11 @@ function renderExport() {
       <input type="file" id="impFile" accept=".json,application/json" class="input">
       <button class="btn danger full mt" data-act="exp-import">Importovat</button>
     </div>`;
+}
+
+/* Vybraný rozsah pro report i markdown export */
+function reportRangeArg() {
+  return MV.reportRange === "custom" ? { from: MV.repFrom, to: MV.repTo } : MV.reportRange;
 }
 
 /* ---- Report: kopírování, sdílení, náhled ---- */
@@ -405,7 +414,7 @@ function legacyCopy(text) {
 }
 
 function copyReport() {
-  const text = buildCoachReport(MV.reportRange);
+  const text = buildCoachReport(reportRangeArg());
   const kb = Math.round(text.length / 1024 * 10) / 10;
   if (legacyCopy(text)) { toast(`Report zkopírován (${kb} kB) ✓`, "ok"); return; }
   if (navigator.clipboard) {
@@ -418,7 +427,7 @@ function copyReport() {
 }
 
 async function shareReport() {
-  const text = buildCoachReport(MV.reportRange);
+  const text = buildCoachReport(reportRangeArg());
   if (!navigator.share) { copyReport(); return; }
   try {
     await navigator.share({ title: "Fitness Log — report", text });
@@ -435,8 +444,9 @@ function showReportModal(text, note) {
     <button class="btn primary full mt" data-act="rep-copy">Zkopírovat</button>`);
 }
 
-function buildMarkdown() {
-  const lines = [`# Fitness Log — export ${fmtDate(todayStr())}`, ""];
+function buildMarkdown(rangeId) {
+  const { from, to, label } = resolveReportRange(rangeId);
+  const lines = [`# Fitness Log — export ${fmtDate(todayStr())}`, `Rozsah: ${label}`, ""];
   lines.push(`## Denní cíl`, `- ${S.goal.dailyCalories} kcal · B ${S.goal.proteinGrams} g · S ${S.goal.carbsGrams} g · T ${S.goal.fatGrams} g`, "");
   const prs = allPRs();
   if (prs.length) {
@@ -445,8 +455,10 @@ function buildMarkdown() {
       lines.push(`- **${exName(exerciseId)}**: ${fmtWeight(pr.weight)} × ${pr.reps} (${fmtDate(pr.date)})`);
     lines.push("");
   }
-  lines.push(`## Tréninky (posledních 30)`);
-  for (const s of [...S.sessions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30)) {
+  const sess = S.sessions.filter(s => s.date >= from && s.date <= to)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  lines.push(`## Tréninky (${sess.length})`);
+  for (const s of sess) {
     if (s.type === "cardio") {
       const c = s.entries[0] || {};
       lines.push(`### ${fmtDate(s.date)} — Kardio`, `- ${c.duration} min${c.distance ? `, ${c.distance} km` : ""}${c.calories ? `, ${c.calories} kcal` : ""}`);

@@ -4,7 +4,9 @@
 "use strict";
 
 const SV = {
-  catRange: "all",    // rozsah karty partií: week | month | all (celá historie)
+  catRange: "all",    // rozsah karty partií: week | month | all | custom
+  catFrom: addDays(todayStr(), -13),   // vlastní rozsah partií (od–do včetně)
+  catTo: todayStr(),
   exerciseId: null,   // vybraný cvik pro graf progresu
   calY: new Date().getFullYear(),
   calM: new Date().getMonth()
@@ -72,7 +74,10 @@ function renderSummary() {
   const catStats = {};
   for (const c of EX_CATEGORIES) catStats[c] = { sets: 0, volume: 0, last: null };
   const catOf = e => (getExercise(e.exerciseId) || {}).category || "Ostatní";
-  const catFrom = { week: addDays(todayStr(), -6), month: addDays(todayStr(), -29), all: "" }[SV.catRange];
+  const catCustom = SV.catRange === "custom";
+  const catFrom = catCustom ? SV.catFrom
+    : { week: addDays(todayStr(), -6), month: addDays(todayStr(), -29), all: "" }[SV.catRange];
+  const catTo = catCustom ? SV.catTo : todayStr();
   for (const s of S.sessions) {
     if (s.type !== "weights") continue;
     for (const e of s.entries) {
@@ -81,7 +86,7 @@ function renderSummary() {
       const st = catStats[cat];
       if (!(e.sets || []).length) continue;
       if (!st.last || s.date > st.last) st.last = s.date;
-      if (s.date < catFrom) continue;
+      if (s.date < catFrom || s.date > catTo) continue;
       for (const set of e.sets) {
         st.sets++;
         st.volume += (set.reps || 0) * (set.weight || 0);
@@ -92,14 +97,17 @@ function renderSummary() {
     .sort((a, b) => b[1].sets - a[1].sets || b[1].volume - a[1].volume);
   const catMaxSets = Math.max(...catRows.map(([, v]) => v.sets), 1);
   const setWord = n => n === 1 || (n >= 2 && n <= 4) ? "série" : "sérií";
-  const catRangeLabel = { week: "posledních 7 dní", month: "posledních 30 dní", all: "celá historie" }[SV.catRange];
-  const catChips = [["week", "Týden"], ["month", "Měsíc"], ["all", "Vše"]].map(([k, lbl]) =>
+  const catRangeLabel = catCustom
+    ? (catFrom === catTo ? fmtDate(catFrom) : `${fmtDate(catFrom)} – ${fmtDate(catTo)}`)
+    : { week: "posledních 7 dní", month: "posledních 30 dní", all: "celá historie" }[SV.catRange];
+  const catChips = [["week", "Týden"], ["month", "Měsíc"], ["all", "Vše"], ["custom", "Vlastní"]].map(([k, lbl]) =>
     `<button class="chip${SV.catRange === k ? " on" : ""}" data-act="s-cat-range" data-range="${k}">${lbl}</button>`).join("");
 
   const categoryCard = `
     <div class="card">
       <div class="h2">Partie <span class="small">(${catRangeLabel})</span></div>
       <div class="chips">${catChips}</div>
+      ${catCustom ? dateRangeRow("cat", catFrom, catTo) : ""}
       ${catRows.map(([cat, v]) => {
         const gap = v.last == null ? null : daysBetween(v.last, todayStr());
         const stale = gap == null || gap > 14;
