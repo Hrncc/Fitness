@@ -131,8 +131,8 @@ const ACTIONS = {
   },
 
   /* tělesná váha */
-  "bw-open": () => openBodyWeightModal(),
-  "bw-save": () => saveBodyWeight(),
+  "bw-open": d => openBodyWeightModal(d.date || null),
+  "bw-save": d => saveBodyWeight(d.date || null),
 
   /* ---- Trénink ---- */
   "w-sub": d => { WV.sub = d.sub; render(); },

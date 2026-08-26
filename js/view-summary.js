@@ -257,9 +257,14 @@ function openDaySummary(ds) {
   const workoutHtml = sess.length
     ? sess.map(sessionDetailHtml).join(`<hr style="border-color:var(--line);margin:14px 0">`)
     : `<div class="empty-note" style="padding:14px">Žádný trénink</div>`;
+  const bw = bodyWeightOn(ds);
   openModal(`${modalTitle(fmtDate(ds))}
     <div class="h3">Trénink</div>${workoutHtml}
     <div class="h3" style="margin-top:18px">Strava</div>${foodDayHtml(ds)}
+    <div class="h3" style="margin-top:18px">Váha</div>
+    <div class="card2">${bw != null
+      ? `<b>${fmtWeight(bw)}</b>`
+      : `<span class="muted">Bez záznamu</span>`}</div>
     <div class="h3" style="margin-top:18px">Přidat do tohoto dne</div>
     ${dayAddButtons(ds)}`);
 }
@@ -278,6 +283,8 @@ function dayAddButtons(ds) {
     <div class="row mt" style="gap:8px">
       <button class="btn sm grow" style="border-color:var(--green);color:var(--green)"
         data-act="sum-add-cardio" data-date="${ds}">+ Kardio</button>
+      <button class="btn sm grow" style="border-color:var(--green);color:var(--green)"
+        data-act="bw-open" data-date="${ds}">${bodyWeightOn(ds) != null ? "Upravit váhu" : "+ Váha"}</button>
       <button class="btn sm primary grow" data-act="sum-add-food" data-date="${ds}">+ Jídlo</button>
     </div>`;
 }

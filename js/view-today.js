@@ -194,25 +194,30 @@ function weeklyRecapCard() {
 }
 
 /* ---- Modal zápisu váhy ---- */
-function openBodyWeightModal() {
-  const today = todayStr();
-  const current = bodyWeightOn(today) ?? (lastBodyWeight(today) || {}).weightKg;
-  openModal(`${modalTitle("Zapsat váhu")}
+/* date = null → dnešek; jinak zpětný zápis (kalendář v Souhrnu) */
+function openBodyWeightModal(date) {
+  const day = date || todayStr();
+  const isToday = day === todayStr();
+  // předvyplní se hodnota toho dne, jinak poslední známá váha k tomu dni
+  const current = bodyWeightOn(day) ?? (lastBodyWeight(day) || {}).weightKg;
+  openModal(`${modalTitle("Zapsat váhu" + (isToday ? "" : " · " + fmtDate(day)))}
     <label class="field"><span>Tělesná váha (${weightUnit()})</span>
       <input class="input" id="bwInput" type="text" inputmode="decimal"
         value="${current != null ? fmtNum(kgOut(current), 1) : ""}" placeholder="např. 80,5"></label>
-    <button class="btn primary full" data-act="bw-save">Uložit</button>`);
+    ${bodyWeightOn(day) != null ? `<p class="small" style="margin:-6px 0 14px">K tomuto dni už váha zapsaná je — uložením ji přepíšeš.</p>` : ""}
+    <button class="btn primary full" data-act="bw-save" data-date="${day}">Uložit</button>`);
   document.getElementById("bwInput").focus();
 }
 
-function saveBodyWeight() {
+function saveBodyWeight(date) {
+  const day = date || todayStr();
   const kg = kgIn(document.getElementById("bwInput").value);
   if (kg == null || kg <= 0) { toast("Zadej platnou váhu", "err"); return; }
-  logBodyWeight(kg);
+  logBodyWeight(kg, day);
   save();
   closeModal();
   render();
-  toast("Váha zapsána ✓", "ok");
+  toast(day === todayStr() ? "Váha zapsána ✓" : `Váha zapsána k ${fmtDate(day)} ✓`, "ok");
 }
 
 function templateLabel(t) {
