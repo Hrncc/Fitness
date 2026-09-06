@@ -30,23 +30,17 @@ function renderSummary() {
     <div class="card">
       <div class="h2">Kalendář</div>
       ${calendarHtml(SV.calY, SV.calM, ds => {
-        const sess = sessionsOn(ds);
-        const hasW = sess.some(s => s.type === "weights");
-        const hasC = sess.some(s => s.type === "cardio");
+        const bars = dayCatColors(ds);
         const f = calorieGoalMet(ds);
-        if (!hasW && !hasC && !f) return null;
-        return {
-          cls: hasW && hasC ? "d-both" : hasW ? "d-weights" : hasC ? "d-cardio" : "",
-          mark: f ? `<i style="background:var(--mac1)"></i>` : ""
-        };
+        if (!bars.length && !f) return null;
+        return { cls: bars.length ? "trained" : "", bars, corner: f };
       }, "sum-cal-day")}
       <div class="cal-legend small mt">
-        <span><i style="background:var(--cal-w);box-shadow:inset 0 0 0 1.5px rgba(90,169,245,.55)"></i> silový</span>
-        <span><i style="background:var(--cal-c);box-shadow:inset 0 0 0 1.5px rgba(255,77,94,.55)"></i> kardio</span>
-        <span><i style="background:linear-gradient(135deg,var(--cal-w) 0 50%,var(--cal-c) 50% 100%);box-shadow:inset 0 0 0 1.5px rgba(90,169,245,.45)"></i> obojí</span>
-        <span><i class="dot" style="background:var(--mac1)"></i> splněný kalorický cíl (±10 %)</span>
+        ${CAT_ORDER.map(c => `<span><i class="dot" style="background:${catColor(c)}"></i> ${c}</span>`).join("")}
+        <span><i class="dot" style="background:var(--p-cardio)"></i> kardio</span>
       </div>
-      <div class="small" style="margin-top:6px">Klepni na den — ukáže detail a nabídne zápis tréninku i jídla.</div>
+      <div class="small" style="margin-top:8px">Proužky ve dni = odcvičené partie, tečka v rohu = splněný kalorický cíl (±10 %).
+        Klepni na den pro detail a zápis.</div>
     </div>`;
 
   /* -- trénink: statistiky -- */
@@ -72,7 +66,7 @@ function renderSummary() {
      nulový, takže by taková partie vypadala jako netrénovaná. „Naposledy"
      se počítá vždy z celé historie, ať přepnutý rozsah nelže. */
   const catStats = {};
-  for (const c of EX_CATEGORIES) catStats[c] = { sets: 0, volume: 0, last: null };
+  for (const c of CAT_ORDER) catStats[c] = { sets: 0, volume: 0, last: null };
   const catOf = e => (getExercise(e.exerciseId) || {}).category || "Ostatní";
   const catCustom = SV.catRange === "custom";
   const catFrom = catCustom ? SV.catFrom
@@ -116,15 +110,17 @@ function renderSummary() {
         return `
         <div class="mt">
           <div class="row between" style="margin-bottom:4px">
-            <span class="small" style="font-weight:700;color:var(--${v.sets ? "text" : "text3"})">${esc(cat)}</span>
+            <span class="small" style="font-weight:700;color:var(--${v.sets ? "text" : "text3"});display:inline-flex;align-items:center;gap:7px">
+              <i class="p-dot" style="background:${catColor(cat)}${v.sets ? "" : ";opacity:.45"}"></i>${esc(cat)}</span>
             <span class="small">${v.sets} ${setWord(v.sets)}${v.volume ? ` · ${fmtNum(kgOut(v.volume))} ${weightUnit()}` : ""}
               · <span style="${stale ? "color:var(--yellow);font-weight:700" : ""}">${lastTxt}</span></span>
           </div>
-          <div class="bar mini"><div style="width:${(v.sets / catMaxSets * 100).toFixed(1)}%;background:var(--chart)"></div></div>
+          <div class="bar mini"><div style="width:${(v.sets / catMaxSets * 100).toFixed(1)}%;background:${catColor(cat)}"></div></div>
         </div>`;
       }).join("")}
       <p class="small mt" style="margin-bottom:0">Sloupec = počet sérií (porovnává partie líp než kila).
-        Zlatě partie, kterou jsi netrénoval přes 14 dní — „naposledy" je vždy z celé historie.</p>
+        Zlatě partie, kterou jsi netrénoval přes 14 dní — „naposledy" je vždy z celé historie.
+        Barva partie je stejná napříč celou appkou.</p>
     </div>`;
 
   /* -- progres cviku -- */

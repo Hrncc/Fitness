@@ -99,7 +99,11 @@ function barHtml(value, target, color, mini = false) {
 }
 
 /* ---- Kalendář ----
-   decorate(dateStr) → { cls: 'hit'|'miss'|'', mark: '✓'|'' } nebo null */
+   decorate(dateStr) → { cls, mark, bars, corner } nebo null
+     cls    — třída buňky ('hit' | 'miss' | 'trained' | '')
+     mark   — drobný obsah pod číslem (tečky, ✓)
+     bars   — pole barev: proužky identity (partie odcvičené ten den)
+     corner — tečka v pravém horním rohu (splněný cíl) */
 function calendarHtml(year, month, decorate, clickAct) {
   const first = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -111,9 +115,13 @@ function calendarHtml(year, month, decorate, clickAct) {
   for (let d = 1; d <= daysInMonth; d++) {
     const ds = dateStr(new Date(year, month, d));
     const info = decorate(ds) || { cls: "", mark: "" };
+    const bars = (info.bars || []).length
+      ? `<div class="cal-bars">${info.bars.map(c => `<i style="background:${c}"></i>`).join("")}</div>`
+      : "";
     cells += `<div class="cal-day ${info.cls}${ds === today ? " today" : ""}"
       data-act="${clickAct}" data-date="${ds}">
-      <span>${d}</span><span class="mark">${info.mark || ""}</span>
+      ${info.corner ? `<i class="cal-goal"></i>` : ""}
+      <span>${d}</span>${info.mark ? `<span class="mark">${info.mark}</span>` : ""}${bars}
     </div>`;
   }
   return `
@@ -123,6 +131,14 @@ function calendarHtml(year, month, decorate, clickAct) {
     <button class="btn sm ghost" data-act="cal-nav" data-dir="1">›</button>
   </div>
   <div class="cal-grid">${cells}</div>`;
+}
+
+/* ---- Pokrytí partií v jednom řádku ----
+   Sedm segmentů v pořadí podle těla; nepokrytá partie je ztlumená.
+   Kompaktní protějšek counteru z aktivního tréninku. */
+function catPipsHtml(counts) {
+  return `<div class="cat-pips">${CAT_ORDER.map(c =>
+    `<i style="background:${catColor(c)}${counts[c] ? "" : ";opacity:.2"}"></i>`).join("")}</div>`;
 }
 
 /* ---- Vlastní rozsah datumů „od–do" ----

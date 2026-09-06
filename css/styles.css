@@ -8,25 +8,35 @@
   --bg3: #262932;
   --line: #23252C;
 
-  /* Barevná logika:
-     volt   = interakce a cíle (tlačítka, aktivní prvky, progress k cíli, splněno)
-     bílá + šedá škála = data (čísla, grafy, série maker)
-     zlatá  = rekordy (medaile) + rozpracované/pending stavy
-     červená = chyby, mazání, překročení */
+  /* ===== Vrstva 1 — STAV (co se právě děje) =====
+     Vždy jako výplň nebo plný text: tlačítka, badge, chybové hlášky.
+     volt    = interakce a cíle (tlačítka, aktivní prvky, progress k cíli, splněno)
+     zlatá   = rekordy a varování „něco ti utíká" (pending stavy jsou neutrální)
+     červená = výhradně chyby, mazání, překročení
+     bílá + šedá škála = data (čísla, grafy, série maker) */
   --green: #CDFB51;   /* volt — akcent */
-  --yellow: #F7C948;  /* zlatá — PR, pending */
-  --red: #FF4D5E;     /* chyby, překročení */
-
-  --blue: #5AA9F5;    /* silový trénink — jediná barva mimo původní paletu */
+  --yellow: #F7C948;  /* zlatá — rekordy a varování */
+  --red: #FF4D5E;     /* jen chyby, mazání, překročení */
 
   --green-bg: rgba(205,251,81,.12);
   --yellow-bg: rgba(247,201,72,.13);
   --red-bg: rgba(255,77,94,.13);
-  --blue-bg: rgba(90,169,245,.13);
 
-  /* kalendář — celé políčko podle typu tréninku (modrá = silový, červená = kardio) */
-  --cal-w: rgba(90,169,245,.20);
-  --cal-c: rgba(255,77,94,.18);
+  /* ===== Vrstva 2 — IDENTITA (čeho se to týká) =====
+     Sedm svalových partií. Vždy jako úzký proužek, tečka nebo tenká linka —
+     NIKDY jako výplň tlačítka, jinak by se pralo se stavovou vrstvou.
+     Odstín jde po těle shora dolů: nahoře teplá, dole studená. Celý pás
+     vynechává žlutozelený výsek, kde bydlí volt a zlatá. */
+  --p-ramena: #FF8A3D;
+  --p-hrudnik: #FF63B0;
+  --p-zada: #C176FF;
+  --p-biceps: #6E6BFF;   /* tmavší indigo — odliší se od tricepsu i světlostí */
+  --p-triceps: #45C8FF;  /* světlejší azur */
+  --p-core: #2FD9C4;
+  --p-nohy: #57E086;
+
+  /* kardio nemá partii — v kalendáři ho nese neutrální proužek */
+  --p-cardio: #9EA2AD;
 
   --mac1: #F4F5F1;    /* bílkoviny — nejsvětlejší */
   --mac2: #AEB3BD;    /* sacharidy — střední */
@@ -82,7 +92,7 @@ button { font-family: inherit; }
   transition: background .3s;
 }
 .sync-dot.ok { background: var(--green); box-shadow: 0 0 10px rgba(205,251,81,.7); }
-.sync-dot.pending { background: var(--yellow); box-shadow: 0 0 10px rgba(247,201,72,.7); animation: pulse 1.2s infinite; }
+.sync-dot.pending { background: var(--text2); box-shadow: 0 0 10px rgba(158,162,173,.5); animation: pulse 1.2s infinite; }
 .sync-dot.error { background: var(--red); box-shadow: 0 0 10px rgba(255,77,94,.7); }
 @keyframes pulse { 50% { opacity: .35; } }
 
@@ -275,25 +285,73 @@ label.field > span {
   font-size: 13px; font-weight: 600; cursor: pointer; position: relative;
 }
 .cal-day.empty { background: none; cursor: default; }
-/* typ tréninku barví celé políčko; oba typy v jednom dni = diagonální půlka */
-.cal-day.d-weights { background: var(--cal-w); color: var(--blue); border-color: rgba(90,169,245,.4); }
-.cal-day.d-cardio { background: var(--cal-c); color: var(--red); border-color: rgba(255,77,94,.4); }
-.cal-day.d-both {
-  background: linear-gradient(135deg, var(--cal-w) 0 50%, var(--cal-c) 50% 100%);
-  color: var(--text); border-color: rgba(90,169,245,.35);
-}
+/* den s tréninkem je světlejší; co se cvičilo, řeknou proužky partií */
+.cal-day.trained { background: var(--bg3); color: var(--text); }
 .cal-day.today { border-color: var(--green); color: var(--text); font-weight: 800; }
 .cal-day .mark {
   font-size: 10px; line-height: 1; height: 11px;
   display: flex; align-items: center; justify-content: center; gap: 2.5px;
 }
 .cal-day .mark i { width: 5px; height: 5px; border-radius: 50%; display: block; }
+/* proužky odcvičených partií — jeden segment na partii, pořadí podle těla */
+.cal-bars {
+  display: flex; gap: 1px; width: 78%; height: 4px; margin-top: 4px;
+}
+.cal-bars i { flex: 1; height: 4px; border-radius: 1px; display: block; }
+/* splněný kalorický cíl — tečka v rohu, ať nesoupeří s proužky o místo */
+.cal-goal {
+  position: absolute; top: 5px; right: 5px;
+  width: 5px; height: 5px; border-radius: 50%; background: var(--mac1);
+}
 .cal-day.hit { background: var(--green-bg); color: var(--green); }
 .cal-day.miss { background: var(--red-bg); color: var(--red); }
-.cal-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.cal-legend { display: flex; flex-wrap: wrap; gap: 5px 12px; align-items: center; }
 .cal-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .cal-legend i { width: 11px; height: 11px; border-radius: 4px; display: block; }
 .cal-legend i.dot { width: 6px; height: 6px; border-radius: 50%; margin: 0 2px; }
+
+/* ===== Identita partie ===== */
+/* Hlavička kategorie se svou tečkou (pickery cviků). */
+.cat-head { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+/* Chip kategorie a badge v detailu cviku — tečka nese identitu, ne výplň. */
+.cat-chip { display: inline-flex; align-items: center; gap: 7px; }
+.cat-chip.on .p-dot { background: #0A0B0D !important; }
+.cat-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--bg3); }
+/* Pokrytí partií u sbalené šablony. */
+.tpl-cats { display: flex; gap: 4px; margin-top: 7px; }
+
+/* Levý proužek na kartě nebo řádku — nese barvu přes inline style. */
+.p-stripe {
+  width: 3px; border-radius: 2px; display: block; align-self: stretch;
+  min-height: 16px; flex: none;
+}
+/* Tečka vedle textu (chipy, hlavičky kategorií, legendy). */
+.p-dot {
+  width: 8px; height: 8px; border-radius: 50%; display: block; flex: none;
+}
+
+/* Pokrytí partií jedním řádkem (obrazovka Dnes, seznam tréninků). */
+.cat-pips { display: flex; gap: 3px; }
+.cat-pips i { flex: 1; height: 5px; border-radius: 2px; display: block; max-width: 40px; }
+
+/* ===== Counter partií v aktivním tréninku ===== */
+.cat-counter { padding: 15px 16px; }
+.cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.cat-cell {
+  display: grid; grid-template-columns: 3px 1fr auto;
+  align-items: center; gap: 9px; overflow: hidden;
+  background: var(--bg2); border-radius: 10px; padding: 9px 11px 9px 0;
+}
+/* poslední partie (Nohy) drží celou šířku — 7 buněk se do dvou sloupců
+   jinak nerozdělí a osamocená buňka na konci vypadá jako chyba */
+.cat-cell:last-child { grid-column: 1 / -1; }
+.cat-cell i { width: 3px; align-self: stretch; min-height: 26px; border-radius: 0 2px 2px 0; }
+.cat-cell .cat-n { font-size: 13.5px; font-weight: 600; }
+.cat-cell .cat-v { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+/* nula = díra, ne další řádek */
+.cat-cell.zero { background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
+.cat-cell.zero .cat-n, .cat-cell.zero .cat-v { color: var(--text3); }
+.cat-cell.zero i { opacity: .4; }
 
 /* ===== Sety / trénink ===== */
 .set-row {
@@ -310,7 +368,9 @@ label.field > span {
 @keyframes prflash { 50% { box-shadow: 0 0 26px rgba(247,201,72,.5); } }
 
 /* Aktivní trénink: stavy cviků (akordeon — rozbalený je nejvýš jeden) */
-.ex-active { border-color: var(--green); }
+/* rozdělaný cvik je jen zvýrazněný podklad — volt si drží akci a splněno,
+   ne „něco tu leží rozepsané" */
+.ex-active { border-color: var(--line); background: var(--bg2); }
 .ex-collapsed { padding: 14px 16px; cursor: pointer; }
 .ex-collapsed:active { background: var(--bg2); }
 .ex-open { border-color: var(--green); }

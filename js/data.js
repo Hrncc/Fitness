@@ -55,6 +55,59 @@ function seedExercises() {
 
 const EX_CATEGORIES = ["Hrudník", "Záda", "Nohy", "Ramena", "Biceps", "Triceps", "Core"];
 
+/* ===== Barvy svalových partií =====
+   Identita partie — vykresluje se vždy jako proužek nebo tečka, nikdy jako
+   výplň tlačítka (ta patří stavové vrstvě: volt = akce, zlatá = rekord,
+   červená = chyba). Hodnoty jsou v css/styles.css, tady jen mapa. */
+const CAT_COLOR = {
+  "Ramena": "var(--p-ramena)",
+  "Hrudník": "var(--p-hrudnik)",
+  "Záda": "var(--p-zada)",
+  "Biceps": "var(--p-biceps)",
+  "Triceps": "var(--p-triceps)",
+  "Core": "var(--p-core)",
+  "Nohy": "var(--p-nohy)"
+};
+
+/* Pořadí podle polohy na těle shora dolů — používá counter i legendy.
+   Liší se od EX_CATEGORIES, které drží pořadí knihovny cviků. */
+const CAT_ORDER = ["Ramena", "Hrudník", "Záda", "Biceps", "Triceps", "Core", "Nohy"];
+
+function catColor(cat) { return CAT_COLOR[cat] || "var(--text3)"; }
+function exCategory(exerciseId) { return (getExercise(exerciseId) || {}).category || null; }
+function exColor(exerciseId) { return catColor(exCategory(exerciseId)); }
+
+/* Počet sérií na partii v jedné session (i rozdělané) — jádro counteru. */
+function sessionCatSets(session) {
+  const counts = {};
+  for (const c of CAT_ORDER) counts[c] = 0;
+  for (const e of (session && session.entries) || []) {
+    const cat = exCategory(e.exerciseId);
+    if (!cat) continue;
+    counts[cat] = (counts[cat] || 0) + (e.sets || []).length;
+  }
+  return counts;
+}
+
+/* Partie odcvičené v daný den — pro proužky v kalendáři. Vrací pole barev
+   v pořadí podle těla; kardio se přidává jako neutrální proužek na konec. */
+function dayCatColors(date) {
+  const sess = sessionsOn(date);
+  const hit = new Set();
+  let cardio = false;
+  for (const s of sess) {
+    if (s.type === "cardio") { cardio = true; continue; }
+    for (const e of s.entries || []) {
+      if (!(e.sets || []).length) continue;
+      const cat = exCategory(e.exerciseId);
+      if (cat) hit.add(cat);
+    }
+  }
+  const out = CAT_ORDER.filter(c => hit.has(c)).map(catColor);
+  if (cardio) out.push("var(--p-cardio)");
+  return out;
+}
+
 function defaultState() {
   return {
     version: 1,

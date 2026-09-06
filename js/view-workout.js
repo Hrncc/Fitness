@@ -94,6 +94,7 @@ function renderActiveSession() {
 
   const blocks = a.entries.map((entry, i) => {
     const ex = getExercise(entry.exerciseId);
+    const pcol = catColor(ex && ex.category);   // identita partie — jen proužek
     const pr = currentPR(entry.exerciseId);
     const last = lastExerciseSets(entry.exerciseId, a.id);
     const setCount = (entry.sets || []).length;
@@ -106,6 +107,7 @@ function renderActiveSession() {
       return `
       <div class="card ex-done" id="exblock-${i}" data-act="w-ex-open" data-i="${i}">
         <div class="row">
+          <i class="p-stripe" style="background:${pcol}"></i>
           <span class="done-check">✓</span>
           <div class="grow">
             <div class="name" style="font-weight:700">${esc(ex ? ex.name : "?")}</div>
@@ -124,6 +126,7 @@ function renderActiveSession() {
       return `
       <div class="card ex-collapsed${setCount ? " ex-active" : ""}" id="exblock-${i}" data-act="w-ex-open" data-i="${i}">
         <div class="row">
+          <i class="p-stripe" style="background:${pcol}"></i>
           <span class="ex-num">${i + 1}</span>
           <div class="grow">
             <div class="name" style="font-weight:700">${esc(ex ? ex.name : "?")}</div>
@@ -162,6 +165,7 @@ function renderActiveSession() {
     return `
     <div class="card ex-open${entry.prHit ? " pr-flash" : ""}" id="exblock-${i}">
       <div class="row between" data-act="w-ex-close">
+        <i class="p-stripe" style="background:${pcol}"></i>
         <span class="ex-num${entry.done ? " done" : ""}">${entry.done ? "✓" : i + 1}</span>
         <div class="grow">
           <div class="name" style="font-weight:700">${esc(ex ? ex.name : "?")}</div>
@@ -188,18 +192,42 @@ function renderActiveSession() {
   const doneCount = a.entries.filter(e => e.done).length;
   const dateInfo = a.date !== todayStr() ? ` · ${fmtDate(a.date)}` : "";
   return `
-    <div class="card" style="border-color:var(--yellow)">
+    <div class="card">
       <div class="row between">
-        <span class="badge yellow">Probíhá — ${esc(sessionLabel(a))}${dateInfo}</span>
+        <span class="badge neutral">Probíhá — ${esc(sessionLabel(a))}${dateInfo}</span>
         <span class="small">${doneCount}/${a.entries.length} cviků · ${totalSets} sérií</span>
       </div>
       <p class="small" style="margin:8px 0 0">Úpravy cviků platí jen pro tuto session, šablonu nemění. Předvyplněné hodnoty jsou z minulého tréninku.</p>
     </div>
+    ${catCounterHtml(a)}
     ${blocks}
     <button class="btn ghost full" style="border-style:dashed" data-act="w-add-ex">+ Přidat cvik</button>
     <div class="row mt" style="gap:8px">
       <button class="btn danger" data-act="w-cancel">Zrušit</button>
       <button class="btn success grow" data-act="w-finish">✓ Dokončit trénink</button>
+    </div>`;
+}
+
+/* ---- Counter partií ----
+   Drží se nad cviky po celou dobu tréninku, u šablony i u libovolného cviku.
+   Ukazuje i nuly — právě ta nula je informace, kvůli které counter existuje.
+   Pořadí je pevné podle těla, ať se buňky pod prstem nepřeskupují. */
+function catCounterHtml(session) {
+  const counts = sessionCatSets(session);
+  const hit = CAT_ORDER.filter(c => counts[c] > 0).length;
+  const cells = CAT_ORDER.map(c => `
+    <div class="cat-cell${counts[c] ? "" : " zero"}">
+      <i style="background:${catColor(c)}"></i>
+      <span class="cat-n">${c}</span>
+      <span class="cat-v">${counts[c]}</span>
+    </div>`).join("");
+  return `
+    <div class="card cat-counter">
+      <div class="row between" style="margin-bottom:12px">
+        <span class="h2" style="margin:0">Partie dnes</span>
+        <span class="small"><b style="color:var(--text)">${hit}</b> ze ${CAT_ORDER.length}</span>
+      </div>
+      <div class="cat-grid">${cells}</div>
     </div>`;
 }
 
@@ -330,14 +358,15 @@ function openExercisePicker(swapIndex) {
 
 function exercisePickerList(query) {
   const q = query.trim().toLowerCase();
-  const groups = EX_CATEGORIES.map(cat => {
+  const groups = CAT_ORDER.map(cat => {
     const items = S.exercises
       .filter(e => e.category === cat && (!q || e.name.toLowerCase().includes(q)))
       .map(e => `<div class="list-item" data-act="w-pick-ex" data-exid="${e.id}" style="cursor:pointer">
+        <i class="p-stripe" style="background:${catColor(cat)}"></i>
         <div class="grow name">${esc(e.name)}</div>
         ${e.isCustom ? `<span class="badge neutral">vlastní</span>` : ""}
       </div>`).join("");
-    return items ? `<div class="h3" style="margin-top:10px">${cat}</div>${items}` : "";
+    return items ? `<div class="h3 cat-head"><i class="p-dot" style="background:${catColor(cat)}"></i>${cat}</div>${items}` : "";
   }).join("");
   return groups || `<div class="empty-note">Nic nenalezeno</div>`;
 }
@@ -442,7 +471,9 @@ function sessionDetailHtml(s) {
     const sets = (e.sets || []).map((st, j) =>
       `<div class="set-row"><span class="set-num">${j + 1}</span>
        <span class="grow">${fmtNum(st.reps)} × ${fmtWeight(st.weight)}${st.note ? ` <span class="small">· ${esc(st.note)}</span>` : ""}</span></div>`).join("");
-    return `<div class="card2 mt"><b style="font-size:14px">${esc(exName(e.exerciseId))}</b>${sets}</div>`;
+    return `<div class="card2 mt">
+      <div class="row"><i class="p-stripe" style="background:${exColor(e.exerciseId)}"></i>
+        <b style="font-size:14px">${esc(exName(e.exerciseId))}</b></div>${sets}</div>`;
   }).join("");
   return `<div>
     <div class="row between">

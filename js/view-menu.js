@@ -1,7 +1,7 @@
 /* ===== Obrazovky z hamburger menu ===== */
 "use strict";
 
-const APP_VERSION = "1.15.0";
+const APP_VERSION = "1.16.0";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -18,8 +18,9 @@ const MV = {
 /* ================= Exercise Library ================= */
 function renderExLib() {
   const chips = [`<button class="chip${MV.exCat === "all" ? " on" : ""}" data-act="el-cat" data-cat="all">Vše</button>`]
-    .concat(EX_CATEGORIES.map(c =>
-      `<button class="chip${MV.exCat === c ? " on" : ""}" data-act="el-cat" data-cat="${c}">${c}</button>`))
+    .concat(CAT_ORDER.map(c =>
+      `<button class="chip cat-chip${MV.exCat === c ? " on" : ""}" data-act="el-cat" data-cat="${c}">
+        <i class="p-dot" style="background:${catColor(c)}"></i>${c}</button>`))
     .join("");
   return `
     <button class="btn primary full" style="margin-bottom:14px" data-act="el-add">+ Přidat vlastní cvik</button>
@@ -32,12 +33,14 @@ function elListHtml() {
   const q = MV.exQuery.toLowerCase();
   const list = S.exercises
     .filter(e => (MV.exCat === "all" || e.category === MV.exCat) && (!q || e.name.toLowerCase().includes(q)))
-    .sort((a, b) => a.category.localeCompare(b.category, "cs") || a.name.localeCompare(b.name, "cs"))
+    .sort((a, b) => CAT_ORDER.indexOf(a.category) - CAT_ORDER.indexOf(b.category)
+      || a.name.localeCompare(b.name, "cs"))
     .map(e => `
       <div class="list-item" data-act="el-detail" data-id="${e.id}" style="cursor:pointer">
+        <i class="p-stripe" style="background:${catColor(e.category)}"></i>
         <div class="grow">
           <div class="name">${esc(e.name)}</div>
-          <div class="small">${esc(e.category)}</div>
+          <div class="small" style="color:${catColor(e.category)}">${esc(e.category)}</div>
         </div>
         ${e.isCustom ? `<span class="badge neutral">vlastní</span>` : ""}
       </div>`).join("");
@@ -50,7 +53,8 @@ function openExerciseDetail(id) {
   const pr = currentPR(id);
   openModal(`${modalTitle(e.name)}
     <div class="row" style="margin-bottom:10px">
-      <span class="badge neutral">${esc(e.category)}</span>
+      <span class="badge cat-badge" style="color:${catColor(e.category)}">
+        <i class="p-dot" style="background:${catColor(e.category)}"></i>${esc(e.category)}</span>
       ${e.isCustom ? `<span class="badge neutral">vlastní</span>` : ""}
       ${pr ? `<span class="badge yellow">PR ${fmtWeight(pr.weight)} × ${pr.reps}</span>` : ""}
     </div>
@@ -64,7 +68,7 @@ function openExerciseDetail(id) {
 
 function openExerciseForm(id) {
   const e = id ? getExercise(id) : null;
-  const catOpts = EX_CATEGORIES.map(c =>
+  const catOpts = CAT_ORDER.map(c =>
     `<option value="${c}"${e && e.category === c ? " selected" : ""}>${c}</option>`).join("");
   openModal(`${modalTitle(e ? "Upravit cvik" : "Nový cvik")}
     <label class="field"><span>Název *</span><input class="input" id="exfName" value="${esc(e ? e.name : "")}"></label>
@@ -103,6 +107,9 @@ function renderTemplates() {
           <div class="grow">
             <div class="name" style="font-weight:700;color:var(--green)">${esc(t.name)}</div>
             <div class="small">${count ? `${count} ${exWord(count)}` : "prázdná šablona"}</div>
+            ${count ? `<div class="tpl-cats">${CAT_ORDER
+              .filter(c => t.exercises.some(id => exCategory(id) === c))
+              .map(c => `<i class="p-dot" style="background:${catColor(c)}"></i>`).join("")}</div>` : ""}
           </div>
           <span class="ex-chevron">›</span>
         </div>
@@ -112,6 +119,7 @@ function renderTemplates() {
     /* --- rozbalená šablona: celý seznam cviků a úpravy --- */
     const rows = t.exercises.map((exId, i) => `
       <div class="list-item">
+        <i class="p-stripe" style="background:${exColor(exId)}"></i>
         <div class="grow name">${esc(exName(exId))}</div>
         <button class="btn sm ghost" data-act="tpl-move" data-tpl="${t.id}" data-i="${i}" data-dir="-1" ${i === 0 ? "disabled" : ""}>↑</button>
         <button class="btn sm ghost" data-act="tpl-move" data-tpl="${t.id}" data-i="${i}" data-dir="1" ${i === count - 1 ? "disabled" : ""}>↓</button>
@@ -160,12 +168,13 @@ function openTplPicker(tplId) {
 function tplPickerList(query) {
   const t = getTemplate(MV.tplTarget);
   const q = query.trim().toLowerCase();
-  return EX_CATEGORIES.map(cat => {
+  return CAT_ORDER.map(cat => {
     const items = S.exercises
       .filter(e => e.category === cat && !t.exercises.includes(e.id) && (!q || e.name.toLowerCase().includes(q)))
       .map(e => `<div class="list-item" data-act="tpl-pick" data-exid="${e.id}" style="cursor:pointer">
+        <i class="p-stripe" style="background:${catColor(cat)}"></i>
         <div class="grow name">${esc(e.name)}</div></div>`).join("");
-    return items ? `<div class="h3" style="margin-top:10px">${cat}</div>${items}` : "";
+    return items ? `<div class="h3 cat-head"><i class="p-dot" style="background:${catColor(cat)}"></i>${cat}</div>${items}` : "";
   }).join("") || `<div class="empty-note">Nic nenalezeno</div>`;
 }
 
@@ -535,7 +544,7 @@ function renderSettings() {
   const syncState = {
     off: `<span class="badge">nenastaveno</span>`,
     ok: `<span class="badge green">synchronizováno</span>`,
-    pending: `<span class="badge yellow">probíhá…</span>`,
+    pending: `<span class="badge neutral">probíhá…</span>`,
     error: `<span class="badge red">chyba${Sync.lastError ? ": " + esc(Sync.lastError) : ""}</span>`
   }[Sync.status];
   return `

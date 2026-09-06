@@ -20,7 +20,7 @@ Osobní PWA pro zápis silových a kardio tréninků a stravy. **Jeden uživatel
 | `js/util.js` | datum, formátování, jednotky, `parseDec()` (desetinná **čárka i tečka**), e1RM |
 | `js/qr.js` | QR generátor (ISO 18004, byte mode, EC L, v1–13, výběr masky) |
 | `js/photos.js` | fotky postupu v IndexedDB + zmenšení na JPEG |
-| `js/data.js` | stav `S`, `save()`, `replaceState()`, PR logika, milníky, plán trenéra |
+| `js/data.js` | stav `S`, `save()`, `replaceState()`, PR logika, milníky, plán trenéra, barvy partií (`CAT_COLOR`, `CAT_ORDER`, `sessionCatSets()`, `dayCatColors()`) |
 | `js/sync.js` | cloud sync + `mergeStates()` (slévání podle id) |
 | `js/foodapi.js` | OFF (cz → world), USDA, Claude vision (etiketa / jídlo), čárový kód |
 | `js/ui.js` | toast (i s akcí), modal, kalendář, SVG grafy, rest timer |
@@ -40,10 +40,18 @@ Osobní PWA pro zápis silových a kardio tréninků a stravy. **Jeden uživatel
   jinak se smazaná věc vrátí ze syncu z druhého zařízení.
 - **Desetinná čísla:** vstupy jsou `type="text" inputmode="decimal"` a parsují se
   přes `parseDec()`. `type="number"` na iOS zahazuje českou desetinnou čárku.
-- **Barevná logika** (nesahat bez důvodu): volt = akce a cíle (tlačítka, aktivní
-  prvky, progres k cíli), bílá/šedá = data a grafy, zlatá = rekordy a pending,
-  červená = chyby, neutrální šedý štítek = typové popisky. Makra jsou odstíny
-  `--mac1` (bílkoviny) → `--mac3` (tuky).
+- **Barevná logika — dvě vrstvy** (nesahat bez důvodu, v1.16):
+  - **Stav** = co se právě děje. Vždy jako *výplň* nebo plný text.
+    volt = akce a cíle (tlačítka, aktivní prvky, progres k cíli, splněno),
+    zlatá = rekordy a varování „něco ti utíká", červená = chyby, mazání,
+    překročení, bílá/šedá = data a grafy, neutrální štítek = typové popisky
+    a pending stavy. Makra jsou odstíny `--mac1` (bílkoviny) → `--mac3` (tuky).
+  - **Identita** = čeho se to týká. Vždy jako *úzký proužek* (`.p-stripe`),
+    *tečka* (`.p-dot`) nebo tenká linka — nikdy jako výplň tlačítka.
+    Sedm svalových partií `--p-ramena` … `--p-nohy`, odstín jde po těle shora
+    dolů (teplá → studená) a celý pás vynechává žlutozelený výsek, kde bydlí
+    volt a zlatá. Barvu vrací `catColor(cat)` / `exColor(exerciseId)` z `data.js`.
+  - Pořadí zobrazení partií je `CAT_ORDER` (podle těla), ne `EX_CATEGORIES`.
 - Fotky postupu **nesmí** jít do `S` ani do JSON zálohy (rozbily by sync).
 
 ## Datový model (`S`)
@@ -94,6 +102,17 @@ ať uživateli nezůstanou testovací data. Reálná data jdou stáhnout z jeho 
   (záložky Tréninkový plán, Strava, Check-in).
 - Slabé místo v datech: **skoro nezapisuje stravu a váhu** — u návrhů preferuj
   řešení, která zapisování zkracují na pár klepnutí.
+
+## Counter partií
+
+Aktivní trénink má nad cviky `catCounterHtml()` (`view-workout.js`) — počet sérií
+na každou ze 7 partií včetně nul, protože nula je ta informace, kvůli které to
+vzniklo. Pořadí je pevné podle těla, ať se buňky pod prstem nepřeskupují.
+Kompaktní protějšek `catPipsHtml()` (`ui.js`) je na obrazovce Dnes a u hotových
+tréninků. Kalendář v Souhrnu ukazuje odcvičené partie jako proužky v buňce dne.
+
+Všechny tři šablony trenéra (Full Body A/B/C) pokrývají všech 7 partií, takže
+„N ze 7" je reálný cíl každého tréninku, ne teoretické skóre.
 
 ## Záměrně neimplementováno
 

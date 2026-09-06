@@ -66,15 +66,18 @@ function renderToday() {
   if (S.activeSession) {
     const a = S.activeSession;
     const setCount = a.type === "weights" ? a.entries.reduce((n, e) => n + (e.sets || []).length, 0) : 0;
+    const counts = sessionCatSets(a);
+    const hit = CAT_ORDER.filter(c => counts[c] > 0).length;
     workoutCard = `
       <div class="card">
         <div class="row between">
           <span class="h2" style="margin:0">Trénink</span>
-          <span class="badge yellow">Probíhá</span>
+          <span class="badge neutral">Probíhá</span>
         </div>
         <div class="big-num" style="font-size:24px;margin:12px 0 4px">${esc(sessionLabel(a))}</div>
-        <div class="muted" style="margin-bottom:14px">${setCount} sérií zapsáno</div>
-        <button class="btn primary full" data-act="nav" data-tab="workout">Pokračovat →</button>
+        <div class="muted" style="margin-bottom:10px">${setCount} sérií · ${hit} ze ${CAT_ORDER.length} partií</div>
+        ${a.type === "weights" ? catPipsHtml(counts) : ""}
+        <button class="btn primary full mt" data-act="nav" data-tab="workout">Pokračovat →</button>
       </div>`;
   } else if (sessions.length) {
     const items = sessions.map(s => {
@@ -87,9 +90,15 @@ function renderToday() {
         </div>`;
       }
       const sets = s.entries.reduce((n, e) => n + (e.sets || []).length, 0);
+      const counts = sessionCatSets(s);
       return `<div class="list-item">
-        <span class="badge neutral">${esc(sessionLabel(s))}</span>
-        <div class="grow name">${s.entries.length} cviků · ${sets} sérií</div>
+        <div class="grow">
+          <div class="row" style="gap:8px">
+            <span class="badge neutral">${esc(sessionLabel(s))}</span>
+            <span class="name">${s.entries.length} cviků · ${sets} sérií</span>
+          </div>
+          <div class="mt" style="margin-top:8px">${catPipsHtml(counts)}</div>
+        </div>
         <button class="btn sm ghost" data-act="w-detail" data-id="${s.id}">Detail</button>
       </div>`;
     }).join("");
