@@ -65,12 +65,16 @@ interně v **kg**, na výstup přes `kgOut()`/`fmtWeight()`.
 
 Sync slévá kolekce **podle `id`** (ne last-write-wins), tombstony v `deletedIds`.
 
-## Nasazení — POZOR
+## Nasazení
 
-Uživatel nahrává soubory **ručně přes web GitHubu** (Add file → Upload files) do
-repa `Hrncc/Fitness`, které se publikuje na GitHub Pages. Lokální git historie je
-kvůli tomu **rozejitá s remote — `git push` neprojde a není to chyba.** Commituj
-lokálně normálně a na konci uživateli napiš, **které soubory má nahrát**.
+Repo `Hrncc/Fitness` se publikuje na GitHub Pages. Od **6. 9. 2026** je nasazení
+přes **`git push`** — token je v klíčence macOS, historie je s remote srovnaná.
+(Do té doby se nahrávalo ručně přes web; z toho zbyly duplikáty souborů v kořeni,
+které jsme při srovnání smazali. Do kořene patří jen `sw.js` kvůli scope
+service workeru.)
+
+**Pushuj jen na výslovný pokyn uživatele** — je to publikace navenek, ne rutina
+po každé úpravě. Commituj lokálně průběžně.
 
 Při každé změně kódu zvyš **obojí**:
 - `APP_VERSION` v `js/view-menu.js`
