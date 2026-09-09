@@ -62,7 +62,7 @@ function renderWorkoutStart() {
     if (s.type === "cardio") {
       const c = s.entries[0] || {};
       return `<div class="list-item">
-        <span class="badge neutral">${esc(cardioLabel(c))}</span>
+        <span class="badge cardio"><i class="p-dot" style="background:var(--p-cardio)"></i>${esc(cardioLabel(c))}</span>
         <div class="grow name">${fmtNum(c.duration)} min${c.distance ? ` · ${fmtNum(c.distance, 2)} km` : ""}</div>
         <button class="btn sm ghost" data-act="w-detail" data-id="${s.id}">Detail</button>
       </div>`;
@@ -554,7 +554,7 @@ function sessionDetailHtml(s) {
   if (s.type === "cardio") {
     const c = s.entries[0] || {};
     return `<div>
-      <div class="row between"><span class="badge neutral">${esc(cardioLabel(c))}</span>
+      <div class="row between"><span class="badge cardio"><i class="p-dot" style="background:var(--p-cardio)"></i>${esc(cardioLabel(c))}</span>
         <button class="btn sm danger" data-act="w-del-session" data-id="${s.id}">Smazat</button></div>
       <div class="card2 mt">
         <div><b>${fmtNum(c.duration)} min</b>${c.distance ? ` · ${fmtNum(c.distance, 2)} km` : ""}</div>

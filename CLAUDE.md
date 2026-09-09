@@ -51,6 +51,9 @@ Osobní PWA pro zápis silových a kardio tréninků a stravy. **Jeden uživatel
     Sedm svalových partií `--p-ramena` … `--p-nohy`, odstín jde po těle shora
     dolů (teplá → studená) a celý pás vynechává žlutozelený výsek, kde bydlí
     volt a zlatá. Barvu vrací `catColor(cat)` / `exColor(exerciseId)` z `data.js`.
+    Kardio není partie, ale identitu má taky: `--p-cardio` (tmavší sytá červená
+    — odlišuje se od růžového hrudníku i od signální červené) a v proužcích
+    kalendáře se od bloku partií odsazuje třídou `.cardio`.
   - Pořadí zobrazení partií je `CAT_ORDER` (podle těla), ne `EX_CATEGORIES`.
 - Fotky postupu **nesmí** jít do `S` ani do JSON zálohy (rozbily by sync).
 

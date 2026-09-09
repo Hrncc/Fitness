@@ -165,8 +165,8 @@ function dayCatColors(date) {
       if (cat) hit.add(cat);
     }
   }
-  const out = CAT_ORDER.filter(c => hit.has(c)).map(catColor);
-  if (cardio) out.push("var(--p-cardio)");
+  const out = CAT_ORDER.filter(c => hit.has(c)).map(c => ({ color: catColor(c) }));
+  if (cardio) out.push({ color: "var(--p-cardio)", cls: "cardio" });
   return out;
 }
 

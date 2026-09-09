@@ -130,7 +130,11 @@ function calendarHtml(year, month, decorate, clickAct) {
     const ds = dateStr(new Date(year, month, d));
     const info = decorate(ds) || { cls: "", mark: "" };
     const bars = (info.bars || []).length
-      ? `<div class="cal-bars">${info.bars.map(c => `<i style="background:${c}"></i>`).join("")}</div>`
+      ? `<div class="cal-bars">${info.bars.map(b => {
+          const color = typeof b === "string" ? b : b.color;
+          const cls = typeof b === "string" ? "" : (b.cls || "");
+          return `<i class="${cls}" style="background:${color}"></i>`;
+        }).join("")}</div>`
       : "";
     cells += `<div class="cal-day ${info.cls}${ds === today ? " today" : ""}"
       data-act="${clickAct}" data-date="${ds}">

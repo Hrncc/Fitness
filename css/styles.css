@@ -35,8 +35,12 @@
   --p-core: #2FD9C4;
   --p-nohy: #57E086;
 
-  /* kardio nemá partii — v kalendáři ho nese neutrální proužek */
-  --p-cardio: #9EA2AD;
+  /* Kardio není partie, ale svou identitu má — červená jako námaha a tep.
+     Se signální červenou se nepotká, protože ta je vždy výplň nebo plný text,
+     zatímco identita se kreslí jen jako proužek a tečka. Odstín je tmavší
+     a sytější než signální červená i než růžový hrudník, se kterým by
+     v proužcích kalendáře jinak splýval. */
+  --p-cardio: #E02B4A;
 
   --mac1: #F4F5F1;    /* bílkoviny — nejsvětlejší */
   --mac2: #AEB3BD;    /* sacharidy — střední */
@@ -298,6 +302,8 @@ label.field > span {
   display: flex; gap: 1px; width: 78%; height: 4px; margin-top: 4px;
 }
 .cal-bars i { flex: 1; height: 4px; border-radius: 1px; display: block; }
+/* kardio není partie, tak se od jejich bloku vizuálně odsadí */
+.cal-bars i.cardio { margin-left: 3px; }
 /* splněný kalorický cíl — tečka v rohu, ať nesoupeří s proužky o místo */
 .cal-goal {
   position: absolute; top: 5px; right: 5px;
@@ -317,6 +323,8 @@ label.field > span {
 .cat-chip { display: inline-flex; align-items: center; gap: 7px; }
 .cat-chip.on .p-dot { background: #0A0B0D !important; }
 .cat-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--bg3); }
+/* kardio se v seznamech značí stejně jako partie — tečkou, ne výplní */
+.badge.cardio { display: inline-flex; align-items: center; gap: 6px; background: var(--bg3); color: var(--p-cardio); }
 /* Pokrytí partií u sbalené šablony. */
 .tpl-cats { display: flex; gap: 4px; margin-top: 7px; }
 

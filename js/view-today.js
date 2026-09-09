@@ -156,7 +156,9 @@ function todayWorkoutItem(today, hero) {
     const items = sessions.map(s => {
       if (s.type === "cardio") {
         const c = s.entries[0] || {};
-        return dayItemDone("Kardio", `${esc(cardioLabel(c))} · ${fmtNum(c.duration)} min`, "w-detail", `data-id="${s.id}"`);
+        return dayItemDone(
+          `<i class="p-dot" style="background:var(--p-cardio);display:inline-block;vertical-align:middle;margin-right:6px"></i>Kardio`,
+          `${esc(cardioLabel(c))} · ${fmtNum(c.duration)} min`, "w-detail", `data-id="${s.id}"`);
       }
       const sets = s.entries.reduce((n, e) => n + (e.sets || []).length, 0);
       const counts = sessionCatSets(s);
