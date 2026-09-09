@@ -49,6 +49,8 @@ const Rest = {
       const left = Math.ceil((until - Date.now()) / 1000);
       if (left <= 0) {
         document.getElementById("restTime").textContent = "0:00";
+        const inline0 = document.getElementById("restInlineTime");
+        if (inline0) inline0.textContent = "0:00";
         bar.classList.add("over");
         clearInterval(this.timer);
         this.timer = null;
@@ -56,8 +58,20 @@ const Rest = {
         setTimeout(() => this.stop(), 5000);
         return;
       }
-      document.getElementById("restTime").textContent =
-        `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+      const txt = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+      document.getElementById("restTime").textContent = txt;
+      // pauza vykreslená pod cvikem (gym mód) tiká se stejným zdrojem pravdy;
+      // dokud je vidět tam, plovoucí lišta ustoupí, ať se nepřekrývají
+      const inline = document.getElementById("restInlineTime");
+      bar.classList.toggle("hidden-by-inline", !!inline);
+      if (inline) {
+        inline.textContent = txt;
+        const bar = inline.parentElement.querySelector(".rest-bar i");
+        if (bar) {
+          const total = Settings.get().restSeconds || 90;
+          bar.style.width = clamp(left / total * 100, 0, 100).toFixed(0) + "%";
+        }
+      }
     };
     tick();
     this.timer = setInterval(tick, 250);

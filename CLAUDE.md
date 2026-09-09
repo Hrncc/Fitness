@@ -56,8 +56,14 @@ Osobní PWA pro zápis silových a kardio tréninků a stravy. **Jeden uživatel
 
 ## Datový model (`S`)
 
-`exercises`, `templates`, `sessions`, `foods`, `foodLog`, `bodyLog`, `recipes`,
-`checkins`, `milestones`, `deletedIds`, `goal`, `activeSession`.
+`exercises`, `templates`, `sessions`, `foods`, `foodLog`, `bodyLog`, `dayLog`,
+`recipes`, `checkins`, `milestones`, `deletedIds`, `goal`, `activeSession`.
+
+`dayLog` (v1.17): `{date, foodRating: "under"|"ok"|"over", proteinOk}` — rychlý
+zápis dne dvěma klepnutími. Slévá se podle `date` jako `bodyLog`.
+`effectiveDayRating(date)` dává přednost podrobnému `foodLog`, když pro den
+existuje; ruční odhad ho nepřepíše. `adherence(from, to)` z toho počítá
+dodržování pro check-in — nezapsaný den se nepočítá ani do jmenovatele.
 
 Sessions: `{id, date, type: "weights"|"cardio", templateUsed, templateName, entries, rating, note}`.
 U silových `entries[] = {exerciseId, sets: [{reps, weight, note}]}` — váhy vždy
@@ -107,16 +113,42 @@ ať uživateli nezůstanou testovací data. Reálná data jdou stáhnout z jeho 
 - Slabé místo v datech: **skoro nezapisuje stravu a váhu** — u návrhů preferuj
   řešení, která zapisování zkracují na pár klepnutí.
 
-## Counter partií
+## Pokrytí partií
 
-Aktivní trénink má nad cviky `catCounterHtml()` (`view-workout.js`) — počet sérií
-na každou ze 7 partií včetně nul, protože nula je ta informace, kvůli které to
-vzniklo. Pořadí je pevné podle těla, ať se buňky pod prstem nepřeskupují.
-Kompaktní protějšek `catPipsHtml()` (`ui.js`) je na obrazovce Dnes a u hotových
-tréninků. Kalendář v Souhrnu ukazuje odcvičené partie jako proužky v buňce dne.
+`catCounterHtml()` (`view-workout.js`) drží nad cviky po celou dobu tréninku.
+Sbalený je **pruh** se sériemi (v posilovně je místo na obrazovce nejcennější),
+klepnutím (`w-counter`) se rozbalí na **cviky · série** u každé partie —
+série samy nerozliší „tři série na jednom cviku" od „tři cviky po jedné".
+Pořadí je pevné podle těla (`CAT_ORDER`), ať se buňky pod prstem nepřeskupují.
 
-Všechny tři šablony trenéra (Full Body A/B/C) pokrývají všech 7 partií, takže
-„N ze 7" je reálný cíl každého tréninku, ne teoretické skóre.
+- `sessionCatSets()` / `sessionCatExercises()` — série a cviky na partii
+- `catPipsHtml()` (`ui.js`) — pokrytí jedním řádkem (Dnes, hotové tréninky, Týden)
+- `lastSessionGaps()` — co uteklo v posledním tréninku; 0 sérií = vynechaná,
+  1 série = odbytá, u tréninku ze šablony i porovnání cviků proti plánu.
+  Zobrazuje se nad volbou tréninku (`lastGapsHtml()`) a na Dnes.
+- `nextTemplate()` — rotace A → B → C; volný trénink rotaci neposouvá
+
+Všechny tři šablony trenéra pokrývají všech 7 partií, takže „N ze 7" je reálný
+cíl každého tréninku, ne teoretické skóre.
+
+## Struktura obrazovek (v1.17)
+
+Navigace je **Dnes · Trénink · Týden · Více** — podle toho, co děláš, ne podle
+typu dat. „Více" otevírá drawer (hamburger v topbaru zmizel), Jídlo je obrazovka
+pod Dnes.
+
+- **Dnes** = seznam toho, co dnes dlužíš: váha → trénink → jídlo. Hotová položka
+  se sbalí na řádek (`dayItemDone()`), rámeček (`.item-hero`) nese **jen první
+  nedokončená** — tři hrdinové naráz o pozornost soupeří. Nahoře týdenní pás
+  (`weekStripHtml()`) se třemi tečkami na den: váha · jídlo · trénink.
+- **Trénink** = gym mód: steppery místo klávesnice (`stepperHtml()`, pole zůstává
+  editovatelné), partie barevně v hlavičce cviku, pauza i pod cvikem
+  (`restInlineHtml()`) — plovoucí lišta se pak skryje třídou `hidden-by-inline`.
+  `addSet()` musí volat `Rest.start()` **před** `render()`, jinak se inline pauza
+  vykreslí do stavu „neběží".
+- **Týden** = tři odpovědi pro trenéra (dodržování, váha, odcvičený plán)
+  + tlačítko check-inu. Původních osm karet Souhrnu žije v podzáložce
+  **Přehled** (`SV.sub`).
 
 ## Záměrně neimplementováno
 

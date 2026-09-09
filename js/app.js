@@ -6,7 +6,7 @@ const App = {
 };
 
 const TITLES = {
-  today: "Dnes", workout: "Trénink", food: "Jídlo", summary: "Souhrn",
+  today: "Dnes", workout: "Trénink", food: "Jídlo", summary: "Týden",
   exlib: "Exercise Library", templates: "Workout Templates", foodlib: "Food Library",
   photos: "Fotky postupu", checkin: "Týdenní check-in",
   export: "Export & Backup", settings: "Nastavení", about: "O aplikaci"
@@ -27,7 +27,7 @@ function render() {
   }[tab]();
 
   document.querySelectorAll(".navbtn").forEach(b =>
-    b.classList.toggle("on", !page && b.dataset.tab === tab));
+    b.classList.toggle("on", !page && !!b.dataset.tab && b.dataset.tab === tab));
 
   wireViewInputs();
   window.scrollTo(0, 0);
@@ -77,7 +77,7 @@ function withUndo(msg, fn) {
 /* ===== Akce (event delegation přes data-act) ===== */
 const ACTIONS = {
   /* navigace */
-  "nav": d => { App.route = { tab: d.tab, page: null }; closeModal(); render(); },
+  "nav": d => { App.route = { tab: d.tab, page: null }; closeModal(); openDrawer(false); render(); },
   "menu": d => { App.route.page = d.page; openDrawer(false); render(); },
   "drawer-open": () => openDrawer(true),
   "drawer-close": () => openDrawer(false),
@@ -134,6 +134,41 @@ const ACTIONS = {
   "bw-open": d => openBodyWeightModal(d.date || null),
   "bw-save": d => saveBodyWeight(d.date || null),
 
+  /* ---- Dnes: denní seznam ---- */
+  "t-w-step": d => {
+    TV.wDraft = Math.round((TV.wDraft + Number(d.d)) * 10) / 10;
+    if (TV.wDraft < 20) TV.wDraft = 20;
+    render();
+  },
+  "t-w-save": () => {
+    const kg = kgIn(String(TV.wDraft));
+    if (kg == null || kg <= 0) { toast("Zadej platnou váhu", "err"); return; }
+    logBodyWeight(kg, todayStr());
+    TV.wDraft = null;
+    save(); render();
+    toast("Váha zapsána ✓", "ok");
+  },
+  "t-food-rating": d => {
+    logDayRating(todayStr(), d.v, undefined);
+    save(); render();
+  },
+  "t-food-protein": d => {
+    logDayRating(todayStr(), undefined, d.v === "1");
+    save(); render();
+  },
+  "t-food-reset": () => {
+    S.dayLog = (S.dayLog || []).filter(x => x.date !== todayStr());
+    save(); render();
+    toast("Zápis jídla smazán", "");
+  },
+  "t-begin-next": d => {
+    WV.date = todayStr();
+    WV.sub = "log";
+    App.route = { tab: "workout", page: null };
+    if (S.activeSession) { render(); toast("Nejdřív dokonči nebo zruš probíhající trénink", "err"); return; }
+    beginWorkout(d.template);
+  },
+
   /* ---- Trénink ---- */
   "w-sub": d => { WV.sub = d.sub; render(); },
   "w-day-nav": d => { WV.date = addDays(WV.date, Number(d.dir)); render(); },
@@ -145,6 +180,17 @@ const ACTIONS = {
     WV.sportChoice = d.sport;
     document.querySelectorAll(".sportchip").forEach(c =>
       c.classList.toggle("on", c.dataset.sport === d.sport));
+  },
+  "w-counter": () => { WV.counterOpen = !WV.counterOpen; render(); },
+  "w-step": d => {
+    const el = document.getElementById(d.id);
+    if (!el) return;
+    const step = Number(d.d);
+    const cur = parseDec(el.value);
+    let v = (cur == null ? 0 : cur) + step;
+    if (v < 0) v = 0;
+    // celá čísla u opakování, desetina u váhy
+    el.value = Number.isInteger(step) ? String(Math.round(v)) : fmtNum(Math.round(v * 10) / 10, 1);
   },
   "w-add-set": d => addSet(Number(d.i)),
   "w-del-set": d => {
@@ -251,6 +297,7 @@ const ACTIONS = {
   }),
 
   /* ---- Souhrn ---- */
+  "s-sub": d => { SV.sub = d.sub; render(); },
   "s-cat-range": d => { SV.catRange = d.range; render(); },
 
   /* ---- Exercise Library ---- */

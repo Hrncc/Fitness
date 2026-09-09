@@ -89,6 +89,68 @@ function sessionCatSets(session) {
   return counts;
 }
 
+/* Počet cviků se zapsanou sérií na partii — druhé číslo v counteru.
+   Série samy o sobě nerozliší „tři série na jednom cviku" od „tři cviky
+   po jedné sérii", což je pro pokrytí partie rozdíl. */
+function sessionCatExercises(session) {
+  const counts = {};
+  for (const c of CAT_ORDER) counts[c] = 0;
+  for (const e of (session && session.entries) || []) {
+    if (!(e.sets || []).length) continue;
+    const cat = exCategory(e.exerciseId);
+    if (!cat) continue;
+    counts[cat] = (counts[cat] || 0) + 1;
+  }
+  return counts;
+}
+
+/* ===== Rotace šablon =====
+   Plán trenéra je A → B → C dokola. „Na řadě" je ta, která následuje po
+   naposledy odcvičené; bez historie se začíná první v seznamu. */
+function lastWeightsSession() {
+  return [...S.sessions]
+    .filter(s => s.type === "weights" && s.date <= todayStr())
+    .sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id)))[0] || null;
+}
+
+function nextTemplate() {
+  if (!S.templates.length) return null;
+  const last = lastWeightsSession();
+  if (!last) return S.templates[0];
+  const i = S.templates.findIndex(t => t.id === last.templateUsed);
+  if (i < 0) return S.templates[0];          // volný trénink rotaci neposouvá
+  return S.templates[(i + 1) % S.templates.length];
+}
+
+/* ===== Mezery v posledním tréninku =====
+   Odpovídá na „co mi minule uteklo" při zahájení dalšího tréninku.
+   Plán trenéra je full body, takže každý trénink má pokrýt všech 7 partií:
+   0 sérií = vynechaná, 1 série = odbytá. Když trénink jel ze šablony,
+   přidá se i porovnání počtu cviků proti plánu. */
+function lastSessionGaps() {
+  const last = lastWeightsSession();
+  if (!last) return null;
+  const sets = sessionCatSets(last);
+  const exs = sessionCatExercises(last);
+  const tpl = getTemplate(last.templateUsed);
+  const planned = {};
+  if (tpl) {
+    for (const id of tpl.exercises) {
+      const c = exCategory(id);
+      if (c) planned[c] = (planned[c] || 0) + 1;
+    }
+  }
+  const missed = [], low = [];
+  for (const c of CAT_ORDER) {
+    if (!sets[c]) { missed.push({ cat: c, planned: planned[c] || 0 }); continue; }
+    if (sets[c] <= 1) { low.push({ cat: c, sets: sets[c], reason: "sets" }); continue; }
+    if (planned[c] && exs[c] < planned[c]) {
+      low.push({ cat: c, sets: sets[c], done: exs[c], planned: planned[c], reason: "exercises" });
+    }
+  }
+  return { session: last, date: last.date, missed, low, hasPlan: !!tpl };
+}
+
 /* Partie odcvičené v daný den — pro proužky v kalendáři. Vrací pole barev
    v pořadí podle těla; kardio se přidává jako neutrální proužek na konec. */
 function dayCatColors(date) {
@@ -121,6 +183,7 @@ function defaultState() {
     foods: [],         // FoodItem (knihovna: oblíbené, vlastní, použité z API)
     foodLog: [],       // FoodLogEntry
     bodyLog: [],       // { date, weightKg } — denní tělesná váha, max 1 záznam na den
+    dayLog: [],        // { date, foodRating: "under"|"ok"|"over", proteinOk } — rychlý zápis dne
     recipes: [],       // { id, name, portions, items: [{ foodItemId, grams }] }
     checkins: [],      // týdenní check-in (obvody, škály 1–10, dodržování, poznámka)
     milestones: [],    // { id, date } — jednorázově dosažené milníky
@@ -369,6 +432,53 @@ function sessionVolume(sess) {
 }
 
 /* ===== Tělesná váha ===== */
+/* ===== Rychlý zápis dne =====
+   Dvě klepnutí místo vážení každé porce: „jak dopadly kalorie" a „dal jsem
+   bílkoviny". Z toho se počítá dodržování pro check-in. Když má den podrobný
+   foodLog, má přednost spočítaná hodnota — ruční odhad ji nepřepíše. */
+function dayRating(date) {
+  return (S.dayLog || []).find(d => d.date === date) || null;
+}
+
+/* Hodnocení dne včetně odvození z podrobného zápisu.
+   Vrací { foodRating, proteinOk, source: "log"|"manual" } nebo null. */
+function effectiveDayRating(date) {
+  const n = dayNutrition(date);
+  if (n.count) {
+    const target = S.goal.dailyCalories;
+    const rating = n.calories < target * 0.9 ? "under" : n.calories > target * 1.1 ? "over" : "ok";
+    return { foodRating: rating, proteinOk: n.protein >= S.goal.proteinGrams * 0.9, source: "log" };
+  }
+  const m = dayRating(date);
+  return m ? { foodRating: m.foodRating, proteinOk: !!m.proteinOk, source: "manual" } : null;
+}
+
+function logDayRating(date, foodRating, proteinOk) {
+  const e = (S.dayLog || (S.dayLog = [])).find(d => d.date === date);
+  if (e) {
+    if (foodRating !== undefined) e.foodRating = foodRating;
+    if (proteinOk !== undefined) e.proteinOk = proteinOk;
+  } else {
+    S.dayLog.push({ date, foodRating: foodRating || null, proteinOk: proteinOk === undefined ? null : proteinOk });
+  }
+  S.dayLog.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/* Dodržování stravy v období: podíl dní v cíli ze dnů, které mají jakýkoliv
+   záznam. Nezapsaný den se nepočítá ani do jmenovatele — chybějící data
+   nejsou porušení. */
+function adherence(from, to) {
+  let logged = 0, ok = 0, protein = 0;
+  for (let d = from; d <= to; d = addDays(d, 1)) {
+    const r = effectiveDayRating(d);
+    if (!r) continue;
+    logged++;
+    if (r.foodRating === "ok") ok++;
+    if (r.proteinOk) protein++;
+  }
+  return { logged, ok, protein, pct: logged ? Math.round(ok / logged * 100) : null };
+}
+
 function bodyWeightOn(date) {
   const e = S.bodyLog.find(b => b.date === date);
   return e ? e.weightKg : null;
@@ -425,15 +535,14 @@ function checkinSuggestions() {
   const rated = S.sessions.filter(s => s.date >= from && s.rating);
   const quality = rated.length
     ? Math.round(rated.reduce((a, s) => a + s.rating, 0) / rated.length) : null;
-  let logged = 0, met = 0;
-  for (let d = from; d <= todayStr(); d = addDays(d, 1)) {
-    if (dayNutrition(d).count) { logged++; if (calorieGoalMet(d)) met++; }
-  }
+  /* dodržování z rychlého i podrobného zápisu — effectiveDayRating() dá
+     přednost spočítané hodnotě, když je den zapsaný po jídlech */
+  const a = adherence(from, todayStr());
   const latest = lastBodyWeight();
   return {
     quality,
-    adherence: logged ? Math.round(met / logged * 100) : null,
-    adherenceNote: logged ? `${met}/${logged} zapsaných dní v kalorickém cíli` : null,
+    adherence: a.pct,
+    adherenceNote: a.logged ? `${a.ok}/${a.logged} zapsaných dní v kalorickém cíli` : null,
     weightKg: latest ? latest.weightKg : null,
     weightAvg: movingAvgAt(S.bodyLog, todayStr())
   };

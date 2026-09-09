@@ -5,121 +5,14 @@ const CZ_DAYS_FULL = ["neděle", "pondělí", "úterý", "středa", "čtvrtek", 
 const CZ_MONTHS_GEN = ["ledna", "února", "března", "dubna", "května", "června",
   "července", "srpna", "září", "října", "listopadu", "prosince"];
 
+const TV = {
+  wDraft: null   // rozepsaná váha ve stepperu, v zobrazené jednotce
+};
+
 function renderToday() {
   const today = todayStr();
   const now = new Date();
-  const sessions = sessionsOn(today);
-  const nut = dayNutrition(today);
-  const g = S.goal;
-
-  /* -- datum -- */
   const hero_date = `<div class="hero-date">${CZ_DAYS_FULL[now.getDay()]} · ${now.getDate()}. ${CZ_MONTHS_GEN[now.getMonth()]}</div>`;
-
-  /* -- hero: kalorický prstenec + makra -- */
-  const remaining = Math.max(0, g.dailyCalories - nut.calories);
-  const over = nut.calories > g.dailyCalories * 1.05;
-  const ring = ringHtml(nut.calories, g.dailyCalories, 148, `
-    <b${over ? ` style="color:var(--red)"` : ""}>${fmtNum(nut.calories)}</b>
-    <span>${over ? `+${fmtNum(nut.calories - g.dailyCalories)} nad cíl` : `zbývá ${fmtNum(remaining)}`}</span>`);
-  const heroCard = `
-    <div class="card hero-card">
-      <div class="h2">Energie · cíl ${fmtNum(g.dailyCalories)} kcal</div>
-      <div class="hero-main">
-        ${ring}
-        <div class="hero-macros">
-          ${macroBar("Bílkoviny", nut.protein, g.proteinGrams, "mac1")}
-          ${macroBar("Sacharidy", nut.carbs, g.carbsGrams, "mac2")}
-          ${macroBar("Tuky", nut.fat, g.fatGrams, "mac3")}
-        </div>
-      </div>
-      <button class="btn primary full mt" data-act="nav" data-tab="food">+ Přidat jídlo</button>
-    </div>`;
-
-  /* -- tělesná váha -- */
-  const todayW = bodyWeightOn(today);
-  const last = lastBodyWeight(todayW ? addDays(today, -1) : today);
-  let deltaBadge = "";
-  if (todayW != null && last) {
-    const diff = kgOut(todayW) - kgOut(last.weightKg);
-    if (Math.abs(diff) >= 0.05) {
-      deltaBadge = `<span class="badge neutral">${diff > 0 ? "▲" : "▼"} ${fmtNum(Math.abs(diff), 1)} ${weightUnit()}</span>`;
-    }
-  }
-  const shown = todayW != null ? todayW : (last ? last.weightKg : null);
-  const weightCard = `
-    <div class="card">
-      <div class="row between">
-        <span class="h2" style="margin:0">Tělesná váha</span>
-        ${deltaBadge}
-      </div>
-      <div class="row between mt">
-        <div>
-          <span class="big-num" style="font-size:28px">${shown != null ? fmtWeight(shown) : "—"}</span>
-          ${todayW == null ? `<div class="small">${last ? `naposledy ${fmtDate(last.date)}` : "zatím žádný záznam"}</div>` : ""}
-        </div>
-        <button class="btn sm primary" data-act="bw-open">${todayW != null ? "Upravit" : "Zapsat"}</button>
-      </div>
-    </div>`;
-
-  /* -- trénink -- */
-  let workoutCard;
-  if (S.activeSession) {
-    const a = S.activeSession;
-    const setCount = a.type === "weights" ? a.entries.reduce((n, e) => n + (e.sets || []).length, 0) : 0;
-    const counts = sessionCatSets(a);
-    const hit = CAT_ORDER.filter(c => counts[c] > 0).length;
-    workoutCard = `
-      <div class="card">
-        <div class="row between">
-          <span class="h2" style="margin:0">Trénink</span>
-          <span class="badge neutral">Probíhá</span>
-        </div>
-        <div class="big-num" style="font-size:24px;margin:12px 0 4px">${esc(sessionLabel(a))}</div>
-        <div class="muted" style="margin-bottom:10px">${setCount} sérií · ${hit} ze ${CAT_ORDER.length} partií</div>
-        ${a.type === "weights" ? catPipsHtml(counts) : ""}
-        <button class="btn primary full mt" data-act="nav" data-tab="workout">Pokračovat →</button>
-      </div>`;
-  } else if (sessions.length) {
-    const items = sessions.map(s => {
-      if (s.type === "cardio") {
-        const c = s.entries[0] || {};
-        return `<div class="list-item">
-          <span class="badge neutral">${esc(cardioLabel(c))}</span>
-          <div class="grow name">${fmtNum(c.duration)} min${c.distance ? ` · ${fmtNum(c.distance, 2)} km` : ""}</div>
-          ${c.calories ? `<span class="small">${fmtNum(c.calories)} kcal</span>` : ""}
-        </div>`;
-      }
-      const sets = s.entries.reduce((n, e) => n + (e.sets || []).length, 0);
-      const counts = sessionCatSets(s);
-      return `<div class="list-item">
-        <div class="grow">
-          <div class="row" style="gap:8px">
-            <span class="badge neutral">${esc(sessionLabel(s))}</span>
-            <span class="name">${s.entries.length} cviků · ${sets} sérií</span>
-          </div>
-          <div class="mt" style="margin-top:8px">${catPipsHtml(counts)}</div>
-        </div>
-        <button class="btn sm ghost" data-act="w-detail" data-id="${s.id}">Detail</button>
-      </div>`;
-    }).join("");
-    workoutCard = `
-      <div class="card">
-        <div class="row between">
-          <span class="h2" style="margin:0">Trénink</span>
-          <span class="badge green">✓ Hotovo</span>
-        </div>
-        <div class="mt">${items}</div>
-        <button class="btn ghost full mt" data-act="nav" data-tab="workout">+ Další trénink</button>
-      </div>`;
-  } else {
-    workoutCard = `
-      <div class="card">
-        <div class="h2">Trénink</div>
-        <div class="big-num" style="font-size:22px;margin-bottom:4px">Zatím nic</div>
-        <div class="muted" style="margin-bottom:14px">Dnes ještě nemáš zapsaný žádný trénink.</div>
-        <button class="btn primary full" data-act="nav" data-tab="workout">Zahájit trénink →</button>
-      </div>`;
-  }
 
   /* -- připomínka check-inu (jen když už appku aktivně používáš) -- */
   const since = daysSinceCheckin();
@@ -137,7 +30,226 @@ function renderToday() {
       </div>
     </div>` : "";
 
-  return hero_date + weeklyRecapCard() + heroCard + workoutCard + weightCard + checkinCard;
+  /* Rámeček nese jen první nedokončená položka — ostatní jsou klidné karty.
+     Jinak by o pozornost soupeřily tři „hrdinové" naráz. */
+  const doneW = bodyWeightOn(today) != null;
+  const doneT = !!S.activeSession || sessionsOn(today).length > 0;
+  const f = dayRating(today);
+  const doneF = dayNutrition(today).count > 0 || !!(f && f.foodRating && f.proteinOk != null);
+  const hero = !doneW ? "weight" : !doneT ? "workout" : !doneF ? "food" : null;
+
+  return hero_date + weekStripHtml() + weeklyRecapCard()
+    + todayWeightItem(today, hero === "weight")
+    + todayWorkoutItem(today, hero === "workout")
+    + todayFoodItem(today, hero === "food") + checkinCard;
+}
+
+/* ---- Týdenní pás ----
+   Sedm dní tohoto týdne, u každého tři tečky: váha · jídlo · trénink.
+   Je to stejná trojice, kterou v neděli chce trenér, takže co tady chybí,
+   bude chybět i v check-inu. */
+function weekStripHtml() {
+  const today = todayStr();
+  const mon = mondayOf(today);
+  const cells = CZ_DOW.map((lbl, i) => {
+    const ds = addDays(mon, i);
+    const future = ds > today;
+    const hasW = bodyWeightOn(ds) != null;
+    const food = effectiveDayRating(ds);
+    const sess = sessionsOn(ds);
+    const dot = (on, cls) => `<i class="${on ? cls : ""}"></i>`;
+    return `
+      <div class="wd${ds === today ? " today" : ""}${future ? " future" : ""}"
+        data-act="sum-cal-day" data-date="${ds}">
+        <b>${lbl}</b>
+        <div class="dots">
+          ${dot(hasW, "on")}
+          ${dot(!!food, food && food.foodRating === "ok" ? "on" : "part")}
+          ${dot(sess.length > 0, "on")}
+        </div>
+      </div>`;
+  }).join("");
+  return `
+    <div class="card week-card">
+      <div class="week-strip">${cells}</div>
+      <div class="small week-legend">váha · jídlo · trénink — klepni na den pro detail</div>
+    </div>`;
+}
+
+/* Hotová položka dne se sbalí na jeden řádek — seznam se má vyprazdňovat. */
+function dayItemDone(label, value, act, attrs = "") {
+  return `
+    <div class="day-done" ${act ? `data-act="${act}" ${attrs}` : ""}>
+      <span class="day-k">${label}</span>
+      <span class="day-v">${value}</span>
+      <span class="day-ok">✓</span>
+    </div>`;
+}
+
+/* ---- Váha: potvrzení čísla, ne formulář ----
+   Ráno se hýbeš o desetiny, takže se předvyplní poslední hodnota a krokuje
+   se po 0,1. Klávesnice se otevře jen když do čísla klepneš. */
+function todayWeightItem(today, hero) {
+  const w = bodyWeightOn(today);
+  if (w != null) {
+    return dayItemDone("Váha", `${fmtWeight(w)}`, "bw-open", `data-date="${today}"`);
+  }
+  const last = lastBodyWeight(today);
+  if (TV.wDraft == null) TV.wDraft = last ? Math.round(kgOut(last.weightKg) * 10) / 10 : null;
+  const avg = movingAvgAt(S.bodyLog, today);
+  const weekAgo = movingAvgAt(S.bodyLog, addDays(today, -7));
+  const trend = (avg != null && weekAgo != null) ? kgOut(avg) - kgOut(weekAgo) : null;
+
+  if (TV.wDraft == null) {
+    return `
+      <div class="card${hero ? " item-hero" : ""}">
+        <div class="row between"><span class="h2" style="margin:0">Váha · ráno</span></div>
+        <p class="muted" style="margin:10px 0 14px">Zatím žádný záznam — zapiš první vážení.</p>
+        <button class="btn primary full" data-act="bw-open" data-date="${today}">Zapsat váhu</button>
+      </div>`;
+  }
+  return `
+    <div class="card${hero ? " item-hero" : ""}">
+      <div class="row between">
+        <span class="h2" style="margin:0">Váha · ráno</span>
+        ${last ? `<span class="badge neutral">naposledy ${fmtNum(kgOut(last.weightKg), 1)}</span>` : ""}
+      </div>
+      <div class="stepper">
+        <button class="step-btn" data-act="t-w-step" data-d="-0.1">−</button>
+        <button class="step-val" data-act="bw-open" data-date="${today}">
+          ${fmtNum(TV.wDraft, 1)}<small>${weightUnit()}</small>
+        </button>
+        <button class="step-btn" data-act="t-w-step" data-d="0.1">+</button>
+      </div>
+      <div class="small center" style="margin:8px 0 12px">
+        ${avg != null ? `7denní průměr <b style="color:var(--text)">${fmtNum(kgOut(avg), 1)}</b>` : "první záznam v průměru"}
+        ${trend != null && Math.abs(trend) >= 0.05
+          ? ` · za týden <b style="color:var(--green)">${trend > 0 ? "+" : ""}${fmtNum(trend, 1)}</b>` : ""}
+      </div>
+      <button class="btn primary full" data-act="t-w-save">Potvrdit ${fmtNum(TV.wDraft, 1)} ${weightUnit()}</button>
+    </div>`;
+}
+
+/* ---- Trénink: co je na řadě, nebo co běží ---- */
+function todayWorkoutItem(today, hero) {
+  const a = S.activeSession;
+  if (a) {
+    hero = true;
+    const setCount = a.type === "weights" ? a.entries.reduce((n, e) => n + (e.sets || []).length, 0) : 0;
+    const counts = sessionCatSets(a);
+    const hit = CAT_ORDER.filter(c => counts[c] > 0).length;
+    return `
+      <div class="card${hero ? " item-hero" : ""}">
+        <div class="row between">
+          <span class="h2" style="margin:0">Trénink</span>
+          <span class="badge neutral">Probíhá</span>
+        </div>
+        <div class="big-num" style="font-size:24px;margin:12px 0 4px">${esc(sessionLabel(a))}</div>
+        <div class="muted" style="margin-bottom:10px">${setCount} sérií · ${hit} ze ${CAT_ORDER.length} partií</div>
+        ${a.type === "weights" ? catPipsHtml(counts) : ""}
+        <button class="btn primary full mt" data-act="nav" data-tab="workout">Pokračovat →</button>
+      </div>`;
+  }
+
+  const sessions = sessionsOn(today);
+  if (sessions.length) {
+    const items = sessions.map(s => {
+      if (s.type === "cardio") {
+        const c = s.entries[0] || {};
+        return dayItemDone("Kardio", `${esc(cardioLabel(c))} · ${fmtNum(c.duration)} min`, "w-detail", `data-id="${s.id}"`);
+      }
+      const sets = s.entries.reduce((n, e) => n + (e.sets || []).length, 0);
+      const counts = sessionCatSets(s);
+      return `
+        <div class="day-done col" data-act="w-detail" data-id="${s.id}">
+          <div class="row between" style="width:100%">
+            <span class="day-k">${esc(sessionLabel(s))}</span>
+            <span class="day-v">${s.entries.length} cviků · ${sets} sérií</span>
+            <span class="day-ok">✓</span>
+          </div>
+          <div style="width:100%;margin-top:8px">${catPipsHtml(counts)}</div>
+        </div>`;
+    }).join("");
+    return items + `<button class="btn ghost full" style="border-style:dashed;margin-bottom:12px"
+      data-act="nav" data-tab="workout">+ Další trénink</button>`;
+  }
+
+  const next = nextTemplate();
+  const g = lastSessionGaps();
+  const gapNote = g && (g.missed.length || g.low.length)
+    ? `<div class="small" style="margin-bottom:12px;color:var(--yellow)">Minule uteklo: ${
+        [...g.missed.map(m => m.cat), ...g.low.map(l => l.cat)].join(", ")}</div>`
+    : "";
+  return `
+    <div class="card${hero ? " item-hero" : ""}">
+      <div class="row between">
+        <span class="h2" style="margin:0">Trénink</span>
+        ${next ? `<span class="badge green">na řadě</span>` : ""}
+      </div>
+      <div class="big-num" style="font-size:24px;margin:12px 0 4px">${next ? esc(next.name) : "Zatím nic"}</div>
+      <div class="muted" style="margin-bottom:12px">${next
+        ? `${next.exercises.length} cviků${(() => {
+            const last = lastWeightsSession();
+            return last ? ` · naposledy ${fmtDate(last.date)}` : "";
+          })()}`
+        : "Dnes ještě nemáš zapsaný žádný trénink."}</div>
+      ${gapNote}
+      <button class="btn primary full" data-act="${next ? "t-begin-next" : "nav"}"
+        ${next ? `data-template="${next.id}"` : `data-tab="workout"`}>Zahájit →</button>
+      <button class="btn ghost full mt" data-act="nav" data-tab="workout">Jiná šablona nebo kardio</button>
+    </div>`;
+}
+
+/* ---- Jídlo: dvě klepnutí, nebo prstenec když zapisuješ podrobně ---- */
+function todayFoodItem(today, hero) {
+  const g = S.goal;
+  const nut = dayNutrition(today);
+
+  /* podrobný zápis má přednost — kdo váží porce, chce vidět čísla */
+  if (nut.count) {
+    const remaining = Math.max(0, g.dailyCalories - nut.calories);
+    const over = nut.calories > g.dailyCalories * 1.05;
+    const ring = ringHtml(nut.calories, g.dailyCalories, 148, `
+      <b${over ? ` style="color:var(--red)"` : ""}>${fmtNum(nut.calories)}</b>
+      <span>${over ? `+${fmtNum(nut.calories - g.dailyCalories)} nad cíl` : `zbývá ${fmtNum(remaining)}`}</span>`);
+    return `
+      <div class="card">
+        <div class="h2">Jídlo · cíl ${fmtNum(g.dailyCalories)} kcal</div>
+        <div class="hero-main">
+          ${ring}
+          <div class="hero-macros">
+            ${macroBar("Bílkoviny", nut.protein, g.proteinGrams, "mac1")}
+            ${macroBar("Sacharidy", nut.carbs, g.carbsGrams, "mac2")}
+            ${macroBar("Tuky", nut.fat, g.fatGrams, "mac3")}
+          </div>
+        </div>
+        <button class="btn primary full mt" data-act="nav" data-tab="food">+ Přidat jídlo</button>
+      </div>`;
+  }
+
+  const m = dayRating(today);
+  const RATINGS = [["under", "pod"], ["ok", "v cíli"], ["over", "nad"]];
+  if (m && m.foodRating && m.proteinOk != null) {
+    const lbl = (RATINGS.find(r => r[0] === m.foodRating) || [])[1] || "—";
+    return dayItemDone("Jídlo", `${lbl} · bílkoviny ${m.proteinOk ? "✓" : "✗"}`, "t-food-reset");
+  }
+
+  return `
+    <div class="card${hero ? " item-hero" : ""}">
+      <div class="row between">
+        <span class="h2" style="margin:0">Jídlo</span>
+        <span class="badge neutral">${fmtNum(g.dailyCalories)} kcal</span>
+      </div>
+      <div class="muted" style="margin:10px 0 8px">Jak to dnes dopadlo?</div>
+      <div class="seg">${RATINGS.map(([id, lbl]) =>
+        `<button class="seg-btn${m && m.foodRating === id ? " on" : ""}" data-act="t-food-rating" data-v="${id}">${lbl}</button>`).join("")}</div>
+      <div class="muted" style="margin:14px 0 8px">Bílkoviny ≈ ${fmtNum(g.proteinGrams)} g?</div>
+      <div class="seg two">
+        <button class="seg-btn${m && m.proteinOk === false ? " on" : ""}" data-act="t-food-protein" data-v="0">ne</button>
+        <button class="seg-btn${m && m.proteinOk === true ? " on" : ""}" data-act="t-food-protein" data-v="1">ano</button>
+      </div>
+      <button class="btn ghost full mt" data-act="nav" data-tab="food">Zapsat podrobně →</button>
+    </div>`;
 }
 
 /* ---- Souhrn statistik za týden (pondělí–neděle) ---- */

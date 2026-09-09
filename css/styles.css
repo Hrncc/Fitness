@@ -334,20 +334,151 @@ label.field > span {
 .cat-pips { display: flex; gap: 3px; }
 .cat-pips i { flex: 1; height: 5px; border-radius: 2px; display: block; max-width: 40px; }
 
+/* ===== Gym mód ===== */
+/* Partie v hlavičce cviku — v posilovně jde o orientaci na jeden pohled. */
+.ex-cat {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  margin-bottom: 3px;
+}
+/* Sbalený cvik je řádek, ne karta — rámeček nese jen ten otevřený. */
+.ex-row {
+  background: var(--bg1); border-radius: 16px; border: 1px solid transparent;
+  margin-bottom: 8px;
+}
+.ex-row.ex-active { background: var(--bg2); }
+
+/* zápis série: ± po stranách, pole uprostřed zůstává editovatelné */
+.set-input { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.set-field { min-width: 0; }
+.set-lbl {
+  display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--text3); margin-bottom: 5px;
+}
+.set-step { display: grid; grid-template-columns: 40px 1fr 40px; gap: 4px; align-items: center; }
+.step-btn.sm { height: 46px; border-radius: 13px; font-size: 21px; }
+.step-in {
+  text-align: center; font-size: 19px; font-weight: 800; padding: 10px 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* plovoucí lišta ustoupí, když je pauza vidět pod cvikem */
+.restbar.hidden-by-inline { opacity: 0; pointer-events: none; transform: translateY(20px); }
+
+/* pauza pod cvikem */
+.rest-inline { display: flex; align-items: center; gap: 10px; background: var(--bg2); border-radius: 13px; padding: 8px 10px 8px 14px; }
+.rest-inline b { font-size: 17px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.rest-bar { flex: 1; height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+.rest-bar i { display: block; height: 100%; background: var(--green); transition: width .3s linear; }
+
+/* ===== Dnes: denní seznam ===== */
+/* Rámeček má jen to, co máš právě udělat — hotové věci jsou ploché řádky. */
+.item-hero { border-color: var(--green); }
+
+.week-card { padding: 12px 10px 10px; }
+.week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.wd {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 8px 0 7px; border-radius: 12px; cursor: pointer;
+  border: 1.5px solid transparent;
+}
+.wd.today { border-color: var(--green); }
+.wd.future { opacity: .35; }
+.wd b { font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--text2); }
+.wd .dots { display: flex; gap: 3px; }
+.wd .dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--bg3); display: block; }
+.wd .dots i.on { background: var(--green); }
+.wd .dots i.part { background: var(--text3); }
+.week-legend { text-align: center; margin-top: 8px; }
+
+/* hotová položka dne */
+.day-done {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--bg1); border-radius: 14px; padding: 13px 16px;
+  margin-bottom: 8px; cursor: pointer;
+}
+.day-done.col { flex-direction: column; align-items: flex-start; }
+.day-done:active { background: var(--bg2); }
+.day-k { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--text2); }
+.day-v { flex: 1; font-weight: 700; font-size: 14.5px; text-align: right; }
+.day-done.col .day-v { text-align: left; }
+.day-ok { color: var(--green); font-weight: 900; font-size: 15px; }
+
+/* stepper váhy */
+.stepper { display: grid; grid-template-columns: 56px 1fr 56px; gap: 10px; align-items: center; margin-top: 14px; }
+.step-btn {
+  height: 56px; border-radius: 18px; background: var(--bg2); border: none;
+  color: var(--text2); font-size: 26px; font-weight: 900; cursor: pointer;
+}
+.step-btn:active { background: var(--bg3); }
+.step-val {
+  background: none; border: none; color: var(--text); cursor: pointer;
+  font-size: 40px; font-weight: 900; letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums; padding: 0;
+}
+.step-val small { font-size: 15px; color: var(--text2); font-weight: 700; margin-left: 4px; }
+
+/* segmentovaná volba (rychlý zápis jídla) */
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.seg.two { grid-template-columns: 1fr 1fr; }
+.seg-btn {
+  padding: 13px 6px; border-radius: 14px; background: var(--bg2); border: none;
+  color: var(--text2); font-weight: 700; font-size: 14px; cursor: pointer;
+  font-family: inherit;
+}
+.seg-btn:active { background: var(--bg3); }
+.seg-btn.on { background: var(--green); color: #0A0B0D; font-weight: 800; }
+
+/* tabulka odpovědí v Týdnu */
+.wk-kv { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; flex: 1; min-width: 0; }
+.wk-kv > div { min-width: 0; }
+.wk-kv span { display: block; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text3); }
+.wk-kv b { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* ===== Co uteklo minule ===== */
+.gap-card { border-color: rgba(247,201,72,.3); }
+.gap-row { padding: 4px 0 8px; }
+.gap-lbl {
+  display: block; font-size: 11px; font-weight: 800; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--yellow); margin-bottom: 7px;
+}
+.gap-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.gap-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--bg2); border-radius: 9px; padding: 5px 10px; font-size: 13px;
+}
+.gap-chip b { font-weight: 700; }
+.gap-chip span { color: var(--text3); font-size: 12px; }
+
 /* ===== Counter partií v aktivním tréninku ===== */
-.cat-counter { padding: 15px 16px; }
+/* sbalený pruh: sedm segmentů s počtem sérií, jeden řádek */
+.cat-bar-card { background: var(--bg1); border-radius: 16px; padding: 12px 14px 11px; margin-bottom: 12px; cursor: pointer; }
+.cat-bar-card:active { background: var(--bg2); }
+.cat-bar { display: flex; gap: 4px; }
+.cat-bar i {
+  flex: 1; height: 30px; border-radius: 8px; display: flex;
+  align-items: center; justify-content: center; position: relative;
+}
+.cat-bar i b { font-size: 13px; font-weight: 900; color: #0A0B0D; font-variant-numeric: tabular-nums; }
+.cat-bar i.zero { background: transparent !important; box-shadow: inset 0 0 0 1px var(--line); }
+.cat-bar i.zero b { color: var(--text3); }
+
+.cat-counter { padding: 14px 15px; cursor: pointer; }
 .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .cat-cell {
   display: grid; grid-template-columns: 3px 1fr auto;
-  align-items: center; gap: 9px; overflow: hidden;
-  background: var(--bg2); border-radius: 10px; padding: 9px 11px 9px 0;
+  align-items: center; gap: 8px; overflow: hidden;
+  background: var(--bg2); border-radius: 10px; padding: 7px 10px 7px 0;
 }
 /* poslední partie (Nohy) drží celou šířku — 7 buněk se do dvou sloupců
    jinak nerozdělí a osamocená buňka na konci vypadá jako chyba */
 .cat-cell:last-child { grid-column: 1 / -1; }
-.cat-cell i { width: 3px; align-self: stretch; min-height: 26px; border-radius: 0 2px 2px 0; }
-.cat-cell .cat-n { font-size: 13.5px; font-weight: 600; }
-.cat-cell .cat-v { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.cat-cell i { width: 3px; align-self: stretch; min-height: 24px; border-radius: 0 2px 2px 0; }
+.cat-cell .cat-n { font-size: 13px; font-weight: 600; }
+/* dvě čísla: cviky (tlumeně) · série (hlavní) */
+.cat-cell .cat-v { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cat-cell .cat-v b { font-weight: 600; color: var(--text2); font-size: 13px; }
+.cat-cell .cat-v s { text-decoration: none; color: var(--text3); margin: 0 3px; font-weight: 400; font-size: 12px; }
 /* nula = díra, ne další řádek */
 .cat-cell.zero { background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
 .cat-cell.zero .cat-n, .cat-cell.zero .cat-v { color: var(--text3); }

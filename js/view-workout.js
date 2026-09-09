@@ -9,6 +9,7 @@ const WV = {
   sub: "log",                 // log | pr
   date: todayStr(),           // den, do kterého se zapisuje (i zpětně/dopředně)
   openIdx: null,              // rozbalený cvik v aktivní session (akordeon)
+  counterOpen: false,         // counter partií: pruh (false) | detail s cviky (true)
   pickerIndex: null,          // null = přidání cviku, číslo = výměna na indexu
   sportChoice: CARDIO_SPORTS[0]
 };
@@ -49,9 +50,12 @@ function workoutDayNav() {
 function renderWorkoutStart() {
   const day = WV.date;
   const isToday = day === todayStr();
-  const tplBtns = S.templates.map(t =>
-    `<button class="btn" style="flex:1 1 40%;border-color:var(--green);color:var(--green)"
-      data-act="w-begin" data-template="${t.id}">${esc(t.name)}</button>`).join("");
+  const next = nextTemplate();
+  const tplBtns = S.templates.map(t => {
+    const on = next && t.id === next.id;
+    return `<button class="btn${on ? " primary" : ""}" style="flex:1 1 40%${on ? "" : ";border-color:var(--green);color:var(--green)"}"
+      data-act="w-begin" data-template="${t.id}">${esc(t.name)}${on ? " ·&nbsp;na řadě" : ""}</button>`;
+  }).join("");
 
   const daySessions = sessionsOn(day);
   const sessRows = daySessions.map(s => {
@@ -71,7 +75,7 @@ function renderWorkoutStart() {
     </div>`;
   }).join("");
 
-  return workoutDayNav() + `
+  return workoutDayNav() + lastGapsHtml() + `
     <div class="card">
       <div class="h2">Silový trénink</div>
       <div class="row" style="flex-wrap:wrap;gap:8px">${tplBtns}</div>
@@ -105,7 +109,7 @@ function renderActiveSession() {
     /* --- sbalený hotový cvik --- */
     if (entry.done && !isOpen) {
       return `
-      <div class="card ex-done" id="exblock-${i}" data-act="w-ex-open" data-i="${i}">
+      <div class="ex-row ex-done" id="exblock-${i}" data-act="w-ex-open" data-i="${i}">
         <div class="row">
           <i class="p-stripe" style="background:${pcol}"></i>
           <span class="done-check">✓</span>
@@ -124,7 +128,7 @@ function renderActiveSession() {
         ? `${setCount} ${setWord(setCount)} · ${summary} ${weightUnit()}`
         : (planShort(ex) || "klepni pro zápis");
       return `
-      <div class="card ex-collapsed${setCount ? " ex-active" : ""}" id="exblock-${i}" data-act="w-ex-open" data-i="${i}">
+      <div class="ex-row ex-collapsed${setCount ? " ex-active" : ""}" id="exblock-${i}" data-act="w-ex-open" data-i="${i}">
         <div class="row">
           <i class="p-stripe" style="background:${pcol}"></i>
           <span class="ex-num">${i + 1}</span>
@@ -165,9 +169,11 @@ function renderActiveSession() {
     return `
     <div class="card ex-open${entry.prHit ? " pr-flash" : ""}" id="exblock-${i}">
       <div class="row between" data-act="w-ex-close">
-        <i class="p-stripe" style="background:${pcol}"></i>
         <span class="ex-num${entry.done ? " done" : ""}">${entry.done ? "✓" : i + 1}</span>
         <div class="grow">
+          <div class="ex-cat" style="color:${pcol}">
+            <i class="p-dot" style="background:${pcol}"></i>${esc((ex && ex.category) || "—")}
+          </div>
           <div class="name" style="font-weight:700">${esc(ex ? ex.name : "?")}</div>
           ${ex && ex.description ? `<div class="small" style="color:var(--text2)">${esc(ex.description)}</div>` : ""}
         </div>
@@ -176,15 +182,16 @@ function renderActiveSession() {
       </div>
       ${hints}
       ${sets ? `<div class="mt">${sets}</div>` : ""}
-      <div class="row mt" style="gap:6px">
-        <input class="input" id="reps-${i}" type="number" inputmode="numeric" placeholder="Opak." value="${pfReps}" style="flex:1">
-        <input class="input" id="weight-${i}" type="text" inputmode="decimal" placeholder="${weightUnit()}" value="${pfWeight}" style="flex:1">
-        <input class="input" id="note-${i}" type="text" placeholder="Poznámka" style="flex:1.4">
+      <div class="set-input mt">
+        ${stepperHtml("reps-" + i, pfReps, 1, "Opakování", i, "reps")}
+        ${stepperHtml("weight-" + i, pfWeight, 2.5, weightUnit(), i, "weight")}
       </div>
+      <input class="input mt" id="note-${i}" type="text" placeholder="Poznámka (volitelné)">
       <div class="row mt" style="gap:8px">
-        <button class="btn sm grow" style="border-color:var(--green);color:var(--green)" data-act="w-add-set" data-i="${i}">+ Přidat sérii</button>
-        ${started ? `<button class="btn sm success" data-act="w-ex-done" data-i="${i}">${entry.done ? "✓ Hotovo — zavřít" : "✓ Cvik hotový"}</button>` : ""}
+        <button class="btn primary grow" data-act="w-add-set" data-i="${i}">+ Přidat sérii</button>
+        ${started ? `<button class="btn sm success" data-act="w-ex-done" data-i="${i}">${entry.done ? "✓ Zavřít" : "✓ Hotový"}</button>` : ""}
       </div>
+      ${restInlineHtml()}
     </div>`;
   }).join("");
 
@@ -195,9 +202,8 @@ function renderActiveSession() {
     <div class="card">
       <div class="row between">
         <span class="badge neutral">Probíhá — ${esc(sessionLabel(a))}${dateInfo}</span>
-        <span class="small">${doneCount}/${a.entries.length} cviků · ${totalSets} sérií</span>
+        <span class="small">${doneCount}/${a.entries.length} cviků · ${totalSets} ${setWordTop(totalSets)}</span>
       </div>
-      <p class="small" style="margin:8px 0 0">Úpravy cviků platí jen pro tuto session, šablonu nemění. Předvyplněné hodnoty jsou z minulého tréninku.</p>
     </div>
     ${catCounterHtml(a)}
     ${blocks}
@@ -208,25 +214,112 @@ function renderActiveSession() {
     </div>`;
 }
 
+function setWordTop(n) { return n === 1 ? "série" : n >= 2 && n <= 4 ? "série" : "sérií"; }
+
+/* ---- Stepper pro sérii ----
+   Se zpocenou rukou je klávesnice nepřítel: ± mění hodnotu jedním klepnutím,
+   pole zůstává editovatelné, když chceš zadat číslo přesně. */
+function stepperHtml(id, value, step, label, i, field) {
+  return `
+    <div class="set-field">
+      <span class="set-lbl">${esc(label)}</span>
+      <div class="set-step">
+        <button class="step-btn sm" data-act="w-step" data-id="${id}" data-d="${-step}">−</button>
+        <input class="input step-in" id="${id}" type="text" inputmode="decimal" value="${value}">
+        <button class="step-btn sm" data-act="w-step" data-id="${id}" data-d="${step}">+</button>
+      </div>
+    </div>`;
+}
+
+/* Pauza se ukazuje i pod cvikem — tam se stejně díváš. Plovoucí lišta
+   zůstává pro moment, kdy jsi odscrolloval jinam. */
+function restInlineHtml() {
+  const until = Number(localStorage.getItem(Rest.KEY) || 0);
+  if (!until || until <= Date.now()) return "";
+  const left = Math.ceil((until - Date.now()) / 1000);
+  const total = Settings.get().restSeconds || 90;
+  const pct = clamp(left / total * 100, 0, 100);
+  return `
+    <div class="rest-inline mt">
+      <span class="small">pauza</span>
+      <div class="rest-bar"><i style="width:${pct.toFixed(0)}%"></i></div>
+      <b id="restInlineTime">${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}</b>
+      <button class="btn sm ghost" data-act="rest-stop">✕</button>
+    </div>`;
+}
+
+/* ---- Co uteklo minule ----
+   Ukazuje se nad volbou tréninku, aby šlo mezeru zacelit hned při plánování
+   dnešní session — ne až v Souhrnu po týdnu. Plán je full body, takže
+   partie bez série je skutečně vynechaná, ne záměr. */
+function lastGapsHtml() {
+  const g = lastSessionGaps();
+  if (!g || (!g.missed.length && !g.low.length)) return "";
+  const chip = (cat, label) => `
+    <span class="gap-chip">
+      <i class="p-dot" style="background:${catColor(cat)}"></i>
+      <b>${cat}</b>${label ? `<span>${label}</span>` : ""}
+    </span>`;
+  const ago = daysBetween(g.date, todayStr());
+  const when = ago === 0 ? "dnes" : ago === 1 ? "včera" : `před ${ago} dny`;
+  return `
+    <div class="card gap-card">
+      <div class="row between" style="margin-bottom:10px">
+        <span class="h2" style="margin:0">Minule ti uteklo</span>
+        <span class="small">${esc(sessionLabel(g.session))} · ${when}</span>
+      </div>
+      ${g.missed.length ? `<div class="gap-row">
+        <span class="gap-lbl">vynecháno</span>
+        <div class="gap-chips">${g.missed.map(m => chip(m.cat, "")).join("")}</div>
+      </div>` : ""}
+      ${g.low.length ? `<div class="gap-row">
+        <span class="gap-lbl">málo</span>
+        <div class="gap-chips">${g.low.map(l => chip(l.cat,
+          l.reason === "exercises" ? `${l.done}/${l.planned} cviků` : `${l.sets} série`)).join("")}</div>
+      </div>` : ""}
+    </div>`;
+}
+
 /* ---- Counter partií ----
    Drží se nad cviky po celou dobu tréninku, u šablony i u libovolného cviku.
    Ukazuje i nuly — právě ta nula je informace, kvůli které counter existuje.
    Pořadí je pevné podle těla, ať se buňky pod prstem nepřeskupují. */
 function catCounterHtml(session) {
-  const counts = sessionCatSets(session);
-  const hit = CAT_ORDER.filter(c => counts[c] > 0).length;
+  const sets = sessionCatSets(session);
+  const exs = sessionCatExercises(session);
+  const hit = CAT_ORDER.filter(c => sets[c] > 0).length;
+
+  /* Sbalený je pruh — v posilovně je nejcennější místo na obrazovce.
+     Klepnutím se rozbalí na cviky · série u každé partie. */
+  const bar = CAT_ORDER.map(c => `
+    <i class="${sets[c] ? "" : "zero"}" style="background:${catColor(c)}">
+      <b>${sets[c]}</b>
+    </i>`).join("");
+
+  if (!WV.counterOpen) {
+    return `
+      <div class="cat-bar-card" data-act="w-counter">
+        <div class="cat-bar">${bar}</div>
+        <div class="row between" style="margin-top:8px">
+          <span class="small">Partie dnes · <b style="color:var(--text)">${hit}</b> ze ${CAT_ORDER.length}</span>
+          <span class="small">série v pruhu · rozbal pro cviky ›</span>
+        </div>
+      </div>`;
+  }
+
   const cells = CAT_ORDER.map(c => `
-    <div class="cat-cell${counts[c] ? "" : " zero"}">
+    <div class="cat-cell${sets[c] ? "" : " zero"}">
       <i style="background:${catColor(c)}"></i>
       <span class="cat-n">${c}</span>
-      <span class="cat-v">${counts[c]}</span>
+      <span class="cat-v"><b>${exs[c]}</b><s>·</s>${sets[c]}</span>
     </div>`).join("");
   return `
-    <div class="card cat-counter">
-      <div class="row between" style="margin-bottom:12px">
+    <div class="card cat-counter" data-act="w-counter">
+      <div class="row between" style="margin-bottom:2px">
         <span class="h2" style="margin:0">Partie dnes</span>
-        <span class="small"><b style="color:var(--text)">${hit}</b> ze ${CAT_ORDER.length}</span>
+        <span class="small"><b style="color:var(--text)">${hit}</b> ze ${CAT_ORDER.length} ⌃</span>
       </div>
+      <div class="small" style="margin-bottom:10px">cviky · série</div>
       <div class="cat-grid">${cells}</div>
     </div>`;
 }
@@ -306,8 +399,10 @@ function addSet(i) {
   }
   entry.sets.push(set);
   save();
-  render();
+  // pauza se spouští před překreslením, jinak by se inline zobrazení
+  // pod cvikem vykreslilo ještě do stavu „pauza neběží"
   Rest.start(Settings.get().restSeconds);
+  render();
 }
 
 function finishWorkout() {
