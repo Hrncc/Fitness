@@ -18,6 +18,7 @@ Osobní PWA pro zápis silových a kardio tréninků a stravy. **Jeden uživatel
 | Soubor | Obsah |
 |---|---|
 | `js/util.js` | datum, formátování, jednotky, `parseDec()` (desetinná **čárka i tečka**), e1RM |
+| `js/exercise-db.js` | `EXERCISE_DB` — 90 cviků knihovny s vysvětlivkami (technika + častá chyba) |
 | `js/qr.js` | QR generátor (ISO 18004, byte mode, EC L, v1–13, výběr masky) |
 | `js/photos.js` | fotky postupu v IndexedDB + zmenšení na JPEG |
 | `js/data.js` | stav `S`, `save()`, `replaceState()`, PR logika, milníky, plán trenéra, barvy partií (`CAT_COLOR`, `CAT_ORDER`, `sessionCatSets()`, `dayCatColors()`) |
@@ -111,6 +112,12 @@ ať uživateli nezůstanou testovací data. Reálná data jdou stáhnout z jeho 
 - Tréninkový plán trenéra (Full Body A/B/C s poznámkami k technice) je
   naimportovaný v `data.js` jako `COACH_PLAN` (id `cp-*`), migrace běží jednou
   přes flag `coachPlanV1`.
+- Knihovna cviků má 140 položek: 25 ze `seedExercises()` (`ex-*`), 27 z plánu
+  trenéra (`cp-*`) a 90 z `EXERCISE_DB` (`xd-*`, migrace `applyExerciseDb()`
+  přes flag `exerciseDbV1`). Popisy v `EXERCISE_DB` jsou **technika a častá
+  chyba, ne série a opakování** — programování patří trenérovi. Migrace
+  nepřepisuje vlastní cviky se stejným názvem. `exercise-db.js` se v
+  `index.html` načítá **před** `data.js`, protože migrace běží na úrovni modulu.
 - Sdílená tabulka trenéra na Drivu: **ONLINE COACHING – OBECNÁ TABULKA**
   (záložky Tréninkový plán, Strava, Check-in).
 - Slabé místo v datech: **skoro nezapisuje stravu a váhu** — u návrhů preferuj

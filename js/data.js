@@ -272,8 +272,33 @@ function applyCoachPlan() {
   persist();
 }
 
+/* ===== Rozšířená knihovna cviků =====
+   Doplní EXERCISE_DB (js/exercise-db.js) jednorázově do S.exercises. Vlastní
+   cviky se stejným názvem zůstávají nedotčené — uživatelův popis je cennější
+   než knihovní. */
+function applyExerciseDb() {
+  if (S.exerciseDbV1 || typeof EXERCISE_DB === "undefined") return;
+  let added = 0;
+  for (const [id, name, category, description] of EXERCISE_DB) {
+    const existing = S.exercises.find(e => e.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      // knihovnímu cviku bez popisu ho doplň, vlastního se nedotýkej
+      if (!existing.isCustom && !existing.description) existing.description = description;
+      continue;
+    }
+    if (getExercise(id)) continue;
+    S.exercises.push({ id, name, category, description, isCustom: false });
+    added++;
+  }
+  S.exerciseDbV1 = true;
+  S.updatedAt = Date.now();
+  persist();
+  if (added) console.info(`Knihovna cviků rozšířena o ${added} cviků.`);
+}
+
 let S = loadState();
 applyCoachPlan();
+applyExerciseDb();
 /* backfill milníků je až na konci souboru — MILESTONES je const níž */
 
 function loadState() {
