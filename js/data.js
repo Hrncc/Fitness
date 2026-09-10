@@ -121,13 +121,28 @@ function lastWeightsSession() {
     .sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id)))[0] || null;
 }
 
+/* Rotuje jen přes šablony, které se reálně jedou (posledních 6 týdnů).
+   Opuštěný plán jinak navrhuje tréninky, které uživatel nedělá — a když
+   jede jedinou šablonu, „na řadě" je pořád ona. */
+const TEMPLATE_ACTIVE_DAYS = 42;
+
+function activeTemplates() {
+  const since = addDays(todayStr(), -TEMPLATE_ACTIVE_DAYS);
+  const used = new Set(S.sessions
+    .filter(s => s.type === "weights" && s.date >= since && s.templateUsed)
+    .map(s => s.templateUsed));
+  const pool = S.templates.filter(t => used.has(t.id));
+  return pool.length ? pool : S.templates;
+}
+
 function nextTemplate() {
   if (!S.templates.length) return null;
+  const pool = activeTemplates();
   const last = lastWeightsSession();
-  if (!last) return S.templates[0];
-  const i = S.templates.findIndex(t => t.id === last.templateUsed);
-  if (i < 0) return S.templates[0];          // volný trénink rotaci neposouvá
-  return S.templates[(i + 1) % S.templates.length];
+  if (!last) return pool[0];
+  const i = pool.findIndex(t => t.id === last.templateUsed);
+  if (i < 0) return pool[0];                 // volný trénink rotaci neposouvá
+  return pool[(i + 1) % pool.length];
 }
 
 /* ===== Mezery v posledním tréninku =====

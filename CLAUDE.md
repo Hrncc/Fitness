@@ -148,7 +148,10 @@ Pořadí je pevné podle těla (`CAT_ORDER`), ať se buňky pod prstem nepřesku
 - `lastSessionGaps()` — co uteklo v posledním tréninku; 0 sérií = vynechaná,
   1 série = odbytá, u tréninku ze šablony i porovnání cviků proti plánu.
   Zobrazuje se nad volbou tréninku (`lastGapsHtml()`) a na Dnes.
-- `nextTemplate()` — rotace A → B → C; volný trénink rotaci neposouvá
+- `nextTemplate()` — rotace jen přes `activeTemplates()`, tedy šablony použité
+  za posledních 42 dní; volný trénink rotaci neposouvá. Martin jede vlastní
+  šablonu D a A/B/C po trenérovi nechal ležet — bez tohohle filtru by mu
+  „na řadě" navrhovalo plán, který opustil.
 
 Všechny tři šablony trenéra pokrývají všech 7 partií, takže „N ze 7" je reálný
 cíl každého tréninku, ne teoretické skóre.
