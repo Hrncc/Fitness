@@ -11,7 +11,8 @@ Osobní PWA pro zápis silových a kardio tréninků a stravy. **Jeden uživatel
 - Appka musí zůstat **self-contained** (žádné CDN). Proto je QR generátor
   (`js/qr.js`) psaný od nuly.
 - Externí volání jen na: Google Apps Script (sync), Open Food Facts, USDA,
-  `api.anthropic.com` (čtení etiket a odhad jídla z fotky).
+  `api.anthropic.com` (čtení etiket, odhad jídla z fotky, AI kouč). Klíč je
+  uživatelův, v `localStorage` toho zařízení — každé volání jde z jeho kreditu.
 
 ## Mapa souborů
 
@@ -26,7 +27,8 @@ Osobní PWA pro zápis silových a kardio tréninků a stravy. **Jeden uživatel
 | `js/foodapi.js` | OFF (cz → world), USDA, Claude vision (etiketa / jídlo), čárový kód |
 | `js/ui.js` | toast (i s akcí), modal, kalendář, SVG grafy, rest timer |
 | `js/view-*.js` | obrazovky: today, workout, food, summary, checkin, menu |
-| `js/report.js` | `buildCoachReport(range)` — textový report pro Clauda/trenéra |
+| `js/report.js` | `buildCoachReport(range)` — textový report; slouží i jako kontext pro AI kouče |
+| `js/view-coach.js` | obrazovka „Zeptej se" — Claude nad vlastními daty (`claude-sonnet-5`) |
 | `js/app.js` | router, delegace akcí (`ACTIONS`), `withUndo()`, start |
 | `apps-script/Code.gs` | backend syncu v Google Sheetu + 7 denních záloh |
 
@@ -105,17 +107,22 @@ ať uživateli nezůstanou testovací data. Reálná data jdou stáhnout z jeho 
 ## Kontext uživatele
 
 - 23 let, 182 cm, start 12. 6. 2026 na 77 kg. Cíl: **nabrání svalové hmoty /
-  tvarování postavy**. Má **skutečného online trenéra** — programové změny patří
-  jemu, appka a já děláme měření a vyhodnocení.
-- Cíl od trenéra: **2 200 kcal, B 180 / S 230 / T 60**, kardio „chůze, začátečnický
-  běh do 5 km".
+  tvarování postavy**.
+- **Trénuje sám — od ~července 2026 už nemá trenéra** (dřív online coaching).
+  Plán A/B/C po trenérovi jede dál, ale nikdo ho neaktualizuje. Části appky
+  postavené kolem trenéra (check-in, „report pro trenéra") tím ztratily
+  adresáta — než na ně sáhneš, ověř s ním, čemu mají sloužit teď.
+- Kalorický cíl (původně od trenéra, jede dál): **2 200 kcal, B 180 / S 230 / T 60**,
+  kardio „chůze, začátečnický běh do 5 km".
 - Tréninkový plán trenéra (Full Body A/B/C s poznámkami k technice) je
   naimportovaný v `data.js` jako `COACH_PLAN` (id `cp-*`), migrace běží jednou
   přes flag `coachPlanV1`.
 - Knihovna cviků má 140 položek: 25 ze `seedExercises()` (`ex-*`), 27 z plánu
   trenéra (`cp-*`) a 90 z `EXERCISE_DB` (`xd-*`, migrace `applyExerciseDb()`
   přes flag `exerciseDbV1`). Popisy v `EXERCISE_DB` jsou **technika a častá
-  chyba, ne série a opakování** — programování patří trenérovi. Migrace
+  chyba, ne série a opakování**. (Původní důvod bylo „programování patří
+  trenérovi"; ten padl, ale rozhodnutí drží — rozsahy u 90 cviků by spustily
+  automatické návrhy progrese tam, kde je nikdo nezvolil.) Migrace
   nepřepisuje vlastní cviky se stejným názvem. `exercise-db.js` se v
   `index.html` načítá **před** `data.js`, protože migrace běží na úrovni modulu.
 - Anglické názvy: `EXERCISE_NAME_EN` (mapa podle id) → pole `nameEn`, migrace
@@ -161,11 +168,28 @@ pod Dnes.
   (`restInlineHtml()`) — plovoucí lišta se pak skryje třídou `hidden-by-inline`.
   `addSet()` musí volat `Rest.start()` **před** `render()`, jinak se inline pauza
   vykreslí do stavu „neběží".
-- **Týden** = tři odpovědi pro trenéra (dodržování, váha, odcvičený plán)
-  + tlačítko check-inu. Původních osm karet Souhrnu žije v podzáložce
+- **Týden** = tři odpovědi (dodržování, váha, odcvičený plán) + tlačítko
+  check-inu. Vzniklo, když měl trenéra; adresát teď chybí. Původních osm karet Souhrnu žije v podzáložce
   **Přehled** (`SV.sub`).
+
+## AI kouč („Zeptej se")
+
+`view-coach.js` posílá `buildCoachReport(CO.range)` jako `system` prompt a nad
+ním vede konverzaci. Model je `claude-sonnet-5` (analýza potřebuje víc než
+haiku, které stačí na etikety). Konverzace žije jen v paměti záložky (`CO`),
+**ne v `S`** — zaplnila by sync.
+
+- Systémový prompt drží odpovědi krátké a vázané na konkrétní čísla z dat,
+  zakazuje diagnostiku a při zmínce o bolesti odkazuje na odborníka.
+- `mdLite()` escapuje odpověď **před** formátováním, ať z ní nejde vložit HTML.
+- Když volání selže, otázka se z konverzace odebere — visící dotaz bez
+  odpovědi by jen mátl.
+
+Vzniklo poté, co Martin přestal mít trenéra. Dřív bylo programování záměrně
+mimo appku; to omezení padlo.
 
 ## Záměrně neimplementováno
 
 Streak počítadlo (trestá plánovaná volna), cardio „phases", stretch library.
+Sociální feed a veřejné rutiny (appka je jednouživatelská, bez backendu).
 Rest timer původně taky vyloučen, ale uživatel si ho později vyžádal (v1.10).

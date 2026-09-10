@@ -242,7 +242,7 @@ function renderSummary() {
       <button class="subtab${SV.sub === "week" ? " on" : ""}" data-act="s-sub" data-sub="week">Týden</button>
       <button class="subtab${SV.sub === "detail" ? " on" : ""}" data-act="s-sub" data-sub="detail">Přehled</button>
     </div>`;
-  if (SV.sub === "week") return tabs + weekAnswersHtml() + weekTrainingHtml() + checkinPrepHtml();
+  if (SV.sub === "week") return tabs + weekAnswersHtml() + weekTrainingHtml() + askCoachCardHtml() + checkinPrepHtml();
   return tabs + calendarCard + categoryCard + workoutStats + exerciseChart + weightCard + balanceCard + foodStats + foodChart;
 }
 
@@ -322,6 +322,32 @@ function weekTrainingHtml() {
       ${zero.length ? `<p class="small mt" style="margin-bottom:0;color:var(--yellow)">
         Tento týden 0 sérií: <b>${zero.join(", ")}</b></p>`
         : weights.length ? `<p class="small mt" style="margin-bottom:0">Všech ${CAT_ORDER.length} partií pokryto.</p>` : ""}
+    </div>`;
+}
+
+/* Trénuje sám, takže druhý pár očí nad daty stojí přímo v Týdnu. */
+function askCoachCardHtml() {
+  const { from, to, today } = weekBounds();
+  const end = to < today ? to : today;
+  const counts = {};
+  for (const c of CAT_ORDER) counts[c] = 0;
+  for (const s of S.sessions.filter(x => x.type === "weights" && x.date >= from && x.date <= end)) {
+    const cs = sessionCatSets(s);
+    for (const c of CAT_ORDER) counts[c] += cs[c] || 0;
+  }
+  const zero = CAT_ORDER.filter(c => !counts[c]);
+  const hint = zero.length
+    ? `Tento týden máš 0 sérií na: ${zero.join(", ")}.`
+    : "Zeptej se na progresi, objem nebo stravu — model vidí tvoje čísla.";
+  return `
+    <div class="card">
+      <div class="row between">
+        <span class="h2" style="margin:0">Zeptej se</span>
+        <span class="badge neutral">AI nad daty</span>
+      </div>
+      <p class="small" style="margin:10px 0 14px">${esc(hint)}</p>
+      <button class="btn full" style="border-color:var(--green);color:var(--green)"
+        data-act="menu" data-page="coach">Otevřít →</button>
     </div>`;
 }
 
