@@ -8,7 +8,7 @@ const App = {
 const TITLES = {
   today: "Dnes", workout: "Trénink", food: "Jídlo", summary: "Týden",
   exlib: "Exercise Library", templates: "Workout Templates", foodlib: "Food Library",
-  photos: "Fotky postupu", checkin: "Týdenní check-in", coach: "Zeptej se",
+  photos: "Fotky postupu", checkin: "Týdenní check-in",
   export: "Export & Backup", settings: "Nastavení", about: "O aplikaci"
 };
 
@@ -20,7 +20,7 @@ function render() {
   const view = document.getElementById("view");
   view.innerHTML = page ? {
     exlib: renderExLib, templates: renderTemplates, foodlib: renderFoodLib,
-    photos: renderPhotos, checkin: renderCheckin, coach: renderCoach,
+    photos: renderPhotos, checkin: renderCheckin,
     export: renderExport, settings: renderSettings, about: renderAbout
   }[page]() : {
     today: renderToday, workout: renderWorkout, food: renderFood, summary: renderSummary
@@ -49,8 +49,6 @@ function wireViewInputs() {
       if (qrIn.files && qrIn.files[0]) importQrFile(qrIn.files[0]);
     });
   }
-  const coIn = document.getElementById("coInput");
-  if (coIn) coIn.addEventListener("input", () => { CO.draft = coIn.value; });
   const phIn = document.getElementById("photoAddInput");
   if (phIn) {
     phIn.addEventListener("change", () => {
@@ -301,14 +299,6 @@ const ACTIONS = {
   /* ---- Souhrn ---- */
   "s-sub": d => { SV.sub = d.sub; render(); },
   "s-cat-range": d => { SV.catRange = d.range; render(); },
-
-  /* ---- Zeptej se (AI nad daty) ---- */
-  "co-send": () => {
-    const el = document.getElementById("coInput");
-    askCoach(el ? el.value : "");
-  },
-  "co-preset": d => askCoach(d.q),
-  "co-clear": () => { CO.messages = []; CO.error = null; CO.draft = ""; render(); },
 
   /* ---- Exercise Library ---- */
   "el-cat": d => { MV.exCat = d.cat; render(); },
