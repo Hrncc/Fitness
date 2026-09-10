@@ -1,7 +1,7 @@
 /* ===== Obrazovky z hamburger menu ===== */
 "use strict";
 
-const APP_VERSION = "1.18.0";
+const APP_VERSION = "1.19.0";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -40,7 +40,9 @@ function elListHtml() {
         <i class="p-stripe" style="background:${catColor(e.category)}"></i>
         <div class="grow">
           <div class="name">${esc(e.name)}</div>
-          <div class="small" style="color:${catColor(e.category)}">${esc(e.category)}</div>
+          ${exNameEn(e)
+            ? `<div class="name-en">${esc(exNameEn(e))}</div>`
+            : `<div class="small" style="color:${catColor(e.category)}">${esc(e.category)}</div>`}
         </div>
         ${e.isCustom ? `<span class="badge neutral">vlastní</span>` : ""}
       </div>`).join("");
@@ -51,7 +53,9 @@ function openExerciseDetail(id) {
   const e = getExercise(id);
   if (!e) return;
   const pr = currentPR(id);
+  const en = exNameEn(e);
   openModal(`${modalTitle(e.name)}
+    ${en ? `<div class="name-en" style="margin:-10px 0 12px">${esc(en)}</div>` : ""}
     <div class="row" style="margin-bottom:10px">
       <span class="badge cat-badge" style="color:${catColor(e.category)}">
         <i class="p-dot" style="background:${catColor(e.category)}"></i>${esc(e.category)}</span>
@@ -120,7 +124,10 @@ function renderTemplates() {
     const rows = t.exercises.map((exId, i) => `
       <div class="list-item">
         <i class="p-stripe" style="background:${exColor(exId)}"></i>
-        <div class="grow name">${esc(exName(exId))}</div>
+        <div class="grow">
+          <div class="name">${esc(exName(exId))}</div>
+          ${exNameEn(exId) ? `<div class="name-en">${esc(exNameEn(exId))}</div>` : ""}
+        </div>
         <button class="btn sm ghost" data-act="tpl-move" data-tpl="${t.id}" data-i="${i}" data-dir="-1" ${i === 0 ? "disabled" : ""}>↑</button>
         <button class="btn sm ghost" data-act="tpl-move" data-tpl="${t.id}" data-i="${i}" data-dir="1" ${i === count - 1 ? "disabled" : ""}>↓</button>
         <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="tpl-rm" data-tpl="${t.id}" data-i="${i}">✕</button>
@@ -173,7 +180,10 @@ function tplPickerList(query) {
       .filter(e => e.category === cat && !t.exercises.includes(e.id) && (!q || e.name.toLowerCase().includes(q)))
       .map(e => `<div class="list-item" data-act="tpl-pick" data-exid="${e.id}" style="cursor:pointer">
         <i class="p-stripe" style="background:${catColor(cat)}"></i>
-        <div class="grow name">${esc(e.name)}</div></div>`).join("");
+        <div class="grow">
+          <div class="name">${esc(e.name)}</div>
+          ${exNameEn(e) ? `<div class="name-en">${esc(exNameEn(e))}</div>` : ""}
+        </div></div>`).join("");
     return items ? `<div class="h3 cat-head"><i class="p-dot" style="background:${catColor(cat)}"></i>${cat}</div>${items}` : "";
   }).join("") || `<div class="empty-note">Nic nenalezeno</div>`;
 }

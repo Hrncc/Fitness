@@ -175,7 +175,8 @@ function renderActiveSession() {
             <i class="p-dot" style="background:${pcol}"></i>${esc((ex && ex.category) || "—")}
           </div>
           <div class="name" style="font-weight:700">${esc(ex ? ex.name : "?")}</div>
-          ${ex && ex.description ? `<div class="small" style="color:var(--text2)">${esc(ex.description)}</div>` : ""}
+          ${exNameEn(ex) ? `<div class="name-en">${esc(exNameEn(ex))}</div>` : ""}
+          ${ex && ex.description ? `<div class="small" style="color:var(--text2);margin-top:4px">${esc(ex.description)}</div>` : ""}
         </div>
         <button class="btn sm ghost" data-act="w-swap-ex" data-i="${i}">⇄</button>
         <button class="btn sm ghost" style="color:var(--red)" data-act="w-remove-ex" data-i="${i}">✕</button>
@@ -458,7 +459,10 @@ function exercisePickerList(query) {
       .filter(e => e.category === cat && (!q || e.name.toLowerCase().includes(q)))
       .map(e => `<div class="list-item" data-act="w-pick-ex" data-exid="${e.id}" style="cursor:pointer">
         <i class="p-stripe" style="background:${catColor(cat)}"></i>
-        <div class="grow name">${esc(e.name)}</div>
+        <div class="grow">
+          <div class="name">${esc(e.name)}</div>
+          ${exNameEn(e) ? `<div class="name-en">${esc(exNameEn(e))}</div>` : ""}
+        </div>
         ${e.isCustom ? `<span class="badge neutral">vlastní</span>` : ""}
       </div>`).join("");
     return items ? `<div class="h3 cat-head"><i class="p-dot" style="background:${catColor(cat)}"></i>${cat}</div>${items}` : "";

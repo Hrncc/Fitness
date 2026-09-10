@@ -316,6 +316,13 @@ label.field > span {
 .cal-legend i { width: 11px; height: 11px; border-radius: 4px; display: block; }
 .cal-legend i.dot { width: 6px; height: 6px; border-radius: 50%; margin: 0 2px; }
 
+/* Anglický název cviku — druhý řádek pod českým, kvůli hledání videí
+   a zahraničním zdrojům. Záměrně tlumený: je to doplněk, ne titulek. */
+.name-en {
+  font-size: 12.5px; color: var(--text3); font-weight: 500;
+  letter-spacing: .01em; margin-top: 1px;
+}
+
 /* ===== Identita partie ===== */
 /* Hlavička kategorie se svou tečkou (pickery cviků). */
 .cat-head { display: flex; align-items: center; gap: 8px; margin-top: 14px; }

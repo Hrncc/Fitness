@@ -74,6 +74,14 @@ const CAT_COLOR = {
 const CAT_ORDER = ["Ramena", "Hrudník", "Záda", "Biceps", "Triceps", "Core", "Nohy"];
 
 function catColor(cat) { return CAT_COLOR[cat] || "var(--text3)"; }
+
+/* Anglický název cviku — druhý řádek pod českým. Prázdný u vlastních cviků
+   a tam, kde by se jen zopakoval ten český (Plank, Leg press, Face pull…). */
+function exNameEn(exerciseOrId) {
+  const e = typeof exerciseOrId === "string" ? getExercise(exerciseOrId) : exerciseOrId;
+  if (!e || !e.nameEn) return "";
+  return e.nameEn.toLowerCase() === (e.name || "").toLowerCase() ? "" : e.nameEn;
+}
 function exCategory(exerciseId) { return (getExercise(exerciseId) || {}).category || null; }
 function exColor(exerciseId) { return catColor(exCategory(exerciseId)); }
 
@@ -287,7 +295,10 @@ function applyExerciseDb() {
       continue;
     }
     if (getExercise(id)) continue;
-    S.exercises.push({ id, name, category, description, isCustom: false });
+    const ex = { id, name, category, description, isCustom: false };
+    const en = typeof EXERCISE_NAME_EN !== "undefined" && EXERCISE_NAME_EN[id];
+    if (en) ex.nameEn = en;
+    S.exercises.push(ex);
     added++;
   }
   S.exerciseDbV1 = true;
@@ -296,9 +307,23 @@ function applyExerciseDb() {
   if (added) console.info(`Knihovna cviků rozšířena o ${added} cviků.`);
 }
 
+/* Anglické názvy doplní i do cviků, které už uživatel v stavu má —
+   proto samostatná migrace, ne jen pole v EXERCISE_DB. */
+function applyExerciseNamesEn() {
+  if (S.nameEnV1 || typeof EXERCISE_NAME_EN === "undefined") return;
+  for (const e of S.exercises) {
+    const en = EXERCISE_NAME_EN[e.id];
+    if (en && !e.nameEn) e.nameEn = en;
+  }
+  S.nameEnV1 = true;
+  S.updatedAt = Date.now();
+  persist();
+}
+
 let S = loadState();
 applyCoachPlan();
 applyExerciseDb();
+applyExerciseNamesEn();
 /* backfill milníků je až na konci souboru — MILESTONES je const níž */
 
 function loadState() {

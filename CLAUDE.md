@@ -18,7 +18,7 @@ Osobní PWA pro zápis silových a kardio tréninků a stravy. **Jeden uživatel
 | Soubor | Obsah |
 |---|---|
 | `js/util.js` | datum, formátování, jednotky, `parseDec()` (desetinná **čárka i tečka**), e1RM |
-| `js/exercise-db.js` | `EXERCISE_DB` — 90 cviků knihovny s vysvětlivkami (technika + častá chyba) |
+| `js/exercise-db.js` | `EXERCISE_DB` — 90 cviků knihovny s vysvětlivkami, `EXERCISE_NAME_EN` — anglické názvy všech 142 cviků |
 | `js/qr.js` | QR generátor (ISO 18004, byte mode, EC L, v1–13, výběr masky) |
 | `js/photos.js` | fotky postupu v IndexedDB + zmenšení na JPEG |
 | `js/data.js` | stav `S`, `save()`, `replaceState()`, PR logika, milníky, plán trenéra, barvy partií (`CAT_COLOR`, `CAT_ORDER`, `sessionCatSets()`, `dayCatColors()`) |
@@ -118,6 +118,11 @@ ať uživateli nezůstanou testovací data. Reálná data jdou stáhnout z jeho 
   chyba, ne série a opakování** — programování patří trenérovi. Migrace
   nepřepisuje vlastní cviky se stejným názvem. `exercise-db.js` se v
   `index.html` načítá **před** `data.js`, protože migrace běží na úrovni modulu.
+- Anglické názvy: `EXERCISE_NAME_EN` (mapa podle id) → pole `nameEn`, migrace
+  `applyExerciseNamesEn()` přes flag `nameEnV1` je doplní i do cviků, které
+  uživatel už ve stavu má. Vykresluje je `exNameEn()` jako `.name-en` pod
+  českým názvem — vrací prázdno u vlastních cviků a tam, kde by se název jen
+  zopakoval (Plank, Leg press, Face pull…); tam zůstává kategorie.
 - Sdílená tabulka trenéra na Drivu: **ONLINE COACHING – OBECNÁ TABULKA**
   (záložky Tréninkový plán, Strava, Check-in).
 - Slabé místo v datech: **skoro nezapisuje stravu a váhu** — u návrhů preferuj
