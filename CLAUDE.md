@@ -192,6 +192,14 @@ Chová se jako nativní appka — bez zoomu, bez houpání, bez skákání:
 - `render()` skáče nahoru **jen při změně obrazovky** (nebo `render({top: true})`,
   které volají `nav` a `menu`). Dřív skákal po každém překreslení, takže přidání
   série vyhodilo obrazovku na začátek.
+- **Shake to Undo** (v1.22.1): `beforeinput` s `historyUndo`/`historyRedo` se
+  v `app.js` ruší, takže zatřesení nevrátí text rozepsaný v poli. Systémový
+  dialog „Odvolat psaní" zablokovat nejde — vypíná ho jen nastavení iOS.
+  **Ověřitelné jen na iPhonu:** `execCommand("undo")` v desktopovém prohlížeči
+  `beforeinput` neposílá, takže test v preview nic nedokazuje.
+- `parseDec("")` vrací **`NaN`, ne `null`** — kontroluj `Number.isFinite()`
+  nebo `isNaN()`. Stepper to do v1.22.1 nedělal a u cviku bez historie
+  ukázal po klepnutí na + „NaN".
 - **Týden** = tři odpovědi (dodržování, váha, odcvičený plán) + tlačítko
   check-inu. Vzniklo, když měl trenéra; adresát teď chybí. Původních osm karet Souhrnu žije v podzáložce
   **Přehled** (`SV.sub`).

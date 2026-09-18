@@ -192,8 +192,9 @@ const ACTIONS = {
     const el = document.getElementById(d.id);
     if (!el) return;
     const step = Number(d.d);
+    // prázdné pole (cvik bez historie) dává z parseDec NaN, ne null
     const cur = parseDec(el.value);
-    let v = (cur == null ? 0 : cur) + step;
+    let v = (Number.isFinite(cur) ? cur : 0) + step;
     if (v < 0) v = 0;
     // celá čísla u opakování, desetina u váhy
     el.value = Number.isInteger(step) ? String(Math.round(v)) : fmtNum(Math.round(v * 10) / 10, 1);
@@ -529,6 +530,16 @@ document.getElementById("modalBackdrop").addEventListener("click", closeModal);
 /* iOS ignoruje user-scalable=no v některých režimech — pinch se tedy
    zastaví i tady. */
 document.addEventListener("gesturestart", e => e.preventDefault());
+
+/* Shake to Undo (iOS): zatřesení telefonem nabídne „Odvolat psaní" a klepnutí
+   na Odvolat vrátí text rozepsaný v poli. V posilovně se telefonem třese
+   pořád, tak se vracení textu v polích zablokuje úplně. Uložená data tím
+   ohrožená nejsou — série a tréninky v systémovém undo vůbec nejsou.
+   Samotný systémový dialog web zablokovat neumí; vypíná ho jen nastavení iOS.
+   Vedlejší efekt: nefunguje ani undo z klávesnice (swipe třemi prsty). */
+document.addEventListener("beforeinput", e => {
+  if (e.inputType === "historyUndo" || e.inputType === "historyRedo") e.preventDefault();
+}, true);
 document.addEventListener("staterefresh", render);
 document.addEventListener("syncstatus", () => {
   if (App.route.page === "settings") render();
