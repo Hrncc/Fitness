@@ -170,6 +170,28 @@ pod Dnes.
   (`restInlineHtml()`) — plovoucí lišta se pak skryje třídou `hidden-by-inline`.
   `addSet()` musí volat `Rest.start()` **před** `render()`, jinak se inline pauza
   vykreslí do stavu „neběží".
+- **Přetahování cviků** (v1.22) — `Drag` ve `view-workout.js`, úchyt vpravo
+  u sbalených řádků (`dragHandleHtml()`, `touch-action: none` jen na úchytu).
+  Pointer events, pozice v souřadnicích dokumentu (autoscroll u okraje nerozhodí
+  cíl), cíl = počet řádků se středem nad středem taženého — funguje i s vysokým
+  otevřeným cvikem. `moveExercise()` přepočítá `WV.openIdx` a vrátí rozepsanou
+  sérii do polí. Otevřený cvik úchyt nemá. Klik těsně po puštění (≤ 350 ms)
+  delegace zahodí — iOS ho posílá navíc.
+
+## Zamčená obrazovka (v1.22)
+
+Chová se jako nativní appka — bez zoomu, bez houpání, bez skákání:
+
+- viewport `maximum-scale=1, user-scalable=no` + `gesturestart` preventDefault
+  (iOS pinch) + `touch-action: manipulation` na body (double-tap zoom)
+- **pole mají písmo 16 px** — pod 16 px iOS při klepnutí do pole přiblíží
+  stránku. Nezmenšovat.
+- `overscroll-behavior: none` (žádné gumové houpání) a `overflow-x: clip`.
+  **Ne `hidden`** — to z body udělá scroll kontejner a rozbije `window.scrollTo`
+  i autoscroll při přetahování.
+- `render()` skáče nahoru **jen při změně obrazovky** (nebo `render({top: true})`,
+  které volají `nav` a `menu`). Dřív skákal po každém překreslení, takže přidání
+  série vyhodilo obrazovku na začátek.
 - **Týden** = tři odpovědi (dodržování, váha, odcvičený plán) + tlačítko
   check-inu. Vzniklo, když měl trenéra; adresát teď chybí. Původních osm karet Souhrnu žije v podzáložce
   **Přehled** (`SV.sub`).

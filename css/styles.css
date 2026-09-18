@@ -59,6 +59,19 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; padding: 0; }
+
+/* ===== Zamčená obrazovka =====
+   Appka se chová jako nativní: bez gumového houpání za okrajem, bez posunu
+   do strany a bez zoomu. overflow-x: clip (ne hidden) — hidden by z body
+   udělal scroll kontejner a rozbil window.scrollTo / autoscroll při přetahování. */
+html, body {
+  overscroll-behavior: none;
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+/* manipulation = scroll a klepnutí ano, double-tap zoom ne */
+body { touch-action: manipulation; }
 body {
   background: var(--bg0);
   color: var(--text);
@@ -187,7 +200,8 @@ button { font-family: inherit; }
 /* ===== Inputs ===== */
 .input, select.input, textarea.input {
   width: 100%; background: var(--bg2); border: 1.5px solid transparent;
-  color: var(--text); border-radius: 14px; padding: 12px 14px; font-size: 15px;
+  color: var(--text); border-radius: 14px; padding: 12px 14px;
+  font-size: 16px;  /* méně než 16 px = iOS při klepnutí do pole přiblíží stránku */
   font-family: inherit; appearance: none;
 }
 .input:focus { outline: none; border-color: var(--green); }
@@ -379,6 +393,27 @@ label.field > span {
 
 /* plovoucí lišta ustoupí, když je pauza vidět pod cvikem */
 .restbar.hidden-by-inline { opacity: 0; pointer-events: none; transform: translateY(20px); }
+
+/* ===== Přetahování cviků ===== */
+/* Ostatní řádky ustupují plynule; tažený sleduje prst bez zpoždění. */
+.ex-list > [data-i] { transition: transform .2s cubic-bezier(.2, .8, .2, 1); }
+.ex-list > .dragging {
+  transition: none; position: relative; z-index: 5;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .55);
+  background: var(--bg2);
+}
+.ex-list > .settling { position: relative; z-index: 5; transition: transform .17s ease-out; }
+/* během tahu žádné označování textu ani zvýraznění klepnutí */
+.is-dragging, .is-dragging * { user-select: none; -webkit-user-select: none; cursor: grabbing; }
+
+/* úchyt: tři linky, dost velký cíl pro palec (44 px) */
+.drag-handle {
+  touch-action: none; flex: none; cursor: grab;
+  width: 44px; height: 44px; margin: -8px -10px -8px 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+}
+.drag-handle i { width: 18px; height: 2px; border-radius: 1px; background: var(--text3); display: block; }
+.dragging .drag-handle i { background: var(--text); }
 
 /* pauza pod cvikem */
 .rest-inline { display: flex; align-items: center; gap: 10px; background: var(--bg2); border-radius: 13px; padding: 8px 10px 8px 14px; }

@@ -117,7 +117,7 @@ function renderActiveSession() {
             <div class="name" style="font-weight:700">${esc(ex ? ex.name : "?")}</div>
             <div class="small">${setCount} ${setWord(setCount)} · ${summary} ${weightUnit()}${entry.prHit ? ` · <span style="color:var(--yellow);font-weight:700">PR!</span>` : ""}</div>
           </div>
-          <span class="small">upravit</span>
+          ${dragHandleHtml(i)}
         </div>
       </div>`;
     }
@@ -136,7 +136,7 @@ function renderActiveSession() {
             <div class="name" style="font-weight:700">${esc(ex ? ex.name : "?")}</div>
             <div class="small">${esc(sub)}</div>
           </div>
-          <span class="ex-chevron">›</span>
+          ${dragHandleHtml(i)}
         </div>
       </div>`;
     }
@@ -167,7 +167,7 @@ function renderActiveSession() {
       ${near ? `<div class="hint-last hint-near">${near}</div>` : ""}`;
 
     return `
-    <div class="card ex-open${entry.prHit ? " pr-flash" : ""}" id="exblock-${i}">
+    <div class="card ex-open${entry.prHit ? " pr-flash" : ""}" id="exblock-${i}" data-i="${i}">
       <div class="row between" data-act="w-ex-close">
         <span class="ex-num${entry.done ? " done" : ""}">${entry.done ? "✓" : i + 1}</span>
         <div class="grow">
@@ -207,7 +207,7 @@ function renderActiveSession() {
       </div>
     </div>
     ${catCounterHtml(a)}
-    ${blocks}
+    <div class="ex-list" id="exList">${blocks}</div>
     <button class="btn ghost full" style="border-style:dashed" data-act="w-add-ex">+ Přidat cvik</button>
     <div class="row mt" style="gap:8px">
       <button class="btn danger" data-act="w-cancel">Zrušit</button>
@@ -216,6 +216,138 @@ function renderActiveSession() {
 }
 
 function setWordTop(n) { return n === 1 ? "série" : n >= 2 && n <= 4 ? "série" : "sérií"; }
+
+/* ---- Přetahování cviků v aktivním tréninku ----
+   Úchyt vpravo (iOS konvence pro přeřazování). Jen úchyt má touch-action:
+   none, takže tah za něj stránku nescrolluje a zbytek řádku scrolluje
+   i otevírá normálně. Otevřený cvik úchyt nemá — je vysoký a zapisuje se
+   do něj; přesune se po sbalení. */
+function dragHandleHtml(i) {
+  return `<span class="drag-handle" data-drag="${i}" aria-label="Přesunout cvik">
+    <i></i><i></i><i></i></span>`;
+}
+
+/* Přesun v poli entries. Otevřený cvik musí zůstat otevřený a rozepsaná
+   série v něm nesmí přetažením jiného cviku zmizet. */
+function moveExercise(from, to) {
+  const a = S.activeSession;
+  if (!a || from === to) return;
+  const keep = WV.openIdx != null
+    ? ["reps", "weight", "note"].map(f => {
+        const el = document.getElementById(`${f}-${WV.openIdx}`);
+        return el ? el.value : null;
+      })
+    : null;
+
+  const [item] = a.entries.splice(from, 1);
+  a.entries.splice(to, 0, item);
+
+  const open = WV.openIdx;
+  if (open != null) {
+    if (open === from) WV.openIdx = to;
+    else if (from < open && to >= open) WV.openIdx = open - 1;
+    else if (from > open && to <= open) WV.openIdx = open + 1;
+  }
+  save();
+  render();
+  if (keep && WV.openIdx != null) {
+    ["reps", "weight", "note"].forEach((f, k) => {
+      const el = document.getElementById(`${f}-${WV.openIdx}`);
+      if (el && keep[k] != null) el.value = keep[k];
+    });
+  }
+}
+
+/* Pointer events fungují s prstem i myší. Pozice se počítají v souřadnicích
+   dokumentu, takže autoscroll u okraje obrazovky nerozhodí výpočet cíle.
+   Cíl = kolik ostatních řádků má střed nad středem taženého — funguje
+   i s různě vysokými řádky (otevřený cvik mezi sbalenými). */
+const Drag = {
+  st: null,
+  justDropped: 0,   // čas puštění — klik, který po něm iOS pošle, se zahodí
+
+  start(e, handle) {
+    const list = document.getElementById("exList");
+    if (!list || this.st) return;
+    const rows = [...list.children].filter(r => r.dataset.i != null);
+    const from = Number(handle.dataset.drag);
+    const row = rows[from];
+    if (!row) return;
+    e.preventDefault();
+    try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+    const rects = rows.map(r => r.getBoundingClientRect());
+    this.st = {
+      pid: e.pointerId, rows, row, from, to: from,
+      startY: e.clientY, lastY: e.clientY, startScroll: window.scrollY,
+      tops: rects.map(r => r.top + window.scrollY),
+      heights: rects.map(r => r.height),
+      gap: rows.length > 1 ? Math.max(0, rects[1].top - rects[0].bottom) : 8,
+      raf: 0
+    };
+    row.classList.add("dragging");
+    document.body.classList.add("is-dragging");
+    this.loop();
+  },
+
+  move(e) {
+    if (!this.st || e.pointerId !== this.st.pid) return;
+    this.st.lastY = e.clientY;
+    this.layout();
+  },
+
+  layout() {
+    const st = this.st;
+    const dy = st.lastY - st.startY + (window.scrollY - st.startScroll);
+    st.row.style.transform = `translateY(${dy}px) scale(1.02)`;
+    const center = st.tops[st.from] + st.heights[st.from] / 2 + dy;
+    let to = 0;
+    for (let k = 0; k < st.rows.length; k++) {
+      if (k !== st.from && center > st.tops[k] + st.heights[k] / 2) to++;
+    }
+    st.to = to;
+    const shift = st.heights[st.from] + st.gap;
+    st.rows.forEach((r, k) => {
+      if (k === st.from) return;
+      let t = 0;
+      if (st.from < to && k > st.from && k <= to) t = -shift;
+      else if (st.from > to && k >= to && k < st.from) t = shift;
+      r.style.transform = t ? `translateY(${t}px)` : "";
+    });
+  },
+
+  /* autoscroll, když prst dojede k okraji — dole počítá s navigací */
+  loop() {
+    const st = this.st;
+    if (!st) return;
+    const top = 110, bottom = window.innerHeight - 150;
+    let v = 0;
+    if (st.lastY < top) v = -Math.ceil((top - st.lastY) / 5);
+    else if (st.lastY > bottom) v = Math.ceil((st.lastY - bottom) / 5);
+    if (v) { window.scrollBy(0, v); this.layout(); }
+    st.raf = requestAnimationFrame(() => this.loop());
+  },
+
+  end(e) {
+    const st = this.st;
+    if (!st || (e && e.pointerId !== st.pid)) return;
+    cancelAnimationFrame(st.raf);
+    this.st = null;
+    this.justDropped = Date.now();
+    document.body.classList.remove("is-dragging");
+
+    /* dosednutí: tažený řádek doklouže do svého slotu, pak se překreslí */
+    const { from, to, row, tops, heights } = st;
+    const target = to > from ? tops[to] + heights[to] - heights[from]
+      : to < from ? tops[to] : tops[from];
+    row.classList.remove("dragging");
+    row.classList.add("settling");
+    row.style.transform = `translateY(${target - tops[from]}px)`;
+    setTimeout(() => {
+      if (to !== from) moveExercise(from, to);
+      else { st.rows.forEach(r => { r.style.transform = ""; }); row.classList.remove("settling"); }
+    }, 170);
+  }
+};
 
 /* ---- Stepper pro sérii ----
    Se zpocenou rukou je klávesnice nepřítel: ± mění hodnotu jedním klepnutím,

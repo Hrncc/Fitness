@@ -12,7 +12,12 @@ const TITLES = {
   export: "Export & Backup", settings: "Nastavení", about: "O aplikaci"
 };
 
-function render() {
+/* Nahoru se skočí jen při přechodu na jinou obrazovku (nebo s {top: true}).
+   Dřív se scrollovalo po každém překreslení — přidání série v tréninku
+   pak vyhodilo obrazovku na začátek. */
+let _lastRouteKey = null;
+
+function render(opts = {}) {
   const { tab, page } = App.route;
   const key = page || tab;
   document.getElementById("topbarTitle").textContent = TITLES[key] || "Fitness Log";
@@ -30,7 +35,8 @@ function render() {
     b.classList.toggle("on", !page && !!b.dataset.tab && b.dataset.tab === tab));
 
   wireViewInputs();
-  window.scrollTo(0, 0);
+  if (opts.top || key !== _lastRouteKey) window.scrollTo(0, 0);
+  _lastRouteKey = key;
 }
 
 /* Inputy, které potřebují živé wiring po překreslení */
@@ -77,8 +83,8 @@ function withUndo(msg, fn) {
 /* ===== Akce (event delegation přes data-act) ===== */
 const ACTIONS = {
   /* navigace */
-  "nav": d => { App.route = { tab: d.tab, page: null }; closeModal(); openDrawer(false); render(); },
-  "menu": d => { App.route.page = d.page; openDrawer(false); render(); },
+  "nav": d => { App.route = { tab: d.tab, page: null }; closeModal(); openDrawer(false); render({ top: true }); },
+  "menu": d => { App.route.page = d.page; openDrawer(false); render({ top: true }); },
   "drawer-open": () => openDrawer(true),
   "drawer-close": () => openDrawer(false),
   "modal-close": () => closeModal(),
@@ -457,11 +463,22 @@ const ACTIONS = {
 };
 
 document.addEventListener("click", e => {
+  // úchyt přetahování klik nemá; klik těsně po puštění pošle iOS navíc
+  if (e.target.closest(".drag-handle") || Date.now() - Drag.justDropped < 350) return;
   const t = e.target.closest("[data-act]");
   if (!t) return;
   const fn = ACTIONS[t.dataset.act];
   if (fn) fn(t.dataset, t, e);
 });
+
+/* Přetahování cviků v tréninku (Drag ve view-workout.js) */
+document.addEventListener("pointerdown", e => {
+  const h = e.target.closest(".drag-handle");
+  if (h) Drag.start(e, h);
+});
+document.addEventListener("pointermove", e => Drag.move(e));
+document.addEventListener("pointerup", e => Drag.end(e));
+document.addEventListener("pointercancel", e => Drag.end(e));
 
 document.addEventListener("change", e => {
   const t = e.target.closest("[data-change]");
@@ -508,6 +525,10 @@ document.addEventListener("change", e => {
 });
 
 document.getElementById("modalBackdrop").addEventListener("click", closeModal);
+
+/* iOS ignoruje user-scalable=no v některých režimech — pinch se tedy
+   zastaví i tady. */
+document.addEventListener("gesturestart", e => e.preventDefault());
 document.addEventListener("staterefresh", render);
 document.addEventListener("syncstatus", () => {
   if (App.route.page === "settings") render();
