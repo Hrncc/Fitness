@@ -42,10 +42,10 @@ Appka umí automaticky zálohovat a synchronizovat data mezi zařízeními přes
 ### 5. Zkopíruj URL do appky
 
 1. Po nasazení se zobrazí **URL webové aplikace** — končí na `/exec`. Zkopíruj ji.
-2. V appce otevři **☰ menu → Nastavení → Apps Script Web App URL**, URL vlož a klikni **Uložit nastavení**.
+2. V appce otevři **Více → Export & Backup → Cloud sync**, URL vlož do pole (uloží se sama po opuštění pole).
 3. Klikni **↑ Uložit do cloudu**. Tečka v horní liště zezelená a v Sheetu se v listu `DATA` objeví data.
 
-Na druhém zařízení pak stačí otevřít appku, vložit **stejnou URL** do Nastavení a kliknout **↓ Načíst z cloudu**.
+Na druhém zařízení pak stačí otevřít appku, vložit **stejnou URL** do Export & Backup → Cloud sync a klepnout na **Načíst**.
 
 ## Aktualizace skriptu (když se změní Code.gs)
 
@@ -60,17 +60,17 @@ Kdyby se data pokazila (např. omylem smazaná a nevrácená):
 
 1. V Sheetu zobraz skryté listy: pravé tlačítko na záložky listů dole → **Zobrazit** → vyber `SNAP_<datum>`.
 2. Zkopíruj celý sloupec A ze snapshotu do listu `DATA` (nejdřív v `DATA` smaž obsah).
-3. V appce: Nastavení → **↓ Načíst z cloudu**.
+3. V appce: Export & Backup → Cloud sync → **Načíst**.
 
 ## Řešení potíží
 
 | Příznak | Příčina a řešení |
 |---|---|
-| Tečka svítí červeně, v Nastavení „chyba" | Zkontroluj, že URL končí na `/exec` a nasazení má přístup **Kdokoli**. Zkus URL otevřít v prohlížeči — měl by se zobrazit JSON `{"ok":true,…}`. |
+| Tečka svítí červeně, v Export & Backup „chyba" | Zkontroluj, že URL končí na `/exec` a nasazení má přístup **Kdokoli**. Zkus URL otevřít v prohlížeči — měl by se zobrazit JSON `{"ok":true,…}`. |
 | V prohlížeči URL vrací „Stránka nenalezena" | Nasazení bylo smazané nebo je URL z „testovacího nasazení" (`/dev`). Vytvoř nové nasazení a novou URL vlož do appky. |
 | Po úpravě skriptu se nic nezměnilo | Zapomněl jsi nasadit novou **verzi** (viz Aktualizace skriptu). |
 | Tečka žlutě bliká dlouho | Sheet je pomalejší (~1–3 s na zápis je normální). Zápisy se slučují — appka posílá stav nejdřív 1,8 s po poslední změně. |
-| Data z druhého zařízení nevidím | Na druhém zařízení dej Nastavení → ↓ Načíst z cloudu (při startu appky se to děje automaticky). |
+| Data z druhého zařízení nevidím | Na druhém zařízení dej Export & Backup → Cloud sync → Načíst (při startu appky se to děje automaticky). |
 
 ## Bezpečnostní poznámky
 

@@ -37,7 +37,11 @@ const ICONS = {
   calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
   copy: '<rect x="8.5" y="8.5" width="12" height="12" rx="2.5"/><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5"/>',
   alert: '<path d="M12 4 2.8 19.5h18.4Z"/><path d="M12 10v4.5"/><path d="M12 17.3h.01" stroke-width="2.6"/>',
-  spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>'
+  spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
+  chart: '<path d="M4 20V11M10 20V5M16 20v-6M21 20H3"/>',
+  trend: '<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+  body: '<circle cx="12" cy="4.8" r="2.3"/><path d="M5 9h14"/><path d="M12 9v6.5M12 15.5 8.8 21M12 15.5l3.2 5.5"/>',
+  cloud: '<path d="M7 18.5a4.5 4.5 0 0 1-.5-9 6 6 0 0 1 11.3 1.6A3.8 3.8 0 0 1 17.5 18.5Z"/>'
 };
 function ic(name, size = 20, sw = 2) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -430,64 +434,200 @@ function dateRangeRow(prefix, from, to) {
     </div>`;
 }
 
-/* ---- SVG grafy (bez knihoven) ---- */
+/* ---- SVG grafy (bez knihoven) ----
+   viewBox je široký jako karta na telefonu (~330 px), takže písmo 11 je
+   opravdu 11 px a čáry 2 px. Mřížka = vlasové linky, data = --chart,
+   hodnoty nesou texty v barvě textu, ne v barvě série. Každý graf nese
+   v data-tip body pro dotykový readout (ChartTip) — tah prstem ukáže hodnotu. */
+const CH_W = 330;
 
-/* Sloupcový graf: data = [{label, value}] */
-function barChart(data, { color = "chart", height = 170, unit = "" } = {}) {
+/* „Hezké" dělení osy: 0 / 10 / 20 … — nejvýš 4 linky */
+function niceTicks(max, count = 3) {
+  if (!(max > 0)) return [0];
+  const raw = max / count;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(k => k * mag).find(st => st >= raw) || 10 * mag;
+  const out = [];
+  for (let v = 0; v <= max + step * 0.001; v += step) out.push(Math.round(v * 1000) / 1000);
+  if (out[out.length - 1] < max) out.push(Math.round((out[out.length - 1] + step) * 1000) / 1000);
+  return out;
+}
+
+function tipAttr(points) {
+  return ` data-tip="${esc(JSON.stringify(points))}"`;
+}
+
+/* Sloupcový graf: data = [{label, value, tip?}]; hl = index zvýrazněného
+   sloupce (ostatní ztlumené — „emphasis"). Popisky na ose X jen u každého
+   n-tého sloupce, hodnota jen u zvýrazněného a u maxima. */
+function columnChart(data, { height = 150, hl = data.length - 1, unit = "" } = {}) {
   if (!data.length || data.every(d => !d.value)) return `<div class="empty-note">Zatím žádná data</div>`;
-  const W = 600, H = height, padB = 24, padT = 16;
-  const max = Math.max(...data.map(d => d.value)) || 1;
-  const bw = W / data.length;
-  let bars = "", labels = "";
+  const W = CH_W, H = height, padL = 26, padR = 4, padT = 18, padB = 20;
+  const max = Math.max(...data.map(d => d.value));
+  const ticks = niceTicks(max);
+  const top = ticks[ticks.length - 1] || 1;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const band = plotW / data.length;
+  const bw = Math.min(band * 0.6, 24);
+  const y = v => padT + plotH * (1 - v / top);
+  const every = data.length > 8 ? 3 : 1;
+  const maxI = data.findIndex(d => d.value === max);
+  let grid = "", bars = "", labels = "";
+  for (const t of ticks) {
+    grid += `<line x1="${padL}" x2="${W - padR}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" stroke="var(--line2)" stroke-width="1"/>
+      <text x="${padL - 6}" y="${(y(t) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text3)">${fmtNum(t)}</text>`;
+  }
+  const tips = [];
   data.forEach((d, i) => {
-    const h = (d.value / max) * (H - padB - padT);
-    const x = i * bw + bw * 0.18, y = H - padB - h;
-    bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(bw * 0.64).toFixed(1)}" height="${Math.max(h, 2).toFixed(1)}" rx="4" fill="var(--${color})" opacity="0.9"/>`;
-    if (d.value) bars += `<text x="${(i * bw + bw / 2).toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="middle" font-size="11" fill="var(--text2)">${fmtNum(d.value)}</text>`;
-    labels += `<text x="${(i * bw + bw / 2).toFixed(1)}" y="${H - 7}" text-anchor="middle" font-size="11" fill="var(--text3)">${esc(d.label)}</text>`;
+    const cx = padL + band * (i + 0.5);
+    const x = cx - bw / 2;
+    const h = Math.max(0, y(0) - y(d.value));
+    const r = Math.min(4, h);
+    const yt = y(d.value);
+    if (h > 0) {
+      bars += `<path d="M${x.toFixed(1)},${y(0).toFixed(1)}V${(yt + r).toFixed(1)}Q${x.toFixed(1)},${yt.toFixed(1)} ${(x + r).toFixed(1)},${yt.toFixed(1)}H${(x + bw - r).toFixed(1)}Q${(x + bw).toFixed(1)},${yt.toFixed(1)} ${(x + bw).toFixed(1)},${(yt + r).toFixed(1)}V${y(0).toFixed(1)}Z"
+        fill="var(--chart)" opacity="${i === hl ? 1 : 0.4}"/>`;
+    }
+    if (d.value && (i === hl || i === maxI)) {
+      bars += `<text x="${cx.toFixed(1)}" y="${(yt - 5).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--text${i === hl ? "" : "2"})">${fmtNum(d.value)}</text>`;
+    }
+    if ((data.length - 1 - i) % every === 0) {
+      labels += `<text x="${cx.toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="10" fill="var(--text3)">${esc(d.label)}</text>`;
+    }
+    tips.push([+(cx / W).toFixed(4), +(yt / H).toFixed(4), d.tip || d.label, `${fmtNum(d.value)}${unit}`]);
   });
-  return `<div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${bars}${labels}</svg></div>`;
+  return `<div class="chart-wrap"${tipAttr(tips)}><svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${grid}${bars}${labels}</svg></div>`;
 }
 
 /* Spojnicový graf: series = [{date, value}], volitelná cílová linka.
    raw = druhá sada bodů (stejné indexy jako series) vykreslená jako tlumené tečky —
-   používá se pro denní hodnoty váhy pod klouzavým průměrem. */
-function lineChart(series, { color = "chart", height = 180, goal = null, raw = null } = {}) {
-  const pts = series.filter(p => p.value != null);
+   používá se pro denní hodnoty váhy pod klouzavým průměrem.
+   dec = počet desetinných míst v popiscích, unit = jednotka v readoutu. */
+function lineChart(series, { color = "chart", height = 150, goal = null, raw = null, dec = 1, unit = "" } = {}) {
+  const idx = series.map((p, i) => p.value != null ? i : -1).filter(i => i >= 0);
+  const pts = idx.map(i => series[i]);
   if (pts.length < 2) return `<div class="empty-note">Potřebuji alespoň 2 záznamy pro graf</div>`;
-  const W = 600, H = height, padL = 8, padR = 8, padT = 14, padB = 22;
+  const W = CH_W, H = height, padL = 34, padR = 10, padT = 16, padB = 20;
   const vals = pts.map(p => p.value)
     .concat(goal ? [goal] : [])
-    .concat(raw ? raw.filter(p => p.value != null).map(p => p.value) : []);
-  const min = Math.min(...vals) * 0.92, max = Math.max(...vals) * 1.05 || 1;
-  const x = i => padL + (i / (pts.length - 1)) * (W - padL - padR);
-  const y = v => padT + (1 - (v - min) / (max - min || 1)) * (H - padT - padB);
+    .concat(raw ? raw.filter(p => p && p.value != null).map(p => p.value) : []);
+  let min = Math.min(...vals), max = Math.max(...vals);
+  const span = max - min || Math.abs(max) * 0.1 || 1;
+  min -= span * 0.15; max += span * 0.15;
+  const n = series.length;
+  const x = i => padL + (n > 1 ? i / (n - 1) : 0.5) * (W - padL - padR);
+  const y = v => padT + (1 - (v - min) / (max - min)) * (H - padT - padB);
 
-  const path = pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
+  /* vlasové linky mřížky na „hezkých" hodnotách uvnitř rozsahu */
+  const raw3 = (max - min) / 3;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw3)));
+  const step = [1, 2, 2.5, 5, 10].map(k => k * mag).find(st => st >= raw3) || 10 * mag;
+  let grid = "";
+  for (let v = Math.ceil(min / step) * step; v <= max; v += step) {
+    grid += `<line x1="${padL}" x2="${W - padR}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--line2)" stroke-width="1"/>
+      <text x="${padL - 6}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text3)">${fmtNum(v, step < 1 ? 1 : 0)}</text>`;
+  }
+  const path = idx.map((i, k) => `${k ? "L" : "M"}${x(i).toFixed(1)},${y(series[i].value).toFixed(1)}`).join("");
+  const area = `${path}L${x(idx[idx.length - 1]).toFixed(1)},${(H - padB).toFixed(1)}L${x(idx[0]).toFixed(1)},${(H - padB).toFixed(1)}Z`;
   let extra = "";
   if (goal) {
     extra += `<line x1="${padL}" y1="${y(goal).toFixed(1)}" x2="${W - padR}" y2="${y(goal).toFixed(1)}"
-      stroke="var(--green)" stroke-width="1.5" stroke-dasharray="6 5" opacity="0.8"/>
-      <text x="${W - padR}" y="${(y(goal) - 5).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--green)">cíl ${fmtNum(goal)}</text>`;
+      stroke="var(--green)" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.8"/>
+      <text x="${W - padR}" y="${(y(goal) - 5).toFixed(1)}" text-anchor="end" font-size="10.5" fill="var(--green)">cíl ${fmtNum(goal)}</text>`;
   }
-  const dots = pts.map((p, i) =>
-    `<circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="3.2" fill="var(--${color})"/>`).join("");
   let rawDots = "";
   if (raw) {
-    rawDots = raw.map((p, i) => p.value == null ? "" :
-      `<circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="2.4" fill="var(--text3)" opacity="0.7"/>`).join("");
+    rawDots = raw.map((p, i) => !p || p.value == null ? "" :
+      `<circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="2.2" fill="var(--text3)" opacity="0.8"/>`).join("");
   }
+  const li = idx[idx.length - 1];
+  const last = series[li];
+  const lx = x(li), ly = y(last.value);
   const firstLbl = pts[0].date ? fmtDate(pts[0].date) : "";
-  const lastLbl = pts[pts.length - 1].date ? fmtDate(pts[pts.length - 1].date) : "";
-  return `<div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
-    ${extra}
+  const lastLbl = last.date ? fmtDate(last.date) : "";
+  const tips = idx.map(i => [+(x(i) / W).toFixed(4), +(y(series[i].value) / H).toFixed(4),
+    series[i].date ? fmtDate(series[i].date) : "", `${fmtNum(series[i].value, dec)}${unit}`]);
+  return `<div class="chart-wrap"${tipAttr(tips)}><svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+    ${grid}${extra}
+    <path d="${area}" fill="var(--${color})" opacity="0.08"/>
     ${rawDots}
-    <path d="${path}" fill="none" stroke="var(--${color})" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-    ${dots}
-    <text x="${padL}" y="${H - 6}" font-size="11" fill="var(--text3)">${firstLbl}</text>
-    <text x="${W - padR}" y="${H - 6}" text-anchor="end" font-size="11" fill="var(--text3)">${lastLbl}</text>
+    <path d="${path}" fill="none" stroke="var(--${color})" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="4" fill="var(--${color})" stroke="var(--bg1)" stroke-width="2"/>
+    <text x="${Math.min(lx, W - padR - 2).toFixed(1)}" y="${(ly - 9).toFixed(1)}" text-anchor="end" font-size="11" font-weight="700" fill="var(--text)">${fmtNum(last.value, dec)}</text>
+    <text x="${padL}" y="${H - 5}" font-size="10" fill="var(--text3)">${firstLbl}</text>
+    <text x="${W - padR}" y="${H - 5}" text-anchor="end" font-size="10" fill="var(--text3)">${lastLbl}</text>
   </svg></div>`;
 }
+
+/* Sparkline do řádku seznamu — jen tvar trendu, poslední bod zvýrazněný
+   (volt, když je výš než první = zlepšení). */
+function sparklineHtml(values, w = 64, h = 26) {
+  if (values.length < 2) return `<span class="spark" style="width:${w}px"></span>`;
+  const min = Math.min(...values), max = Math.max(...values);
+  const x = i => 3 + i / (values.length - 1) * (w - 6);
+  const y = v => max === min ? h / 2 : 4 + (1 - (v - min) / (max - min)) * (h - 8);
+  const d = values.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
+  const up = values[values.length - 1] > values[0];
+  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">
+    <path d="${d}" fill="none" stroke="var(--chart)" stroke-opacity=".55" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${x(values.length - 1).toFixed(1)}" cy="${y(values[values.length - 1]).toFixed(1)}" r="3.5"
+      fill="var(--${up ? "green" : "text2"})"/>
+  </svg>`;
+}
+
+/* ---- Dotykový readout grafů ----
+   Graf nese v data-tip body [x 0–1, y 0–1, popisek, hodnota]. Klepnutí nebo
+   vodorovný tah prstem ukáže svislou linku a hodnotu nejbližšího bodu;
+   po puštění prstu readout po chvíli zmizí. Texty jdou přes textContent. */
+const ChartTip = {
+  timer: null,
+  show(wrap, clientX) {
+    let pts;
+    try { pts = JSON.parse(wrap.dataset.tip); } catch (e) { return; }
+    if (!pts.length) return;
+    const r = wrap.getBoundingClientRect();
+    const fx = (clientX - r.left) / r.width;
+    let best = 0;
+    pts.forEach((p, i) => { if (Math.abs(p[0] - fx) < Math.abs(pts[best][0] - fx)) best = i; });
+    const p = pts[best];
+    let tip = wrap.querySelector(".chart-tip");
+    if (!tip) {
+      wrap.insertAdjacentHTML("beforeend",
+        `<i class="chart-x"></i><i class="chart-dot"></i><div class="chart-tip"><b></b><span></span></div>`);
+      tip = wrap.querySelector(".chart-tip");
+    }
+    wrap.querySelector(".chart-x").style.left = (p[0] * 100) + "%";
+    const dot = wrap.querySelector(".chart-dot");
+    dot.style.left = (p[0] * 100) + "%";
+    dot.style.top = (p[1] * 100) + "%";
+    tip.querySelector("b").textContent = p[3];
+    tip.querySelector("span").textContent = p[2];
+    const tw = tip.offsetWidth;
+    tip.style.left = clamp(p[0] * r.width - tw / 2, 0, Math.max(0, r.width - tw)) + "px";
+    wrap.classList.add("tipping");
+    clearTimeout(this.timer);
+  },
+  hideSoon(wrap, ms = 1600) {
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => wrap.classList.remove("tipping"), ms);
+  }
+};
+document.addEventListener("pointerdown", e => {
+  const w = e.target.closest(".chart-wrap[data-tip]");
+  if (w) ChartTip.show(w, e.clientX);
+});
+document.addEventListener("pointermove", e => {
+  const w = e.target.closest(".chart-wrap[data-tip]");
+  if (w && (e.pointerType === "mouse" || e.buttons)) ChartTip.show(w, e.clientX);
+});
+document.addEventListener("pointerup", e => {
+  const w = e.target.closest(".chart-wrap[data-tip]");
+  if (w && e.pointerType !== "mouse") ChartTip.hideSoon(w);
+});
+document.addEventListener("pointerout", e => {
+  const w = e.target.closest(".chart-wrap[data-tip]");
+  if (w && e.pointerType === "mouse" && !w.contains(e.relatedTarget)) ChartTip.hideSoon(w, 0);
+});
 
 /* ---- Zdrojový badge potraviny ---- */
 function sourceBadge(source) {

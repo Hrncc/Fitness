@@ -8,7 +8,7 @@ const App = {
 const TITLES = {
   today: "Dnes", workout: "Trénink", food: "Jídlo", summary: "Týden",
   exlib: "Exercise Library", templates: "Workout Templates", foodlib: "Food Library",
-  photos: "Fotky postupu", checkin: "Týdenní check-in",
+  body: "Postava",
   export: "Export & Backup", settings: "Nastavení", about: "O aplikaci"
 };
 
@@ -22,6 +22,7 @@ function pageHead(key) {
   }
   if (key === "workout") return workoutHead();
   if (key === "summary") return summaryHead();
+  if (key === "body") return { title: "Postava", sub: "Check-in, obvody a fotky postupu" };
   return { title: TITLES[key] || "Fitness Log" };
 }
 
@@ -52,7 +53,7 @@ function render(opts = {}) {
   const view = document.getElementById("view");
   view.innerHTML = pageHeadHtml(head) + (page ? {
     exlib: renderExLib, templates: renderTemplates, foodlib: renderFoodLib,
-    photos: renderPhotos, checkin: renderCheckin,
+    body: renderBody,
     export: renderExport, settings: renderSettings, about: renderAbout
   }[page]() : {
     today: renderToday, workout: renderWorkout, food: renderFood, summary: renderSummary
@@ -98,6 +99,15 @@ function wireViewInputs() {
   if (qrIn) {
     qrIn.addEventListener("change", () => {
       if (qrIn.files && qrIn.files[0]) importQrFile(qrIn.files[0]);
+    });
+  }
+  const ciPh = document.getElementById("ciPhotoInput");
+  if (ciPh) {
+    ciPh.addEventListener("change", () => {
+      if (!ciPh.files || !ciPh.files[0]) return;
+      captureCheckinForm();
+      setCheckinPhoto(ciPh.files[0]);
+      render();
     });
   }
   const phIn = document.getElementById("photoAddInput");
@@ -374,6 +384,9 @@ const ACTIONS = {
 
   /* ---- Souhrn ---- */
   "s-sub": d => { SV.sub = d.sub; render(); },
+  /* ---- Pokrok ---- */
+  "pg-ex": d => openExerciseProgress(d.exid),
+  "pg-all": () => { PG.allEx = !PG.allEx; render(); },
   "s-cat-range": d => { SV.catRange = d.range; render(); },
 
   /* ---- Exercise Library ---- */
@@ -483,7 +496,9 @@ const ACTIONS = {
   /* ---- Týdenní check-in ---- */
   "ci-new": () => openCheckinForm(null),
   "ci-edit": d => openCheckinForm(d.id),
-  "ci-cancel": () => { CV.form = null; CV.editId = null; render(); },
+  "ci-cancel": () => { CV.form = null; CV.editId = null; clearCheckinPhoto(); render(); },
+  "ci-photo": () => document.getElementById("ciPhotoInput").click(),
+  "ci-trend": d => { CV.trendKey = d.key; render(); },
   "ci-scale": d => {
     captureCheckinForm();
     const key = d.key, val = Number(d.val);
@@ -521,7 +536,6 @@ const ACTIONS = {
     if (!Sync.url()) { toast("Nejdřív vyplň sync URL", "err"); return; }
     const ok = await Sync.cloudSave();
     toast(ok ? "Uloženo do cloudu ✓" : "Sync selhal: " + (Sync.lastError || ""), ok ? "ok" : "err");
-    render();
   },
   "set-sync-load": async () => {
     const inp = document.getElementById("setGas");
@@ -554,7 +568,6 @@ document.addEventListener("pointercancel", e => Drag.end(e));
 document.addEventListener("change", e => {
   const t = e.target.closest("[data-change]");
   if (!t) return;
-  if (t.dataset.change === "s-exercise") { SV.exerciseId = t.value; render(); }
   if (t.dataset.change === "f-date") {
     if (t.value) { FV.date = t.value; render(); }
   }
@@ -584,7 +597,12 @@ document.addEventListener("change", e => {
   }
   if (t.dataset.change === "ph-cmp-a") { PV.cmpA = t.value; render(); }
   if (t.dataset.change === "ph-cmp-b") { PV.cmpB = t.value; render(); }
-  if (t.dataset.change === "ci-trend") { CV.trendKey = t.value; render(); }
+  /* sync URL (Export & Backup) se ukládá hned po změně pole */
+  if (t.dataset.change === "set-gas") {
+    Settings.set({ gasWebAppUrl: t.value.trim() });
+    if (!Sync.url()) Sync.setStatus("off");
+    toast(Sync.url() ? "Sync URL uložena ✓" : "Sync vypnutý", "ok");
+  }
   if (t.dataset.change === "f-unit") {
     // přepnutí jednotek znovu otevře krok množství se zachovanou volbou jídla dne
     const meal = FV.mealChoice;
@@ -611,8 +629,11 @@ document.addEventListener("beforeinput", e => {
   if (e.inputType === "historyUndo" || e.inputType === "historyRedo") e.preventDefault();
 }, true);
 document.addEventListener("staterefresh", render);
+/* stav syncu se překreslí jen ve štítku — celé překreslení by smazalo
+   rozepsanou URL v poli */
 document.addEventListener("syncstatus", () => {
-  if (App.route.page === "settings") render();
+  const b = document.getElementById("syncBadge");
+  if (b) b.innerHTML = syncBadgeHtml();
 });
 
 /* ===== Start ===== */

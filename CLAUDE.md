@@ -25,8 +25,8 @@ Osobní PWA pro zápis silových a kardio tréninků a stravy. **Jeden uživatel
 | `js/data.js` | stav `S`, `save()`, `replaceState()`, PR logika, milníky, plán trenéra, barvy partií (`CAT_COLOR`, `CAT_ORDER`, `sessionCatSets()`, `dayCatColors()`) |
 | `js/sync.js` | cloud sync + `mergeStates()` (slévání podle id) |
 | `js/foodapi.js` | OFF (cz → world), USDA, Claude vision (etiketa / jídlo), čárový kód |
-| `js/ui.js` | ikony `ic()`, toast (i s akcí), sheet, výběr cviku `openExPicker()`, kalendář, SVG grafy, rest timer `Rest` + zamčený timer `Dock`, `dayNavHtml()`, `cardHead()` |
-| `js/view-*.js` | obrazovky: today, workout, food, summary, checkin, menu |
+| `js/ui.js` | ikony `ic()`, toast (i s akcí), sheet, výběr cviku `openExPicker()`, kalendář, SVG grafy (`lineChart`, `columnChart`, `sparklineHtml`) + dotykový readout `ChartTip`, rest timer `Rest` + zamčený timer `Dock`, `dayNavHtml()`, `cardHead()` |
+| `js/view-*.js` | obrazovky: today, workout, food, summary, progress (Týden → Pokrok), checkin (stránka Postava), menu |
 | `js/report.js` | `buildCoachReport(range)` — textový report pro Clauda |
 | `js/app.js` | router + velký titulek (`pageHead()`), delegace akcí (`ACTIONS`), `withUndo()`, start |
 | `apps-script/Code.gs` | backend syncu v Google Sheetu + 7 denních záloh |
@@ -118,6 +118,8 @@ ať uživateli nezůstanou testovací data. Reálná data jdou stáhnout z jeho 
   adresáta — než na ně sáhneš, ověř s ním, čemu mají sloužit teď.
 - Kalorický cíl (původně od trenéra, jede dál): **2 200 kcal, B 180 / S 230 / T 60**,
   kardio „chůze, začátečnický běh do 5 km".
+- Check-in a fotky (v1.24 sloučené do stránky **Postava**) slouží teď jemu samému
+  — sledování změny postavy.
 - Tréninkový plán trenéra (Full Body A/B/C s poznámkami k technice) je
   naimportovaný v `data.js` jako `COACH_PLAN` (id `cp-*`), migrace běží jednou
   přes flag `coachPlanV1`.
@@ -191,6 +193,44 @@ z `Rest` a `S.activeSession`; `render()` volá `Dock.sync()`. Dřívější pauz
 cvikem (`restInlineHtml`, `hidden-by-inline`) je pryč — duplikovala by dock.
 `body.has-dock` přidá `--dock-h` do spodního odsazení stránky i pozice toastu.
 
+### Pokrok (v1.24, `view-progress.js`)
+
+Týden má tři podzáložky: **Tento týden · Pokrok · Přehled**. Pokrok = všechno
+o tréninku, od nejdůležitější odpovědi dolů:
+- **Posledních 30 dní** vs předchozích 30 (`periodStats()`): tréninky, série,
+  objem, nové rekordy — změna šipkou + číslem (`deltaHtml()`), volt = víc,
+  pokles neutrálně šedý (červená patří chybám).
+- **Síla** (`strengthRows()`): cviky odcvičené ≥ 2× za 90 dní, sparkline
+  nejlepšího výkonu v tréninku a změna první → poslední. Metrika je e1RM, u cviků
+  bez váhy nejvíc opakování (`exerciseSeries()`). Klepnutí → `openExerciseProgress()`
+  (graf + nejlepší série po trénincích). Nahradilo select s grafem v Přehledu.
+- **Série za týden** — `columnChart`, 12 týdnů, tento týden zvýrazněný.
+- **Pravidelnost** — mřížka 16 týdnů × 7 dní, sytost volt podle sérií, červená
+  tečka = kardio, klepnutí na den → `openDaySummary()`.
+- **Partie po týdnech** — small multiples: každá partie vlastní řádek, společné
+  měřítko. Záměrně ne skládaný sloupec: sedm barev partií od sebe v jednom
+  sloupci spolehlivě rozeznat nejde (Core↔Nohy, Záda↔Biceps).
+- pod tím karta **Partie** s rozsahem (`categoryCardHtml()`, přesunutá z Přehledu).
+
+Přehled teď drží kalendář, váhu a stravu. Grafy: viewBox široký 330 (≈ karta na
+telefonu, písmo 11 = 11 px), vlasová mřížka na „hezkých" hodnotách, 2px čára,
+koncový bod s popiskem. Každý graf nese v `data-tip` body pro `ChartTip` —
+klepnutí nebo vodorovný tah prstem ukáže hodnotu (`touch-action: pan-y`).
+
+### Postava (v1.24, `view-checkin.js`, stránka `body`)
+
+Týdenní check-in a fotky postupu jsou jedna stránka (`renderBody()`): stav
+check-inu s tlačítky Nový check-in / Fotka, porovnání „před a po", trend obvodů
+(chipy) a **časová osa** — check-iny a fotky podle data. Fotku jde přidat přímo
+ve formuláři check-inu (`CV.photoFile`), uloží se se stejným datem. Fotky dál
+jen v IndexedDB (`photos.js`, stav `PV` ve `view-menu.js`). Řádek check-inu jde
+dál kopírovat ve sloupcích tabulky (ikona). Texty „pro trenéra" v check-inu jsou
+pryč, funkce zůstaly.
+
+**Cloud sync** je v Export & Backup (ne v Nastavení): URL se ukládá hned po
+změně pole (`data-change="set-gas"`), stav syncu překresluje jen štítek
+`#syncBadge`, aby se nesmazala rozepsaná URL.
+
 ### Výběr cviku (`openExPicker()` v `ui.js`)
 
 Společný pro přidání/výměnu v tréninku i přidání do šablony. Titulek, hledání
@@ -247,8 +287,8 @@ Chová se jako nativní appka — bez zoomu, bez houpání, bez skákání:
   nebo `isNaN()`. Stepper to do v1.22.1 nedělal a u cviku bez historie
   ukázal po klepnutí na + „NaN".
 - **Týden** = tři odpovědi (dodržování, váha, odcvičený plán) + tlačítko
-  check-inu. Vzniklo, když měl trenéra; adresát teď chybí. Původních osm karet Souhrnu žije v podzáložce
-  **Přehled** (`SV.sub`).
+  check-inu. Vzniklo, když měl trenéra; adresát teď chybí. Trénink má podzáložku
+  **Pokrok**, kalendář, váha a strava **Přehled** (`SV.sub`).
 
 ## Záměrně neimplementováno
 

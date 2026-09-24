@@ -1,7 +1,7 @@
 /* ===== Obrazovky z hamburger menu ===== */
 "use strict";
 
-const APP_VERSION = "1.23";
+const APP_VERSION = "1.24";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -22,8 +22,7 @@ function openMoreSheet() {
     ["book", "Exercise Library", "menu", "page", "exlib"],
     ["list", "Workout Templates", "menu", "page", "templates"],
     ["star", "Food Library", "menu", "page", "foodlib"],
-    ["camera", "Fotky postupu", "menu", "page", "photos"],
-    ["clipboard", "Týdenní check‑in", "menu", "page", "checkin"],
+    ["body", "Postava", "menu", "page", "body"],
     ["share", "Export & Backup", "menu", "page", "export"],
     ["sliders", "Nastavení", "menu", "page", "settings"],
     ["info", "O aplikaci", "menu", "page", "about"]
@@ -381,12 +380,54 @@ function saveFoodEdit(id) {
 }
 
 /* ================= Export & Backup ================= */
+/* Stav syncu jako štítek — překresluje se samostatně (syncstatus v app.js),
+   aby překreslení stránky nesmazalo rozepsanou URL */
+function syncBadgeHtml() {
+  return {
+    off: `<span class="badge">nenastaveno</span>`,
+    ok: `<span class="badge green">${ic("check", 12, 3)} synchronizováno</span>`,
+    pending: `<span class="badge neutral">probíhá…</span>`,
+    error: `<span class="badge red">chyba${Sync.lastError ? ": " + esc(Sync.lastError) : ""}</span>`
+  }[Sync.status];
+}
+
 function renderExport() {
+  const st = Settings.get();
   const chips = REPORT_RANGES.concat([{ id: "custom", label: "Vlastní" }]).map(r =>
     `<button class="chip rngchip${MV.reportRange === r.id ? " on" : ""}" data-act="rep-range" data-range="${r.id}">${r.label}</button>`).join("");
   return `
     <div class="card">
-      <div class="h2">Report pro Clauda / trenéra</div>
+      ${cardHead("cloud", "Cloud sync", `<span id="syncBadge">${syncBadgeHtml()}</span>`)}
+      <p class="muted" style="margin:-4px 0 12px">Automatická záloha do Google Sheetu po každé změně + slévání mezi zařízeními.
+        Apps Script navíc drží 7 denních záloh.</p>
+      <label class="field"><span>Apps Script Web App URL</span>
+        <input class="input" id="setGas" data-change="set-gas" placeholder="https://script.google.com/macros/s/…/exec"
+          value="${esc(st.gasWebAppUrl)}" autocomplete="off" autocorrect="off" spellcheck="false"></label>
+      <p class="small" style="margin:-4px 0 12px">URL funguje jako přístupový klíč — ukládá se jen v tomto zařízení, nikam se nesdílí. Návod na nasazení skriptu je v souboru README.</p>
+      <div class="row" style="gap:8px">
+        <button class="btn grow" data-act="set-sync-now">${ic("share", 17)} Uložit</button>
+        <button class="btn grow" data-act="set-sync-load"><span style="display:flex;transform:rotate(180deg)">${ic("share", 17)}</span> Načíst</button>
+      </div>
+    </div>
+    <div class="card">
+      ${cardHead("share", "Záloha do souboru")}
+      <p class="muted" style="margin:0 0 14px">Záloha nad rámec automatického cloud syncu. JSON lze později importovat, Markdown je čitelný souhrn.
+      Fotky součástí nejsou — stahují se jednotlivě v Postavě (detail fotky).</p>
+      <button class="btn primary full" data-act="exp-share">${ic("share", 18, 2.2)} Export &amp; Share</button>
+      <div class="row mt" style="gap:8px">
+        <button class="btn grow" data-act="exp-json">Stáhnout JSON</button>
+        <button class="btn grow" data-act="exp-md">Stáhnout Markdown</button>
+      </div>
+      <p class="small mt" style="margin-bottom:0">JSON je vždy kompletní záloha. Markdown i report níž jdou omezit na rozsah zvolený v reportu.</p>
+    </div>
+    <div class="card">
+      ${cardHead("alert", "Import zálohy")}
+      <p class="muted" style="margin:0 0 12px">Nahraje JSON zálohu a <b>přepíše aktuální data</b>.</p>
+      <input type="file" id="impFile" accept=".json,application/json" class="input">
+      <button class="btn danger full mt" data-act="exp-import">Importovat</button>
+    </div>
+    <div class="card">
+      ${cardHead("copy", "Report pro Clauda / trenéra")}
       <p class="muted" style="margin:0 0 10px">Čitelný přehled tréninků, progrese, váhy a stravy — zkopíruj a vlož do chatu.
       Neobsahuje sync URL ani API klíče.</p>
       <div class="chips">${chips}</div>
@@ -396,23 +437,6 @@ function renderExport() {
         <button class="btn grow" data-act="rep-share">Sdílet</button>
       </div>
       <button class="btn ghost sm full mt" data-act="rep-preview">Zobrazit náhled</button>
-    </div>
-    <div class="card">
-      <div class="h2">Export &amp; Backup</div>
-      <p class="muted" style="margin:0 0 14px">Záloha nad rámec automatického cloud syncu. JSON lze později importovat, Markdown je čitelný souhrn.
-      Fotky postupu součástí nejsou — stahují se jednotlivě v galerii.</p>
-      <button class="btn primary full" data-act="exp-share">${ic("share", 18, 2.2)} Export &amp; Share</button>
-      <div class="row mt" style="gap:8px">
-        <button class="btn grow" data-act="exp-json">Stáhnout JSON</button>
-        <button class="btn grow" data-act="exp-md">Stáhnout Markdown</button>
-      </div>
-      <p class="small mt" style="margin-bottom:0">JSON je vždy kompletní záloha. Markdown a report nahoře jdou omezit na vybraný rozsah.</p>
-    </div>
-    <div class="card">
-      <div class="h2">Import zálohy</div>
-      <p class="muted" style="margin:0 0 12px">Nahraje JSON zálohu a <b>přepíše aktuální data</b>.</p>
-      <input type="file" id="impFile" accept=".json,application/json" class="input">
-      <button class="btn danger full mt" data-act="exp-import">Importovat</button>
     </div>`;
 }
 
@@ -559,24 +583,7 @@ function importBackup() {
 function renderSettings() {
   const st = Settings.get();
   const g = S.goal;
-  const syncState = {
-    off: `<span class="badge">nenastaveno</span>`,
-    ok: `<span class="badge green">synchronizováno</span>`,
-    pending: `<span class="badge neutral">probíhá…</span>`,
-    error: `<span class="badge red">chyba${Sync.lastError ? ": " + esc(Sync.lastError) : ""}</span>`
-  }[Sync.status];
   return `
-    <div class="card">
-      <div class="h2">Cloud sync (Google Sheets)</div>
-      <div class="row between" style="margin-bottom:10px"><span class="muted">Stav</span>${syncState}</div>
-      <label class="field"><span>Apps Script Web App URL</span>
-        <input class="input" id="setGas" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(st.gasWebAppUrl)}"></label>
-      <p class="small" style="margin:0 0 10px">URL funguje jako přístupový klíč — ukládá se jen v tomto zařízení, nikam se nesdílí. Návod na nasazení skriptu je v souboru README.</p>
-      <div class="row" style="gap:8px">
-        <button class="btn grow" data-act="set-sync-now">↑ Uložit do cloudu</button>
-        <button class="btn grow" data-act="set-sync-load">↓ Načíst z cloudu</button>
-      </div>
-    </div>
     <div class="card">
       <div class="h2">Denní nutriční cíl</div>
       <div class="input-row">
@@ -606,7 +613,7 @@ function renderSettings() {
     </div>
     <div class="card">
       <div class="h2">Přenos nastavení na jiné zařízení</div>
-      <p class="muted" style="margin:0 0 12px">QR kód přenese sync URL, API klíče a jednotky — na novém zařízení je nemusíš opisovat.</p>
+      <p class="muted" style="margin:0 0 12px">QR kód přenese sync URL (Export &amp; Backup), API klíče a jednotky — na novém zařízení je nemusíš opisovat.</p>
       <div class="row" style="gap:8px">
         <button class="btn grow" data-act="set-qr-show">Zobrazit QR</button>
         <button class="btn grow" data-act="set-qr-scan">Načíst z QR</button>
@@ -618,7 +625,6 @@ function renderSettings() {
 
 function saveSettings() {
   Settings.set({
-    gasWebAppUrl: document.getElementById("setGas").value.trim(),
     usdaApiKey: document.getElementById("setUsda").value.trim(),
     anthropicApiKey: document.getElementById("setAnthropic").value.trim(),
     weightUnit: document.getElementById("setUnit").value,
@@ -631,90 +637,18 @@ function saveSettings() {
     fatGrams: parseInt(document.getElementById("setFat").value, 10) || 0
   };
   save();
-  if (!Sync.url()) Sync.setStatus("off");
   render();
   toast("Nastavení uloženo ✓", "ok");
 }
 
 /* ================= Fotky postupu ================= */
+/* Stav fotek pro stránku Postava (renderBody ve view-checkin.js) */
 const PV = { items: null, loading: false, urls: [], modalUrl: null, cmpA: null, cmpB: null, pendingFile: null };
 
 function photoUrl(rec) {
   const u = URL.createObjectURL(rec.blob);
   PV.urls.push(u);
   return u;
-}
-
-function renderPhotos() {
-  // uvolnit objectURL z předchozího vykreslení (obrázky se vytvářejí znovu)
-  PV.urls.forEach(u => URL.revokeObjectURL(u));
-  PV.urls = [];
-
-  if (PV.items === null) {
-    if (!PV.loading) {
-      PV.loading = true;
-      Photos.list().then(list => {
-        PV.items = list;
-        PV.loading = false;
-        if (App.route.page === "photos") render();
-      }).catch(e => {
-        PV.items = []; PV.loading = false;
-        toast("Fotky se nepodařilo načíst: " + e.message, "err");
-      });
-    }
-    return `<div class="card"><div class="spin" style="margin:24px auto"></div></div>`;
-  }
-
-  const items = PV.items;
-  const addBtn = `
-    <input type="file" id="photoAddInput" accept="image/*" style="display:none">
-    <button class="btn primary full" style="margin-bottom:14px" data-act="ph-add">${ic("camera", 18, 2.2)} Přidat fotku</button>`;
-
-  if (!items.length) {
-    return addBtn + `<div class="card"><div class="empty-note">
-      Zatím žádné fotky.<br>Foť se jednou týdně za stejných podmínek —<br>u tvarování postavy ukážou fotky změnu, kterou váha neukáže.
-    </div></div>`;
-  }
-
-  /* porovnání dvou fotek — výchozí nejstarší vs. nejnovější */
-  let compare = "";
-  if (items.length >= 2) {
-    const ids = items.map(p => p.id);
-    if (!ids.includes(PV.cmpA)) PV.cmpA = items[items.length - 1].id; // nejstarší
-    if (!ids.includes(PV.cmpB)) PV.cmpB = items[0].id;                // nejnovější
-    const a = items.find(p => p.id === PV.cmpA), b = items.find(p => p.id === PV.cmpB);
-    const opts = (sel) => items.map(p =>
-      `<option value="${p.id}"${p.id === sel ? " selected" : ""}>${fmtDate(p.date)}</option>`).join("");
-    const days = Math.round((parseDate(b.date) - parseDate(a.date)) / 86400000);
-    compare = `
-      <div class="card">
-        <div class="h2">Porovnání${days ? ` <span class="small">(rozdíl ${Math.abs(days)} dní)</span>` : ""}</div>
-        <div class="photo-cmp">
-          <div>
-            <img src="${photoUrl(a)}" alt="Fotka ${fmtDate(a.date)}">
-            <select class="input" data-change="ph-cmp-a">${opts(PV.cmpA)}</select>
-          </div>
-          <div>
-            <img src="${photoUrl(b)}" alt="Fotka ${fmtDate(b.date)}">
-            <select class="input" data-change="ph-cmp-b">${opts(PV.cmpB)}</select>
-          </div>
-        </div>
-      </div>`;
-  }
-
-  const grid = items.map(p => `
-    <div class="photo-cell" data-act="ph-detail" data-id="${p.id}">
-      <img src="${photoUrl(p)}" alt="Fotka ${fmtDate(p.date)}" loading="lazy">
-      <span>${fmtDate(p.date)}</span>
-    </div>`).join("");
-
-  return addBtn + compare + `
-    <div class="card">
-      <div class="h2">Galerie <span class="small">(${items.length})</span></div>
-      <div class="photo-grid">${grid}</div>
-      <p class="small mt">Fotky zůstávají jen v tomto zařízení — nejdou do cloud syncu ani do JSON zálohy.
-      Jednotlivě je stáhneš v detailu fotky.</p>
-    </div>`;
 }
 
 /* výběr souboru → potvrzovací modal s datem a poznámkou */

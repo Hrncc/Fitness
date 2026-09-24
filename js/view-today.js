@@ -25,7 +25,7 @@ function renderToday() {
             ? "Zatím žádný — obvody a pocity"
             : `Poslední před ${since} dny`}</div>
         </div>
-        <button class="btn sm tonal" data-act="menu" data-page="checkin">Vyplnit</button>
+        <button class="btn sm tonal" data-act="menu" data-page="body">Vyplnit</button>
       </div>
     </div>` : "";
 

@@ -4,11 +4,10 @@
 "use strict";
 
 const SV = {
-  sub: "week",        // week (odpovědi pro trenéra) | detail (Přehled)
+  sub: "week",        // week (tři odpovědi) | progress (Pokrok — trénink) | detail (Přehled)
   catRange: "all",    // rozsah karty partií: week | month | all | custom
   catFrom: addDays(todayStr(), -13),   // vlastní rozsah partií (od–do včetně)
   catTo: todayStr(),
-  exerciseId: null,   // vybraný cvik pro graf progresu
   calY: new Date().getFullYear(),
   calM: new Date().getMonth()
 };
@@ -17,25 +16,16 @@ const SV = {
 function summaryHead() {
   const { from, to } = weekBounds();
   const s = parseDate(from), e = parseDate(to);
-  return {
-    title: SV.sub === "detail" ? "Přehled" : "Týden",
-    sub: SV.sub === "detail" ? "Kalendář, partie a trendy"
-      : `${s.getDate()}. ${s.getMonth() + 1}. – ${e.getDate()}. ${e.getMonth() + 1}. ${e.getFullYear()}`
-  };
+  if (SV.sub === "progress") return { title: "Pokrok", sub: "Jak se ti vede v tréninku" };
+  if (SV.sub === "detail") return { title: "Přehled", sub: "Kalendář, váha a strava" };
+  return { title: "Týden", sub: `${s.getDate()}. ${s.getMonth() + 1}. – ${e.getDate()}. ${e.getMonth() + 1}. ${e.getFullYear()}` };
 }
 
 function renderSummary() {
-  /* Statistické karty jedou na pevném měsíčním okně; rozsah se přepíná
-     jen tam, kde na něm záleží — v kartě Partie. */
+  /* Statistické karty jedou na pevném měsíčním okně. Trénink má vlastní
+     podzáložku Pokrok (view-progress.js), tady zůstává kalendář, váha a strava. */
   const days = 30;
   const from = addDays(todayStr(), -(days - 1));
-
-  const inRange = s => s.date >= from;
-  const sessions = S.sessions.filter(inRange);
-  const weights = sessions.filter(s => s.type === "weights");
-  const cardio = sessions.filter(s => s.type === "cardio");
-  const totalVolume = weights.reduce((v, s) => v + sessionVolume(s), 0);
-  const cardioMin = cardio.reduce((v, s) => v + ((s.entries[0] || {}).duration || 0), 0);
 
   /* -- sjednocený kalendář: trénink + kalorický cíl -- */
   const calendarCard = `
@@ -54,111 +44,6 @@ function renderSummary() {
       <div class="small" style="margin-top:8px">Proužky ve dni = odcvičené partie, tečka v rohu = splněný kalorický cíl (±10 %).
         Klepni na den pro detail a zápis.</div>
     </div>`;
-
-  /* -- trénink: statistiky -- */
-  const workoutStats = `
-    <div class="card">
-      <div class="h2">Trénink <span class="small">(posledních ${days} dní)</span></div>
-      <div class="stat-grid">
-        <div class="stat"><div class="val">${weights.length}</div><div class="lbl">silových tréninků</div></div>
-        <div class="stat"><div class="val">${cardio.length}</div><div class="lbl">kardio (${fmtNum(cardioMin)} min)</div></div>
-        <div class="stat"><div class="val">${fmtWeight(totalVolume, false)}</div><div class="lbl">celkový objem (${weightUnit()})</div></div>
-        <div class="stat"><div class="val" style="color:var(--yellow)">${prCountInRange(from)}</div><div class="lbl">nových PR</div></div>
-      </div>
-      ${(() => {
-        const rated = sessions.filter(s => s.rating);
-        if (!rated.length) return "";
-        const avg = rated.reduce((a, s) => a + s.rating, 0) / rated.length;
-        return `<p class="small mt" style="margin-bottom:0">Ø kvalita tréninků: <b style="color:var(--text)">${fmtNum(avg, 1)}/10</b> (${rated.length} hodnocení)</p>`;
-      })()}
-    </div>`;
-
-  /* -- partie: co se dělá málo --
-     Sloupec je počet sérií, ne kila — u core a cviků s vlastní vahou je objem
-     nulový, takže by taková partie vypadala jako netrénovaná. „Naposledy"
-     se počítá vždy z celé historie, ať přepnutý rozsah nelže. */
-  const catStats = {};
-  for (const c of CAT_ORDER) catStats[c] = { sets: 0, volume: 0, last: null };
-  const catOf = e => (getExercise(e.exerciseId) || {}).category || "Ostatní";
-  const catCustom = SV.catRange === "custom";
-  const catFrom = catCustom ? SV.catFrom
-    : { week: addDays(todayStr(), -6), month: addDays(todayStr(), -29), all: "" }[SV.catRange];
-  const catTo = catCustom ? SV.catTo : todayStr();
-  for (const s of S.sessions) {
-    if (s.type !== "weights") continue;
-    for (const e of s.entries) {
-      const cat = catOf(e);
-      if (!catStats[cat]) catStats[cat] = { sets: 0, volume: 0, last: null };
-      const st = catStats[cat];
-      if (!(e.sets || []).length) continue;
-      if (!st.last || s.date > st.last) st.last = s.date;
-      if (s.date < catFrom || s.date > catTo) continue;
-      for (const set of e.sets) {
-        st.sets++;
-        st.volume += (set.reps || 0) * (set.weight || 0);
-      }
-    }
-  }
-  const catRows = Object.entries(catStats)
-    .sort((a, b) => b[1].sets - a[1].sets || b[1].volume - a[1].volume);
-  const catMaxSets = Math.max(...catRows.map(([, v]) => v.sets), 1);
-  const setWord = n => n === 1 || (n >= 2 && n <= 4) ? "série" : "sérií";
-  const catRangeLabel = catCustom
-    ? (catFrom === catTo ? fmtDate(catFrom) : `${fmtDate(catFrom)} – ${fmtDate(catTo)}`)
-    : { week: "posledních 7 dní", month: "posledních 30 dní", all: "celá historie" }[SV.catRange];
-  const catChips = [["week", "Týden"], ["month", "Měsíc"], ["all", "Vše"], ["custom", "Vlastní"]].map(([k, lbl]) =>
-    `<button class="chip${SV.catRange === k ? " on" : ""}" data-act="s-cat-range" data-range="${k}">${lbl}</button>`).join("");
-
-  const categoryCard = `
-    <div class="card">
-      <div class="h2">Partie <span class="small">(${catRangeLabel})</span></div>
-      <div class="chips">${catChips}</div>
-      ${catCustom ? dateRangeRow("cat", catFrom, catTo) : ""}
-      ${catRows.map(([cat, v]) => {
-        const gap = v.last == null ? null : daysBetween(v.last, todayStr());
-        const stale = gap == null || gap > 14;
-        const lastTxt = v.last == null ? "netrénováno"
-          : gap === 0 ? "dnes" : gap === 1 ? "včera" : `před ${gap} dny`;
-        return `
-        <div class="mt">
-          <div class="row between" style="margin-bottom:4px">
-            <span class="small" style="font-weight:700;color:var(--${v.sets ? "text" : "text3"});display:inline-flex;align-items:center;gap:7px">
-              <i class="p-dot" style="background:${catColor(cat)}${v.sets ? "" : ";opacity:.45"}"></i>${esc(cat)}</span>
-            <span class="small">${v.sets} ${setWord(v.sets)}${v.volume ? ` · ${fmtNum(kgOut(v.volume))} ${weightUnit()}` : ""}
-              · <span style="${stale ? "color:var(--yellow);font-weight:700" : ""}">${lastTxt}</span></span>
-          </div>
-          <div class="bar mini"><div style="width:${(v.sets / catMaxSets * 100).toFixed(1)}%;background:${catColor(cat)}"></div></div>
-        </div>`;
-      }).join("")}
-      <p class="small mt" style="margin-bottom:0">Sloupec = počet sérií (porovnává partie líp než kila).
-        Zlatě partie, kterou jsi netrénoval přes 14 dní — „naposledy" je vždy z celé historie.
-        Barva partie je stejná napříč celou appkou.</p>
-    </div>`;
-
-  /* -- progres cviku -- */
-  const trained = [...new Set(S.sessions.filter(s => s.type === "weights")
-    .flatMap(s => s.entries.map(e => e.exerciseId)))].filter(getExercise);
-  let exerciseChart = "";
-  if (trained.length) {
-    if (!SV.exerciseId || !trained.includes(SV.exerciseId)) SV.exerciseId = trained[0];
-    const series = S.sessions
-      .filter(s => s.type === "weights")
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map(s => {
-        let best = 0;
-        for (const e of s.entries) if (e.exerciseId === SV.exerciseId)
-          for (const st of e.sets || []) best = Math.max(best, est1RM(st.weight, st.reps));
-        return best ? { date: s.date, value: Math.round(kgOut(best) * 10) / 10 } : null;
-      }).filter(Boolean);
-    const opts = trained.map(id =>
-      `<option value="${id}"${id === SV.exerciseId ? " selected" : ""}>${esc(exName(id))}</option>`).join("");
-    exerciseChart = `
-      <div class="card">
-        <div class="h2">Progres cviku <span class="small">(e1RM, ${weightUnit()})</span></div>
-        <select class="input" data-change="s-exercise" style="margin-bottom:12px">${opts}</select>
-        ${lineChart(series, { color: "chart" })}
-      </div>`;
-  }
 
   /* -- strava: statistiky -- */
   const nutDays = [];
@@ -251,10 +136,76 @@ function renderSummary() {
   const tabs = `
     <div class="subtabs">
       <button class="subtab${SV.sub === "week" ? " on" : ""}" data-act="s-sub" data-sub="week">Tento týden</button>
+      <button class="subtab${SV.sub === "progress" ? " on" : ""}" data-act="s-sub" data-sub="progress">Pokrok</button>
       <button class="subtab${SV.sub === "detail" ? " on" : ""}" data-act="s-sub" data-sub="detail">Přehled</button>
     </div>`;
   if (SV.sub === "week") return tabs + weekAnswersHtml() + weekTrainingHtml() + checkinPrepHtml();
-  return tabs + calendarCard + categoryCard + workoutStats + exerciseChart + weightCard + balanceCard + foodStats + foodChart;
+  if (SV.sub === "progress") return tabs + renderProgress() + categoryCardHtml();
+  return tabs + calendarCard + weightCard + balanceCard + foodStats + foodChart;
+}
+
+/* ---- Partie: co se dělá málo (Pokrok) ----
+   Sloupec je počet sérií, ne kila — u core a cviků s vlastní vahou je objem
+   nulový, takže by taková partie vypadala jako netrénovaná. „Naposledy"
+   se počítá vždy z celé historie, ať přepnutý rozsah nelže. */
+function categoryCardHtml() {
+  const catStats = {};
+  for (const c of CAT_ORDER) catStats[c] = { sets: 0, volume: 0, last: null };
+  const catOf = e => (getExercise(e.exerciseId) || {}).category || "Ostatní";
+  const catCustom = SV.catRange === "custom";
+  const catFrom = catCustom ? SV.catFrom
+    : { week: addDays(todayStr(), -6), month: addDays(todayStr(), -29), all: "" }[SV.catRange];
+  const catTo = catCustom ? SV.catTo : todayStr();
+  for (const s of S.sessions) {
+    if (s.type !== "weights") continue;
+    for (const e of s.entries) {
+      const cat = catOf(e);
+      if (!catStats[cat]) catStats[cat] = { sets: 0, volume: 0, last: null };
+      const st = catStats[cat];
+      if (!(e.sets || []).length) continue;
+      if (!st.last || s.date > st.last) st.last = s.date;
+      if (s.date < catFrom || s.date > catTo) continue;
+      for (const set of e.sets) {
+        st.sets++;
+        st.volume += (set.reps || 0) * (set.weight || 0);
+      }
+    }
+  }
+  const catRows = Object.entries(catStats)
+    .sort((a, b) => b[1].sets - a[1].sets || b[1].volume - a[1].volume);
+  const catMaxSets = Math.max(...catRows.map(([, v]) => v.sets), 1);
+  const setWord = n => n === 1 || (n >= 2 && n <= 4) ? "série" : "sérií";
+  const catRangeLabel = catCustom
+    ? (catFrom === catTo ? fmtDate(catFrom) : `${fmtDate(catFrom)} – ${fmtDate(catTo)}`)
+    : { week: "posledních 7 dní", month: "posledních 30 dní", all: "celá historie" }[SV.catRange];
+  const catChips = [["week", "Týden"], ["month", "Měsíc"], ["all", "Vše"], ["custom", "Vlastní"]].map(([k, lbl]) =>
+    `<button class="chip${SV.catRange === k ? " on" : ""}" data-act="s-cat-range" data-range="${k}">${lbl}</button>`).join("");
+
+  return `
+    <div class="card">
+      ${cardHead("target", "Partie", `<span class="small">${catRangeLabel}</span>`)}
+      <div class="chips">${catChips}</div>
+      ${catCustom ? dateRangeRow("cat", catFrom, catTo) : ""}
+      ${catRows.map(([cat, v]) => {
+        const gap = v.last == null ? null : daysBetween(v.last, todayStr());
+        const stale = gap == null || gap > 14;
+        const lastTxt = v.last == null ? "netrénováno"
+          : gap === 0 ? "dnes" : gap === 1 ? "včera" : `před ${gap} dny`;
+        return `
+        <div class="mt">
+          <div class="row between" style="margin-bottom:4px">
+            <span class="small" style="font-weight:700;color:var(--${v.sets ? "text" : "text3"});display:inline-flex;align-items:center;gap:7px">
+              <i class="p-dot" style="background:${catColor(cat)}${v.sets ? "" : ";opacity:.45"}"></i>${esc(cat)}</span>
+            <span class="small">${v.sets} ${setWord(v.sets)}${v.volume ? ` · ${fmtNum(kgOut(v.volume))} ${weightUnit()}` : ""}
+              · <span style="${stale ? "color:var(--yellow);font-weight:700" : ""}">${lastTxt}</span></span>
+          </div>
+          <div class="bar mini"><div style="width:${(v.sets / catMaxSets * 100).toFixed(1)}%;background:${catColor(cat)}"></div></div>
+        </div>`;
+      }).join("")}
+      <p class="small mt" style="margin-bottom:0">Sloupec = počet sérií (porovnává partie líp než kila).
+        Zlatě partie, kterou jsi netrénoval přes 14 dní — „naposledy" je vždy z celé historie.
+        Barva partie je stejná napříč celou appkou.</p>
+    </div>`;
 }
 
 /* ===== Týden — tři odpovědi, které chce trenér =====
@@ -344,8 +295,8 @@ function checkinPrepHtml() {
       <p class="small" style="margin:0 0 14px">Předvyplní se z týdne: váha
         <b style="color:var(--text)">${avg != null ? fmtNum(kgOut(avg), 1) + " " + weightUnit() : "—"}</b>,
         dodržování <b style="color:var(--text)">${a.pct != null ? a.pct + " %" : "—"}</b>, obvody z minula.
-        Zkontroluj, doplň pocity, odešli.</p>
-      <button class="btn primary full" data-act="menu" data-page="checkin">Připravit check-in ${ic("arrowR", 18, 2.4)}</button>
+        Zkontroluj, doplň pocity a fotku, ulož.</p>
+      <button class="btn primary full" data-act="menu" data-page="body">Připravit check-in ${ic("arrowR", 18, 2.4)}</button>
     </div>`;
 }
 
@@ -391,11 +342,4 @@ function dayAddButtons(ds) {
       <button class="btn sm tonal grow" data-act="bw-open" data-date="${ds}">${bodyWeightOn(ds) != null ? "Upravit váhu" : "+ Váha"}</button>
       <button class="btn sm primary grow" data-act="sum-add-food" data-date="${ds}">+ Jídlo</button>
     </div>`;
-}
-
-function prCountInRange(from) {
-  let n = 0;
-  const ids = new Set(S.sessions.filter(s => s.type === "weights").flatMap(s => s.entries.map(e => e.exerciseId)));
-  for (const id of ids) n += prHistory(id).filter(h => h.date >= from).length;
-  return n;
 }
