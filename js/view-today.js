@@ -138,11 +138,11 @@ function todayWorkoutItem(today, hero) {
     const hit = CAT_ORDER.filter(c => counts[c] > 0 || (core && c === "Core")).length;
     return `
       <div class="card${hero ? " item-hero" : ""}">
-        ${cardHead("dumbbell", "Trénink", `<span class="badge neutral">Probíhá</span>`)}
+        ${cardHead("dumbbell", "Trénink", `<span class="badge neutral">${a.editOf ? "Úprava" : "Probíhá"}</span>`)}
         <div class="hero-title">${esc(sessionLabel(a))}</div>
         <div class="muted" style="margin-bottom:12px">${setCount} sérií · ${hit} ze ${CAT_ORDER.length} partií</div>
         ${a.type === "weights" ? catPipsHtml(counts, core) : ""}
-        <button class="btn primary full mt" data-act="nav" data-tab="workout">Pokračovat ${ic("arrowR", 18, 2.4)}</button>
+        <button class="btn primary full mt" data-act="nav" data-tab="workout">${a.editOf ? "Pokračovat v úpravě" : "Pokračovat"} ${ic("arrowR", 18, 2.4)}</button>
       </div>`;
   }
 

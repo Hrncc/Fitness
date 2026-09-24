@@ -231,6 +231,7 @@ const ACTIONS = {
   "w-day-today": () => { WV.date = todayStr(); render(); },
   "w-begin": d => beginWorkout(d.template === "custom" ? null : d.template),
   "w-cardio": () => openCardioModal(),
+  "w-cardio-edit": d => openCardioModal(d.id),
   "w-cardio-save": () => saveCardio(),
   "w-sport-chip": d => {
     WV.sportChoice = d.sport;
@@ -252,8 +253,20 @@ const ACTIONS = {
   "w-add-set": d => addSet(Number(d.i)),
   "w-del-set": d => {
     S.activeSession.entries[Number(d.i)].sets.splice(Number(d.j), 1);
+    WV.editSet = null;
     save(); render();
   },
+  /* oprava zapsané série — klepnutí na sérii ji načte do polí */
+  "w-set-edit": d => {
+    const i = Number(d.i), j = Number(d.j);
+    WV.editSet = WV.editSet && WV.editSet.i === i && WV.editSet.j === j ? null : { i, j };
+    render();
+  },
+  "w-set-save": d => saveSetEdit(Number(d.i)),
+  "w-set-cancel": () => { WV.editSet = null; render(); },
+  /* zpětná úprava uloženého tréninku (detail tréninku) */
+  "w-edit-session": d => beginEditSession(d.id),
+  "w-rate-open": d => openRatingModal(d.id, true),
   /* core ano/ne — v probíhajícím tréninku i zpětně v detailu */
   "w-core": () => {
     const a = S.activeSession;
@@ -272,6 +285,7 @@ const ACTIONS = {
   "w-remove-ex": d => {
     S.activeSession.entries.splice(Number(d.i), 1);
     WV.openIdx = null; // indexy se posunuly
+    WV.editSet = null;
     save(); render();
   },
   "w-swap-ex": d => openExercisePicker(Number(d.i)),
@@ -279,12 +293,14 @@ const ACTIONS = {
   "w-ex-open": d => {
     const i = Number(d.i);
     WV.openIdx = WV.openIdx === i ? null : i;
+    WV.editSet = null;
     render();
     const el = document.getElementById("exblock-" + i);
     if (el && WV.openIdx === i) el.scrollIntoView({ block: "center", behavior: "smooth" });
   },
-  "w-ex-close": () => { WV.openIdx = null; render(); },
+  "w-ex-close": () => { WV.openIdx = null; WV.editSet = null; render(); },
   "w-ex-done": d => {
+    WV.editSet = null;
     S.activeSession.entries[Number(d.i)].done = true;
     WV.openIdx = null;   // po dokončení se cvik sbalí
     save(); render();
@@ -300,6 +316,7 @@ const ACTIONS = {
     const a = S.activeSession;
     if (!a) { closeModal(); return; }
     if (a.entries.some(e => e.exerciseId === d.exid)) { toast("Cvik už v tréninku je", "err"); return; }
+    WV.editSet = null;
     if (WV.pickerIndex == null) {
       a.entries.push({ exerciseId: d.exid, sets: [] });
       WV.openIdx = a.entries.length - 1;   // nový cvik rovnou rozbal
@@ -323,7 +340,9 @@ const ACTIONS = {
       save();
     }
     closeModal();
+    render();
     toast("Hodnocení uloženo ✓", "ok");
+    if (d.back && s) openSessionDetail(s.id);   // z detailu zpět do detailu
   },
 
   /* ---- Rest timer (zamčený dock) ---- */
@@ -338,7 +357,8 @@ const ACTIONS = {
   "rest-plus": () => Rest.adjust(30),
   "rest-minus": () => Rest.adjust(-30),
   "rest-stop": () => Rest.stop(),
-  "w-cancel": () => withUndo("Trénink zrušen", () => { S.activeSession = null; WV.openIdx = null; }),
+  "w-cancel": () => withUndo(S.activeSession && S.activeSession.editOf ? "Úpravy zahozeny" : "Trénink zrušen",
+    () => { S.activeSession = null; WV.openIdx = null; WV.editSet = null; }),
   "w-pr-history": d => openPRHistory(d.exid),
   "w-detail": d => openSessionDetail(d.id),
   "w-del-session": d => withUndo("Trénink smazán", () => {
@@ -570,6 +590,11 @@ document.addEventListener("change", e => {
   if (!t) return;
   if (t.dataset.change === "f-date") {
     if (t.value) { FV.date = t.value; render(); }
+  }
+  /* datum upravovaného uloženého tréninku */
+  if (t.dataset.change === "w-edit-date" && t.value && S.activeSession) {
+    S.activeSession.date = t.value;
+    save(); render();
   }
   if (t.dataset.change === "w-date") {
     if (t.value) { WV.date = t.value; render(); }

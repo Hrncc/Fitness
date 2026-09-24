@@ -11,6 +11,8 @@ const WV = {
   openIdx: null,              // rozbalený cvik v aktivní session (akordeon)
   counterOpen: false,         // counter partií: pruh (false) | detail s cviky (true)
   pickerIndex: null,          // null = přidání cviku, číslo = výměna na indexu
+  editSet: null,              // {i, j} — opravovaná série v otevřeném cviku
+  cardioEdit: null,           // id upravovaného kardia (null = nový zápis)
   sportChoice: CARDIO_SPORTS[0]
 };
 
@@ -27,6 +29,14 @@ function workoutHead() {
     data-sub="${on ? "log" : "pr"}" aria-label="Osobní rekordy">${ic("trophy", 19)}</button>`;
   if (WV.sub === "pr") return { title: "Rekordy", sub: "Osobní maxima podle e1RM", right: prBtn(true) };
   const a = S.activeSession;
+  if (a && a.type === "weights" && a.editOf) {
+    const sets = a.entries.reduce((n, e) => n + (e.sets || []).length, 0);
+    return {
+      title: sessionLabel(a),
+      sub: `Úprava uloženého tréninku · <b>${a.entries.length}</b> cviků · <b>${sets}</b> ${setWordTop(sets)}`,
+      right: prBtn(false)
+    };
+  }
   if (a && a.type === "weights") {
     const total = a.entries.length;
     const done = a.entries.filter(e => e.done).length;
@@ -118,7 +128,7 @@ function renderActiveSession() {
           <i class="p-stripe" style="background:${pcol}"></i>
           <span class="done-check">${ic("check", 16, 3)}</span>
           <div class="grow">
-            <div class="name" style="font-weight:700">${esc(ex ? ex.name : "?")}</div>
+            <div class="name" style="font-weight:700">${esc(exName(entry.exerciseId))}</div>
             <div class="small">${setCount} ${setWord(setCount)} · ${summary} ${weightUnit()}${entry.prHit ? ` · <span style="color:var(--yellow);font-weight:700">PR!</span>` : ""}</div>
           </div>
           ${dragHandleHtml(i)}
@@ -137,7 +147,7 @@ function renderActiveSession() {
           <i class="p-stripe" style="background:${pcol}"></i>
           <span class="ex-num">${i + 1}</span>
           <div class="grow">
-            <div class="name" style="font-weight:700">${esc(ex ? ex.name : "?")}</div>
+            <div class="name" style="font-weight:700">${esc(exName(entry.exerciseId))}</div>
             <div class="small">${esc(sub)}</div>
           </div>
           ${dragHandleHtml(i)}
@@ -147,14 +157,25 @@ function renderActiveSession() {
 
     // předvyplnění další série podle minulého tréninku (stejný index, jinak poslední)
     const pf = last ? (last.sets[setCount] || last.sets[last.sets.length - 1]) : null;
-    const prog = progressionSuggestion(ex, last);
+    // návrh progrese a „blízko rekordu" patří živému tréninku, ne opravě
+    // uloženého (rekord by se navíc porovnával sám se sebou)
+    const prog = a.editOf ? null : progressionSuggestion(ex, last);
     // při splněné progresi předvyplň vyšší váhu a spodek rep range
-    const pfReps = prog ? prog.lo : (pf ? pf.reps : "");
-    const pfWeight = prog ? fmtNum(kgOut(prog.next), 1) : (pf ? fmtNum(kgOut(pf.weight), 1) : "");
+    let pfReps = prog ? prog.lo : (pf ? pf.reps : "");
+    let pfWeight = prog ? fmtNum(kgOut(prog.next), 1) : (pf ? fmtNum(kgOut(pf.weight), 1) : "");
+    let pfNote = "";
     const started = setCount > 0;
+    /* oprava série: klepnutí na sérii ji načte do polí, tlačítko ji pak přepíše */
+    const es = WV.editSet && WV.editSet.i === i && entry.sets[WV.editSet.j] ? WV.editSet.j : null;
+    if (es != null) {
+      const st = entry.sets[es];
+      pfReps = st.reps;
+      pfWeight = fmtNum(kgOut(st.weight), 1);
+      pfNote = st.note || "";
+    }
 
     const sets = (entry.sets || []).map((st, j) => `
-      <div class="set-row">
+      <div class="set-row${es === j ? " editing" : ""}" data-act="w-set-edit" data-i="${i}" data-j="${j}">
         <span class="set-num">${j + 1}</span>
         <span class="grow"><span class="set-val">${fmtNum(st.reps)}<span>×</span>${fmtWeight(st.weight)}</span>${st.note ? ` <span class="small">· ${esc(st.note)}</span>` : ""}</span>
         ${st.isPR ? `<span class="badge yellow">PR!</span>` : ""}
@@ -162,7 +183,7 @@ function renderActiveSession() {
       </div>`).join("");
 
     /* zvýrazněný rekord, minulý výkon, návrh progrese a „blízko rekordu" */
-    const near = nearPRHint(entry, pr);
+    const near = a.editOf ? null : nearPRHint(entry, pr);
     const hints = `
       ${pr ? `<div class="row mt" style="gap:8px"><span class="badge yellow">${ic("trophy", 13, 2.2)} PR ${fmtWeight(pr.weight)} × ${pr.reps}</span>
         <span class="small">e1RM ${fmtWeight(pr.e1rm)}</span></div>` : ""}
@@ -178,7 +199,7 @@ function renderActiveSession() {
           <div class="ex-cat" style="color:${pcol}">
             <i class="p-dot" style="background:${pcol}"></i>${esc((ex && ex.category) || "—")}
           </div>
-          <div class="ex-title">${esc(ex ? ex.name : "?")}</div>
+          <div class="ex-title">${esc(exName(entry.exerciseId))}</div>
           ${exNameEn(ex) ? `<div class="name-en">${esc(exNameEn(ex))}</div>` : ""}
         </div>
         <div class="ex-tools">
@@ -193,22 +214,35 @@ function renderActiveSession() {
         ${stepperHtml("reps-" + i, pfReps, 1, "Opakování", i, "reps")}
         ${stepperHtml("weight-" + i, pfWeight, 2.5, "Váha · " + weightUnit(), i, "weight")}
       </div>
-      <input class="input mt" id="note-${i}" type="text" placeholder="Poznámka (volitelné)">
+      <input class="input mt" id="note-${i}" type="text" placeholder="Poznámka (volitelné)" value="${esc(pfNote)}">
       <div class="ex-actions">
+        ${es != null ? `
+        <button class="btn primary grow" data-act="w-set-save" data-i="${i}">${ic("check", 18, 2.6)} Uložit ${es + 1}. sérii</button>
+        <button class="btn ghost" data-act="w-set-cancel">Zrušit</button>` : `
         <button class="btn primary grow" data-act="w-add-set" data-i="${i}">${ic("plus", 18, 2.6)} Přidat sérii</button>
-        ${started ? `<button class="btn tonal" data-act="w-ex-done" data-i="${i}">${ic("check", 18, 2.6)} ${entry.done ? "Zavřít" : "Hotovo"}</button>` : ""}
+        ${started ? `<button class="btn tonal" data-act="w-ex-done" data-i="${i}">${ic("check", 18, 2.6)} ${entry.done ? "Zavřít" : "Hotovo"}</button>` : ""}`}
       </div>
+      ${started && es == null ? `<p class="small" style="margin:8px 0 0">Klepnutím na sérii ji opravíš.</p>` : ""}
     </div>`;
   }).join("");
 
+  /* úprava uloženého tréninku: jde změnit i datum; uložení přepíše původní
+     záznam (stejné id), zahození ho nechá, jak byl */
+  const editBanner = a.editOf ? `
+    <div class="card edit-card">
+      ${cardHead("edit", "Upravuješ uložený trénink")}
+      <label class="field" style="margin:0"><span>Datum tréninku</span>
+        <input class="input" type="date" data-change="w-edit-date" value="${a.date}"></label>
+    </div>` : "";
   return `
+    ${editBanner}
     ${catCounterHtml(a)}
     <div class="ex-list" id="exList">${blocks}</div>
     <button class="btn dashed full" data-act="w-add-ex">${ic("plus", 18, 2.4)} Přidat cvik</button>
     <div class="mt">${coreCardHtml(a)}</div>
     <div class="row" style="gap:8px">
-      <button class="btn danger" data-act="w-cancel">Zrušit</button>
-      <button class="btn primary grow" data-act="w-finish">${ic("check", 18, 2.6)} Dokončit trénink</button>
+      <button class="btn danger" data-act="w-cancel">${a.editOf ? "Zahodit" : "Zrušit"}</button>
+      <button class="btn primary grow" data-act="w-finish">${ic("check", 18, 2.6)} ${a.editOf ? "Uložit změny" : "Dokončit trénink"}</button>
     </div>`;
 }
 
@@ -221,7 +255,7 @@ function coreCardHtml(a) {
   const on = a.core === true || sets > 0;
   const sub = sets ? `${sets} ${setWordTop(sets)} zapsáno v cvicích`
     : on ? "Odškrtnuto — partie se počítá jako pokrytá"
-    : "Dal jsi dnes core? I bez zapsaných sérií.";
+    : a.editOf ? "Byl v tréninku core? I bez zapsaných sérií." : "Dal jsi dnes core? I bez zapsaných sérií.";
   return `
     <div class="card core-card">
       <i class="p-stripe" style="background:var(--p-core)"></i>
@@ -258,6 +292,7 @@ function moveExercise(from, to) {
       })
     : null;
 
+  WV.editSet = null;   // indexy sérií v otevřeném cviku by přestaly sedět
   const [item] = a.entries.splice(from, 1);
   a.entries.splice(to, 0, item);
 
@@ -437,7 +472,7 @@ function catCounterHtml(session) {
       <div class="cat-bar-card" data-act="w-counter">
         <div class="cat-bar">${bar}</div>
         <div class="row between" style="margin-top:8px">
-          <span class="small">Partie dnes · <b style="color:var(--text)">${hit}</b> ze ${CAT_ORDER.length}</span>
+          <span class="small">Partie${session.editOf ? "" : " dnes"} · <b style="color:var(--text)">${hit}</b> ze ${CAT_ORDER.length}</span>
           <span class="small">série · rozbal pro cviky ${ic("chevD", 13, 2.4)}</span>
         </div>
       </div>`;
@@ -452,7 +487,7 @@ function catCounterHtml(session) {
   return `
     <div class="card cat-counter" data-act="w-counter">
       <div class="row between" style="margin-bottom:2px">
-        <span class="h2" style="margin:0">Partie dnes</span>
+        <span class="h2" style="margin:0">Partie${session.editOf ? " v tréninku" : " dnes"}</span>
         <span class="small"><b style="color:var(--text)">${hit}</b> ze ${CAT_ORDER.length} <span class="ex-chevron" style="transform:rotate(180deg);vertical-align:middle">${ic("chevD", 14, 2.4)}</span></span>
       </div>
       <div class="small" style="margin-bottom:10px">cviky · série</div>
@@ -536,24 +571,105 @@ function addSet(i) {
   }
   entry.sets.push(set);
   save();
-  // pauza se spouští před překreslením, jinak by se inline zobrazení
-  // pod cvikem vykreslilo ještě do stavu „pauza neběží"
-  Rest.start(Settings.get().restSeconds);
+  // při zpětné úpravě se pauza nespouští — necvičí se, jen opravuje
+  if (!a.editOf) Rest.start(Settings.get().restSeconds);
   render();
+}
+
+/* Oprava zapsané série — přepíše hodnoty na místě, rekord se přepočítá */
+function saveSetEdit(i) {
+  const a = S.activeSession;
+  const entry = a && a.entries[i];
+  const j = WV.editSet && WV.editSet.i === i ? WV.editSet.j : null;
+  if (!entry || j == null || !entry.sets[j]) { WV.editSet = null; render(); return; }
+  const reps = parseInt(document.getElementById(`reps-${i}`).value, 10);
+  const weight = kgIn(document.getElementById(`weight-${i}`).value);
+  const note = document.getElementById(`note-${i}`).value.trim();
+  if (!reps || reps <= 0) { toast("Zadej počet opakování", "err"); return; }
+  if (weight == null || weight < 0) { toast("Zadej váhu", "err"); return; }
+  const prevBest = currentPR(entry.exerciseId);
+  const set = { reps, weight, note: note || null };
+  if (est1RM(weight, reps) > (prevBest ? prevBest.e1rm : 0)) set.isPR = true;
+  entry.sets[j] = set;
+  entry.prHit = entry.sets.some(st => st.isPR);
+  WV.editSet = null;
+  save();
+  render();
+  toast(`${j + 1}. série opravena ✓`, "ok");
+}
+
+/* ---- Zpětná úprava uloženého tréninku ----
+   Uložený trénink se otevře ve stejném editoru jako živý (stejné id, cviky
+   sbalené jako hotové). Původní záznam zůstává v S.sessions nedotčený,
+   dokud se neuloží — „Zahodit" ho nechá, jak byl. */
+function beginEditSession(id) {
+  const s = S.sessions.find(x => x.id === id);
+  if (!s || s.type !== "weights") return;
+  closeModal();
+  if (S.activeSession) {
+    App.route = { tab: "workout", page: null };
+    WV.sub = "log";
+    render({ top: true });
+    toast("Nejdřív dokonči nebo zruš probíhající trénink", "err");
+    return;
+  }
+  S.activeSession = {
+    id: s.id,
+    editOf: s.id,
+    date: s.date,
+    type: "weights",
+    templateUsed: s.templateUsed,
+    templateName: s.templateName || null,
+    core: s.core === true,
+    entries: (s.entries || []).map(e => Object.assign(
+      { exerciseId: e.exerciseId, sets: (e.sets || []).map(st => ({ reps: st.reps, weight: st.weight, note: st.note || null })), done: true },
+      e.exerciseName ? { exerciseName: e.exerciseName } : {}))
+  };
+  WV.openIdx = null;
+  WV.editSet = null;
+  WV.sub = "log";
+  App.route = { tab: "workout", page: null };
+  save();
+  render({ top: true });
 }
 
 function finishWorkout() {
   const a = S.activeSession;
   const entries = a.entries
     .filter(e => (e.sets || []).length)
-    .map(e => ({ exerciseId: e.exerciseId, sets: e.sets.map(({ reps, weight, note }) => ({ reps, weight, note })) }));
-  if (!entries.length) { toast("Trénink nemá žádnou zapsanou sérii", "err"); return; }
+    .map(e => Object.assign(
+      { exerciseId: e.exerciseId, sets: e.sets.map(({ reps, weight, note }) => ({ reps, weight, note })) },
+      e.exerciseName ? { exerciseName: e.exerciseName } : {}));
+  if (!entries.length) {
+    toast(a.editOf ? "Trénink nemá žádnou sérii — smazat ho jde v detailu" : "Trénink nemá žádnou zapsanou sérii", "err");
+    return;
+  }
+  if (a.editOf) {
+    /* uložení úpravy: přepíše původní záznam, hodnocení a poznámka zůstávají */
+    const orig = S.sessions.find(x => x.id === a.editOf);
+    // původní záznam mezitím smazaný (třeba na jiném zařízení) → uloží se jako
+    // nový; staré id už leží v tombstonech a sync by ho zase zahodil
+    const base = orig || { id: uid(), type: "weights" };
+    Object.assign(base, { date: a.date, templateUsed: a.templateUsed, templateName: a.templateName || null,
+      core: a.core === true, entries });
+    if (!orig) S.sessions.push(base);
+    S.activeSession = null;
+    WV.openIdx = null;
+    WV.editSet = null;
+    WV.date = base.date;
+    save();
+    render({ top: true });
+    toast("Trénink upraven ✓", "ok");
+    openSessionDetail(base.id);
+    return;
+  }
   const prCount = a.entries.reduce((n, e) => n + (e.sets || []).filter(s => s.isPR).length, 0);
   const sessionId = a.id;
   S.sessions.push({ id: sessionId, date: a.date, type: "weights", templateUsed: a.templateUsed,
     templateName: a.templateName || null, core: a.core === true, entries });
   S.activeSession = null;
   WV.openIdx = null;
+  WV.editSet = null;
   Rest.stop();
   save();
   render();
@@ -562,18 +678,21 @@ function finishWorkout() {
 }
 
 /* ---- Hodnocení tréninku (kvalita 1–10 + poznámka) ---- */
-function openRatingModal(sessionId) {
-  WV.rateVal = null;
+/* edit = otevřeno z detailu uloženého tréninku (předvyplní dosavadní hodnocení) */
+function openRatingModal(sessionId, edit = false) {
+  const s = S.sessions.find(x => x.id === sessionId) || {};
+  WV.rateVal = edit ? (s.rating || null) : null;
   const chips = Array.from({ length: 10 }, (_, k) => k + 1).map(n =>
-    `<button class="scale-chip ratechip" data-act="w-rate-chip" data-val="${n}">${n}</button>`).join("");
-  openModal(`${modalTitle("Jak ti trénink sedl?")}
+    `<button class="scale-chip ratechip${WV.rateVal === n ? " on" : ""}" data-act="w-rate-chip" data-val="${n}">${n}</button>`).join("");
+  openModal(`${modalTitle(edit ? "Hodnocení tréninku" : "Jak ti trénink sedl?")}
     <label class="field" style="margin-bottom:6px"><span>Kvalita (1 = nekvalitní, 10 = skvělý)</span></label>
     <div class="scale-row" style="margin-bottom:16px">${chips}</div>
     <label class="field"><span>Poznámka</span>
-      <input class="input" id="rateNote" placeholder="volitelné — pocit, únava, co příště jinak…"></label>
+      <input class="input" id="rateNote" placeholder="volitelné — pocit, únava, co příště jinak…"
+        value="${edit ? esc(s.note || "") : ""}"></label>
     <div class="row" style="gap:8px">
-      <button class="btn ghost grow" data-act="modal-close">Přeskočit</button>
-      <button class="btn primary grow" data-act="w-rate-save" data-id="${sessionId}">Uložit</button>
+      <button class="btn ghost grow" data-act="modal-close">${edit ? "Zavřít" : "Přeskočit"}</button>
+      <button class="btn primary grow" data-act="w-rate-save" data-id="${sessionId}"${edit ? ` data-back="1"` : ""}>Uložit</button>
     </div>`);
 }
 
@@ -595,22 +714,30 @@ function openExercisePicker(swapIndex) {
 }
 
 /* ---- Kardio formulář ---- */
-function openCardioModal() {
-  WV.sportChoice = CARDIO_SPORTS[0];
-  const sportChips = CARDIO_SPORTS.map(s =>
-    `<button class="chip sportchip${s === WV.sportChoice ? " on" : ""}" data-act="w-sport-chip" data-sport="${s}">${s}</button>`).join("");
-  const dateInfo = WV.date !== todayStr() ? ` · ${fmtDate(WV.date)}` : "";
-  openModal(`${modalTitle("Zapsat kardio" + dateInfo)}
+/* editId = zpětná úprava uloženého kardia (předvyplní hodnoty a datum) */
+function openCardioModal(editId = null) {
+  const s = editId ? S.sessions.find(x => x.id === editId && x.type === "cardio") : null;
+  const c = s ? (s.entries[0] || {}) : {};
+  WV.cardioEdit = s ? s.id : null;
+  WV.sportChoice = s && c.sport ? c.sport : CARDIO_SPORTS[0];
+  const sports = CARDIO_SPORTS.includes(WV.sportChoice) ? CARDIO_SPORTS : CARDIO_SPORTS.concat([WV.sportChoice]);
+  const sportChips = sports.map(sp =>
+    `<button class="chip sportchip${sp === WV.sportChoice ? " on" : ""}" data-act="w-sport-chip" data-sport="${esc(sp)}">${esc(sp)}</button>`).join("");
+  const dateInfo = !s && WV.date !== todayStr() ? ` · ${fmtDate(WV.date)}` : "";
+  const val = v => v != null ? String(v).replace(".", ",") : "";
+  openModal(`${modalTitle((s ? "Upravit kardio" : "Zapsat kardio") + dateInfo)}
     <label class="field" style="margin-bottom:4px"><span>Sport</span></label>
     <div class="chips">${sportChips}</div>
+    ${s ? `<label class="field"><span>Datum</span>
+      <input class="input" id="cDate" type="date" value="${s.date}"></label>` : ""}
     <label class="field"><span>Doba trvání (min) *</span>
-      <input class="input" id="cDur" type="text" inputmode="decimal" placeholder="např. 30"></label>
+      <input class="input" id="cDur" type="text" inputmode="decimal" placeholder="např. 30" value="${val(c.duration)}"></label>
     <label class="field"><span>Vzdálenost (km)</span>
-      <input class="input" id="cDist" type="text" inputmode="decimal" placeholder="volitelné"></label>
+      <input class="input" id="cDist" type="text" inputmode="decimal" placeholder="volitelné" value="${val(c.distance)}"></label>
     <label class="field"><span>Kalorie (kcal)</span>
-      <input class="input" id="cCal" type="number" inputmode="numeric" placeholder="volitelné"></label>
+      <input class="input" id="cCal" type="text" inputmode="numeric" placeholder="volitelné" value="${val(c.calories)}"></label>
     <div class="small" id="cPace" style="margin-bottom:14px"></div>
-    <button class="btn primary full" data-act="w-cardio-save">Uložit kardio</button>`);
+    <button class="btn primary full" data-act="w-cardio-save">${s ? "Uložit změny" : "Uložit kardio"}</button>`);
   const upd = () => {
     const d = parseDec(document.getElementById("cDur").value);
     const k = parseDec(document.getElementById("cDist").value);
@@ -619,6 +746,7 @@ function openCardioModal() {
   };
   document.getElementById("cDur").addEventListener("input", upd);
   document.getElementById("cDist").addEventListener("input", upd);
+  upd();
 }
 
 function saveCardio() {
@@ -626,6 +754,21 @@ function saveCardio() {
   const distance = parseDec(document.getElementById("cDist").value) || null;
   const calories = parseDec(document.getElementById("cCal").value) || null;
   if (!duration || duration <= 0) { toast("Zadej dobu trvání", "err"); return; }
+  const edited = WV.cardioEdit ? S.sessions.find(x => x.id === WV.cardioEdit) : null;
+  if (edited) {
+    const dateEl = document.getElementById("cDate");
+    if (dateEl && dateEl.value) edited.date = dateEl.value;
+    edited.entries = [{
+      sport: WV.sportChoice, duration, distance,
+      pace: distance ? Math.round(duration / distance * 100) / 100 : null, calories
+    }];
+    WV.cardioEdit = null;
+    save();
+    render();
+    toast("Kardio upraveno ✓", "ok");
+    openSessionDetail(edited.id);
+    return;
+  }
   S.sessions.push({
     id: uid(), date: WV.date, type: "cardio", templateUsed: null,
     entries: [{
@@ -680,16 +823,19 @@ function openPRHistory(exerciseId) {
 
 /* ---- Detail session (sdílený s kalendářem v Souhrnu) ---- */
 function sessionDetailHtml(s) {
-  const delBtn = `<button class="btn sm danger" data-act="w-del-session" data-id="${s.id}">${ic("trash", 16)} Smazat</button>`;
+  const delBtn = `<button class="btn sm danger" data-act="w-del-session" data-id="${s.id}" aria-label="Smazat trénink">${ic("trash", 16)}</button>`;
   if (s.type === "cardio") {
     const c = s.entries[0] || {};
     return `<div>
-      <div class="row between"><span class="badge cardio"><i class="p-dot" style="background:var(--p-cardio)"></i>${esc(cardioLabel(c))}</span>
-        ${delBtn}</div>
+      <div class="row"><span class="badge cardio"><i class="p-dot" style="background:var(--p-cardio)"></i>${esc(cardioLabel(c))}</span></div>
       <div class="card2 mt">
         <div class="num"><b>${fmtNum(c.duration)} min</b>${c.distance ? ` · ${fmtNum(c.distance, 2)} km` : ""}</div>
         ${c.pace ? `<div class="muted">tempo ${fmtNum(c.pace, 2)} min/km</div>` : ""}
         ${c.calories ? `<div class="muted">${fmtNum(c.calories)} kcal</div>` : ""}
+      </div>
+      <div class="row mt" style="gap:8px">
+        <button class="btn sm tonal grow" data-act="w-cardio-edit" data-id="${s.id}">${ic("edit", 16)} Upravit</button>
+        ${delBtn}
       </div></div>`;
   }
   const blocks = s.entries.map(e => {
@@ -715,9 +861,14 @@ function sessionDetailHtml(s) {
       <span class="badge neutral">${esc(sessionLabel(s))}</span>
       ${s.rating ? `<span class="badge green">${s.rating}/10</span>` : ""}
       <span class="small grow">objem ${fmtWeight(sessionVolume(s))}</span>
+    </div>
+    ${s.note ? `<div class="small mt">„${esc(s.note)}"</div>` : ""}
+    <div class="row mt" style="gap:8px">
+      <button class="btn sm tonal grow" data-act="w-edit-session" data-id="${s.id}">${ic("edit", 16)} Upravit</button>
+      <button class="btn sm grow" data-act="w-rate-open" data-id="${s.id}">${ic("star", 16)} ${s.rating ? "Hodnocení" : "Ohodnotit"}</button>
       ${delBtn}
     </div>
-    ${s.note ? `<div class="small mt">„${esc(s.note)}"</div>` : ""}${coreRow}${blocks}</div>`;
+    ${coreRow}${blocks}</div>`;
 }
 
 function openSessionDetail(id) {

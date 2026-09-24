@@ -256,6 +256,20 @@ typu dat. „Více" otevírá sheet s dlaždicemi, Jídlo je obrazovka pod Dnes.
   navigací. Probíhající trénink nese název a průběh ve velkém titulku (karta
   „Probíhá" odpadla), rekordy jsou za ikonou poháru vpravo. Pod cviky je přepínač
   **Core ano/ne** (`coreCardHtml()`); se zapsanými sériemi core je zapnutý sám.
+- **Zpětná úprava tréninku** (v1.25) — v detailu tréninku (`sessionDetailHtml()`,
+  i z kalendáře) je **Upravit**: `beginEditSession(id)` otevře uložený trénink ve
+  stejném editoru jako živý — `S.activeSession` se stejným id a `editOf: id`,
+  cviky sbalené jako hotové. Původní záznam v `S.sessions` zůstává nedotčený,
+  dokud `finishWorkout()` („Uložit změny") nepřepíše jeho entries/datum/core
+  (hodnocení a poznámka zůstanou); „Zahodit" ho nechá být. V úpravě jde změnit
+  datum (`w-edit-date`), nespouští se pauza, dock nemá tlačítko pauzy a skryje se
+  návrh progrese i „blízko rekordu". Úprava nejde, když běží živý trénink.
+  Kardio se upravuje ve svém formuláři (`openCardioModal(id)`), hodnocení přes
+  `openRatingModal(id, true)` (předvyplněné).
+- **Oprava série** — klepnutí na sérii v otevřeném cviku ji načte do stepperů
+  (`WV.editSet`), „Uložit N. sérii" ji přepíše na místě (`saveSetEdit()`); funguje
+  v živém tréninku i v úpravě. `WV.editSet` se nuluje při každé změně indexů
+  (otevření/zavření cviku, smazání série či cviku, výměna, přetažení).
 - **Přetahování cviků** (v1.22) — `Drag` ve `view-workout.js`, úchyt vpravo
   u sbalených řádků (`dragHandleHtml()`, `touch-action: none` jen na úchytu).
   Pointer events, pozice v souřadnicích dokumentu (autoscroll u okraje nerozhodí

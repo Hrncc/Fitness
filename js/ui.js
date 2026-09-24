@@ -154,12 +154,13 @@ const Dock = {
 
   html(mode, a) {
     if (mode === "workout") {
-      const rs = Settings.get().restSeconds;
+      // při zpětné úpravě se necvičí — bez tlačítka pauzy
+      const rs = a.editOf ? 0 : Settings.get().restSeconds;
       return `
         <button class="dock-main" data-act="dock-open">
-          <span class="dock-ring live">${ic("dumbbell", 19)}</span>
+          <span class="dock-ring${a.editOf ? "" : " live"}">${ic(a.editOf ? "edit" : "dumbbell", 19)}</span>
           <span class="dock-txt">
-            <span class="dock-k">${esc(sessionLabel(a))}</span>
+            <span class="dock-k">${a.editOf ? "Úprava · " : ""}${esc(sessionLabel(a))}</span>
             <b class="dock-time" id="dockTime"></b>
           </span>
         </button>
