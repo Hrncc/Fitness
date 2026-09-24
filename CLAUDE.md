@@ -25,10 +25,10 @@ Osobní PWA pro zápis silových a kardio tréninků a stravy. **Jeden uživatel
 | `js/data.js` | stav `S`, `save()`, `replaceState()`, PR logika, milníky, plán trenéra, barvy partií (`CAT_COLOR`, `CAT_ORDER`, `sessionCatSets()`, `dayCatColors()`) |
 | `js/sync.js` | cloud sync + `mergeStates()` (slévání podle id) |
 | `js/foodapi.js` | OFF (cz → world), USDA, Claude vision (etiketa / jídlo), čárový kód |
-| `js/ui.js` | toast (i s akcí), modal, kalendář, SVG grafy, rest timer |
+| `js/ui.js` | ikony `ic()`, toast (i s akcí), sheet, výběr cviku `openExPicker()`, kalendář, SVG grafy, rest timer `Rest` + zamčený timer `Dock`, `dayNavHtml()`, `cardHead()` |
 | `js/view-*.js` | obrazovky: today, workout, food, summary, checkin, menu |
 | `js/report.js` | `buildCoachReport(range)` — textový report pro Clauda |
-| `js/app.js` | router, delegace akcí (`ACTIONS`), `withUndo()`, start |
+| `js/app.js` | router + velký titulek (`pageHead()`), delegace akcí (`ACTIONS`), `withUndo()`, start |
 | `apps-script/Code.gs` | backend syncu v Google Sheetu + 7 denních záloh |
 
 ## Konvence, které je nutné dodržet
@@ -70,7 +70,12 @@ zápis dne dvěma klepnutími. Slévá se podle `date` jako `bodyLog`.
 existuje; ruční odhad ho nepřepíše. `adherence(from, to)` z toho počítá
 dodržování pro check-in — nezapsaný den se nepočítá ani do jmenovatele.
 
-Sessions: `{id, date, type: "weights"|"cardio", templateUsed, templateName, entries, rating, note}`.
+Sessions: `{id, date, type: "weights"|"cardio", templateUsed, templateName, core, entries, rating, note}`.
+`core` (v1.23) = ruční „core ano/ne" z přepínače v tréninku (jde změnit i zpětně
+v detailu tréninku). Zaškrtnutý core se počítá jako pokrytá partie v counteru (✓ místo čísla),
+`lastSessionGaps()`, `dayCatColors()`, `catPipsHtml(counts, core)` i v Týdnu;
+počty sérií zůstávají jen skutečné série. Aktivní session nese i `startedAt`
+(délka tréninku v zamčeném timeru).
 U silových `entries[] = {exerciseId, sets: [{reps, weight, note}]}` — váhy vždy
 interně v **kg**, na výstup přes `kgOut()`/`fmtWeight()`.
 
@@ -155,21 +160,62 @@ Pořadí je pevné podle těla (`CAT_ORDER`), ať se buňky pod prstem nepřesku
 Všechny tři šablony trenéra pokrývají všech 7 partií, takže „N ze 7" je reálný
 cíl každého tréninku, ne teoretické skóre.
 
+## Vzhled (v1.23 — kompletní přestylování)
+
+Moderní tmavý „glass" styl. Barevná logika (stav × identita) se **nezměnila** —
+změnily se plochy, typografie, tvary, ikony a pohyb.
+
+- **Velký titulek** (iOS large title) nad obsahem každé obrazovky — `pageHead()`
+  v `app.js`, obrazovka může dodat `{title, sub, right, below}` (`workoutHead()`,
+  `summaryHead()`). Top bar je průhledný; po odscrollování (`.scrolled`) zesklovatí
+  a ukáže malý titulek. Podstránky z „Více" mají v top baru šipku zpět (`page-back`).
+- **Ikony** jsou inline SVG přes `ic(name)` (mapa `ICONS` v `ui.js`) — žádné znaky
+  ✕ ✎ ⇄ ‹ ›, ty se na každém systému vykreslí jinak.
+- Čísla v `--font-num` (`ui-rounded` = SF Pro Rounded na iOS), třída `.num`.
+- Sekundární akce = `.btn.tonal` (volt podklad 12 %), přidávací = `.btn.dashed`.
+  Inline `style="border-color:var(--green)…"` se už nepoužívá.
+- Hlavička karty `cardHead(icon, title, right)`, navigace po dnech `dayNavHtml()`
+  (Trénink i Jídlo), přepínač ano/ne = `<button class="switch">` přes `data-act`.
+- „Více" je sheet s mřížkou dlaždic (`openMoreSheet()` ve `view-menu.js`), boční
+  drawer zmizel.
+
+### Zamčený timer (`Dock` v `ui.js`)
+
+Pilulka nad plovoucí navigací, **viditelná na každé obrazovce**: běží-li pauza,
+ukazuje odpočet s kroužkem, −30/+30 a zrušení; když pauza neběží a probíhá
+trénink, ukazuje jeho délku (`workoutClock()`) a tlačítko pro ruční start pauzy.
+Po doběhnutí pauzy 5 s svítí volt „Pauza skončila". Klepnutí vrací na Trénink
+(`dock-open`). Při otevřeném sheetu (`body.modal-open`) se přesune nahoru, aby ho
+sheet nezakryl — proto má `.modal` max. výšku `100dvh − 76 px`. Stav se odvozuje
+z `Rest` a `S.activeSession`; `render()` volá `Dock.sync()`. Dřívější pauza pod
+cvikem (`restInlineHtml`, `hidden-by-inline`) je pryč — duplikovala by dock.
+`body.has-dock` přidá `--dock-h` do spodního odsazení stránky i pozice toastu.
+
+### Výběr cviku (`openExPicker()` v `ui.js`)
+
+Společný pro přidání/výměnu v tréninku i přidání do šablony. Titulek, hledání
+a chipy partií jsou v **lepkavé hlavičce sheetu** (`.sheet-sticky`) — zůstávají
+nahoře, zatímco seznam scrolluje. **Výměna cviku otevře rovnou jeho partii.**
+Hledá se v českém i anglickém názvu bez diakritiky (`norm()`, `exMatches()`);
+když ve vybrané partii nic není, nabídne „Hledat ve všech partiích". Cviky,
+které v tréninku/šabloně už jsou, jsou vidět ztlumeně bez akce (`used(id)`).
+Exercise Library má totéž hledání v lepkavém panelu pod top barem (`.sticky-bar`,
+sklo dostane až po přilepení — třída `.stuck` z `updateTopbar()`).
+
 ## Struktura obrazovek (v1.17)
 
 Navigace je **Dnes · Trénink · Týden · Více** — podle toho, co děláš, ne podle
-typu dat. „Více" otevírá drawer (hamburger v topbaru zmizel), Jídlo je obrazovka
-pod Dnes.
+typu dat. „Více" otevírá sheet s dlaždicemi, Jídlo je obrazovka pod Dnes.
 
 - **Dnes** = seznam toho, co dnes dlužíš: váha → trénink → jídlo. Hotová položka
   se sbalí na řádek (`dayItemDone()`), rámeček (`.item-hero`) nese **jen první
   nedokončená** — tři hrdinové naráz o pozornost soupeří. Nahoře týdenní pás
   (`weekStripHtml()`) se třemi tečkami na den: váha · jídlo · trénink.
 - **Trénink** = gym mód: steppery místo klávesnice (`stepperHtml()`, pole zůstává
-  editovatelné), partie barevně v hlavičce cviku, pauza i pod cvikem
-  (`restInlineHtml()`) — plovoucí lišta se pak skryje třídou `hidden-by-inline`.
-  `addSet()` musí volat `Rest.start()` **před** `render()`, jinak se inline pauza
-  vykreslí do stavu „neběží".
+  editovatelné), partie barevně v hlavičce cviku, pauza v zamčeném timeru nad
+  navigací. Probíhající trénink nese název a průběh ve velkém titulku (karta
+  „Probíhá" odpadla), rekordy jsou za ikonou poháru vpravo. Pod cviky je přepínač
+  **Core ano/ne** (`coreCardHtml()`); se zapsanými sériemi core je zapnutý sám.
 - **Přetahování cviků** (v1.22) — `Drag` ve `view-workout.js`, úchyt vpravo
   u sbalených řádků (`dragHandleHtml()`, `touch-action: none` jen na úchytu).
   Pointer events, pozice v souřadnicích dokumentu (autoscroll u okraje nerozhodí

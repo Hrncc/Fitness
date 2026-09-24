@@ -164,7 +164,12 @@ function lastSessionGaps() {
     }
   }
   const missed = [], low = [];
+  /* Core ano/ne (v1.23): core se často dělá bez zapisování sérií (plank
+     na konci, podložka doma). Ruční zaškrtnutí (session.core) ho počítá
+     jako pokrytý — tady, v counteru, kalendáři i v Týdnu. */
+  const coreTicked = last.core === true;
   for (const c of CAT_ORDER) {
+    if (c === "Core" && coreTicked) continue;
     if (!sets[c]) { missed.push({ cat: c, planned: planned[c] || 0 }); continue; }
     if (sets[c] <= 1) { low.push({ cat: c, sets: sets[c], reason: "sets" }); continue; }
     if (planned[c] && exs[c] < planned[c]) {
@@ -182,6 +187,7 @@ function dayCatColors(date) {
   let cardio = false;
   for (const s of sess) {
     if (s.type === "cardio") { cardio = true; continue; }
+    if (s.core === true) hit.add("Core");
     for (const e of s.entries || []) {
       if (!(e.sets || []).length) continue;
       const cat = exCategory(e.exerciseId);

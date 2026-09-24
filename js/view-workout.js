@@ -15,35 +15,32 @@ const WV = {
 };
 
 function renderWorkout() {
-  const tabs = `
-    <div class="subtabs">
-      <button class="subtab${WV.sub === "pr" ? "" : " on"}" data-act="w-sub" data-sub="log">Log</button>
-      <button class="subtab${WV.sub === "pr" ? " on" : ""}" data-act="w-sub" data-sub="pr">Rekordy</button>
-    </div>`;
-  if (WV.sub === "pr") return tabs + renderPRList();
-  return tabs + (S.activeSession ? renderActiveSession() : renderWorkoutStart());
+  if (WV.sub === "pr") return renderPRList();
+  return S.activeSession ? renderActiveSession() : renderWorkoutStart();
 }
 
-/* ---- Navigace po dnech (zpětné i plánované tréninky) ---- */
-function workoutDayNav() {
-  const day = WV.date;
-  const today = todayStr();
-  const isToday = day === today;
-  const hint = isToday ? "" : (day > today ? "budoucí den · plánování" : "klepni pro výběr data");
-  return `
-    <div class="card" style="padding:10px 14px">
-      <div class="row between">
-        <button class="btn sm ghost" data-act="w-day-nav" data-dir="-1">‹</button>
-        <div class="center" style="position:relative;flex:1">
-          <b>${isToday ? "Dnes" : fmtDate(day)}</b>
-          ${hint ? `<div class="small">${hint}</div>` : ""}
-          <input type="date" data-change="w-date" value="${day}"
-            style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer">
-        </div>
-        <button class="btn sm ghost" data-act="w-day-nav" data-dir="1">›</button>
-      </div>
-      ${isToday ? "" : `<button class="btn sm full mt" style="border-color:var(--green);color:var(--green)" data-act="w-day-today">Zpět na dnešek</button>`}
-    </div>`;
+/* Velký titulek obrazovky. Při probíhajícím tréninku nese jeho název
+   a průběh — v posilovně je místo na obrazovce nejcennější, takže zvláštní
+   karta „Probíhá" odpadla. Rekordy jsou za ikonou vpravo. */
+function workoutHead() {
+  const prBtn = on => `<button class="iconbtn soft${on ? " on" : ""}" data-act="w-sub"
+    data-sub="${on ? "log" : "pr"}" aria-label="Osobní rekordy">${ic("trophy", 19)}</button>`;
+  if (WV.sub === "pr") return { title: "Rekordy", sub: "Osobní maxima podle e1RM", right: prBtn(true) };
+  const a = S.activeSession;
+  if (a && a.type === "weights") {
+    const total = a.entries.length;
+    const done = a.entries.filter(e => e.done).length;
+    const sets = a.entries.reduce((n, e) => n + (e.sets || []).length, 0);
+    const dateInfo = a.date !== todayStr() ? ` · ${fmtDate(a.date)}` : "";
+    const pct = total ? done / total * 100 : 0;
+    return {
+      title: sessionLabel(a),
+      sub: `Probíhá${dateInfo} · <b>${done}/${total}</b> cviků · <b>${sets}</b> ${setWordTop(sets)}`,
+      right: prBtn(false),
+      below: `<div class="page-prog"><i style="width:${pct.toFixed(0)}%"></i></div>`
+    };
+  }
+  return { title: "Trénink", right: prBtn(false) };
 }
 
 /* ---- Krok 1+2: volba typu tréninku ---- */
@@ -51,40 +48,47 @@ function renderWorkoutStart() {
   const day = WV.date;
   const isToday = day === todayStr();
   const next = nextTemplate();
-  const tplBtns = S.templates.map(t => {
+  const tiles = S.templates.map(t => {
     const on = next && t.id === next.id;
-    return `<button class="btn${on ? " primary" : ""}" style="flex:1 1 40%${on ? "" : ";border-color:var(--green);color:var(--green)"}"
-      data-act="w-begin" data-template="${t.id}">${esc(t.name)}${on ? " ·&nbsp;na řadě" : ""}</button>`;
+    const n = t.exercises.length;
+    const cats = CAT_ORDER.filter(c => t.exercises.some(id => exCategory(id) === c));
+    return `<button class="tpl-tile${on ? " next" : ""}" data-act="w-begin" data-template="${t.id}">
+      ${on ? `<span class="tpl-flag">Na řadě</span>` : ""}
+      <b>${esc(t.name)}</b>
+      <span class="small">${n} ${n === 1 ? "cvik" : n >= 2 && n <= 4 ? "cviky" : "cviků"}</span>
+      ${cats.length ? `<span class="tpl-cats">${cats.map(c =>
+        `<i class="p-dot" style="background:${catColor(c)}"></i>`).join("")}</span>` : ""}
+    </button>`;
   }).join("");
 
   const daySessions = sessionsOn(day);
   const sessRows = daySessions.map(s => {
     if (s.type === "cardio") {
       const c = s.entries[0] || {};
-      return `<div class="list-item">
+      return `<div class="list-item" data-act="w-detail" data-id="${s.id}">
         <span class="badge cardio"><i class="p-dot" style="background:var(--p-cardio)"></i>${esc(cardioLabel(c))}</span>
         <div class="grow name">${fmtNum(c.duration)} min${c.distance ? ` · ${fmtNum(c.distance, 2)} km` : ""}</div>
-        <button class="btn sm ghost" data-act="w-detail" data-id="${s.id}">Detail</button>
+        <span class="ex-chevron">${ic("chevR", 18)}</span>
       </div>`;
     }
     const sets = s.entries.reduce((n, e) => n + (e.sets || []).length, 0);
-    return `<div class="list-item">
+    return `<div class="list-item" data-act="w-detail" data-id="${s.id}">
       <span class="badge neutral">${esc(sessionLabel(s))}</span>
       <div class="grow name">${s.entries.length} cviků · ${sets} sérií</div>
-      <button class="btn sm ghost" data-act="w-detail" data-id="${s.id}">Detail</button>
+      <span class="ex-chevron">${ic("chevR", 18)}</span>
     </div>`;
   }).join("");
 
-  return workoutDayNav() + lastGapsHtml() + `
+  return dayNavHtml(day, "w-day-nav", "w-date", "w-day-today") + lastGapsHtml() + `
     <div class="card">
-      <div class="h2">Silový trénink</div>
-      <div class="row" style="flex-wrap:wrap;gap:8px">${tplBtns}</div>
-      <button class="btn full mt" style="border-color:var(--green);color:var(--green)" data-act="w-begin" data-template="custom">Libovolný cvik (mimo šablonu)</button>
+      ${cardHead("dumbbell", "Silový trénink")}
+      ${tiles ? `<div class="tpl-tiles">${tiles}</div>` : ""}
+      <button class="btn tonal full${tiles ? " mt" : ""}" data-act="w-begin" data-template="custom">${ic("plus", 18, 2.4)} Volný trénink (mimo šablonu)</button>
     </div>
     <div class="card">
-      <div class="h2">Kardio</div>
-      <p class="muted" style="margin:0 0 12px">Vyber sport a zapiš čas, vzdálenost, kalorie.</p>
-      <button class="btn primary full" data-act="w-cardio">Zapsat kardio</button>
+      ${cardHead("flame", "Kardio")}
+      <p class="muted" style="margin:-4px 0 14px">Sport, čas, vzdálenost a kalorie.</p>
+      <button class="btn full" data-act="w-cardio">Zapsat kardio</button>
     </div>
     ${daySessions.length ? `<div class="card">
       <div class="h2">Zapsané tréninky · ${isToday ? "dnes" : fmtDate(day)}</div>${sessRows}
@@ -96,6 +100,7 @@ function renderActiveSession() {
   const a = S.activeSession;
   if (a.type === "cardio") return ""; // kardio se zapisuje přímo formulářem
 
+  const setWord = n => n === 1 ? "série" : n < 5 ? "série" : "sérií";
   const blocks = a.entries.map((entry, i) => {
     const ex = getExercise(entry.exerciseId);
     const pcol = catColor(ex && ex.category);   // identita partie — jen proužek
@@ -104,7 +109,6 @@ function renderActiveSession() {
     const setCount = (entry.sets || []).length;
     const isOpen = WV.openIdx === i;
     const summary = entry.sets.map(st => `${st.reps}×${fmtNum(kgOut(st.weight), 1)}`).join(" · ");
-    const setWord = n => n === 1 ? "série" : n < 5 ? "série" : "sérií";
 
     /* --- sbalený hotový cvik --- */
     if (entry.done && !isOpen) {
@@ -112,7 +116,7 @@ function renderActiveSession() {
       <div class="ex-row ex-done" id="exblock-${i}" data-act="w-ex-open" data-i="${i}">
         <div class="row">
           <i class="p-stripe" style="background:${pcol}"></i>
-          <span class="done-check">✓</span>
+          <span class="done-check">${ic("check", 16, 3)}</span>
           <div class="grow">
             <div class="name" style="font-weight:700">${esc(ex ? ex.name : "?")}</div>
             <div class="small">${setCount} ${setWord(setCount)} · ${summary} ${weightUnit()}${entry.prHit ? ` · <span style="color:var(--yellow);font-weight:700">PR!</span>` : ""}</div>
@@ -152,66 +156,81 @@ function renderActiveSession() {
     const sets = (entry.sets || []).map((st, j) => `
       <div class="set-row">
         <span class="set-num">${j + 1}</span>
-        <span class="grow">${fmtNum(st.reps)} × ${fmtWeight(st.weight)}${st.note ? ` <span class="small">· ${esc(st.note)}</span>` : ""}
-          ${st.isPR ? ` <span class="badge yellow">PR!</span>` : ""}</span>
-        <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="w-del-set" data-i="${i}" data-j="${j}">✕</button>
+        <span class="grow"><span class="set-val">${fmtNum(st.reps)}<span>×</span>${fmtWeight(st.weight)}</span>${st.note ? ` <span class="small">· ${esc(st.note)}</span>` : ""}</span>
+        ${st.isPR ? `<span class="badge yellow">PR!</span>` : ""}
+        <button class="iconbtn sm muted" data-act="w-del-set" data-i="${i}" data-j="${j}" aria-label="Smazat sérii">${ic("x", 16)}</button>
       </div>`).join("");
 
     /* zvýrazněný rekord, minulý výkon, návrh progrese a „blízko rekordu" */
     const near = nearPRHint(entry, pr);
     const hints = `
-      ${pr ? `<div class="mt"><span class="badge yellow">PR ${fmtWeight(pr.weight)} × ${pr.reps}</span>
-        <span class="small" style="margin-left:6px">e1RM ${fmtWeight(pr.e1rm)}</span></div>` : ""}
+      ${pr ? `<div class="row mt" style="gap:8px"><span class="badge yellow">${ic("trophy", 13, 2.2)} PR ${fmtWeight(pr.weight)} × ${pr.reps}</span>
+        <span class="small">e1RM ${fmtWeight(pr.e1rm)}</span></div>` : ""}
       ${last ? `<div class="hint-last${pr ? "" : " mt"}">Minule ${fmtDate(last.date)}: &nbsp;<b>${last.sets.map(st => `${st.reps}×${fmtNum(kgOut(st.weight), 1)}`).join(" · ")} ${weightUnit()}</b></div>` : ""}
       ${prog ? `<div class="hint-last hint-prog">Progrese: minule vše ≥ ${prog.topReps} opak. → zkus <b>${fmtWeight(prog.next)}</b></div>` : ""}
       ${near ? `<div class="hint-last hint-near">${near}</div>` : ""}`;
 
     return `
     <div class="card ex-open${entry.prHit ? " pr-flash" : ""}" id="exblock-${i}" data-i="${i}">
-      <div class="row between" data-act="w-ex-close">
-        <span class="ex-num${entry.done ? " done" : ""}">${entry.done ? "✓" : i + 1}</span>
+      <div class="ex-head" data-act="w-ex-close">
+        <span class="ex-num${entry.done ? " done" : ""}">${entry.done ? ic("check", 16, 3) : i + 1}</span>
         <div class="grow">
           <div class="ex-cat" style="color:${pcol}">
             <i class="p-dot" style="background:${pcol}"></i>${esc((ex && ex.category) || "—")}
           </div>
-          <div class="name" style="font-weight:700">${esc(ex ? ex.name : "?")}</div>
+          <div class="ex-title">${esc(ex ? ex.name : "?")}</div>
           ${exNameEn(ex) ? `<div class="name-en">${esc(exNameEn(ex))}</div>` : ""}
-          ${ex && ex.description ? `<div class="small" style="color:var(--text2);margin-top:4px">${esc(ex.description)}</div>` : ""}
         </div>
-        <button class="btn sm ghost" data-act="w-swap-ex" data-i="${i}">⇄</button>
-        <button class="btn sm ghost" style="color:var(--red)" data-act="w-remove-ex" data-i="${i}">✕</button>
+        <div class="ex-tools">
+          <button class="iconbtn soft" data-act="w-swap-ex" data-i="${i}" aria-label="Vyměnit cvik">${ic("swap", 18)}</button>
+          <button class="iconbtn soft danger" data-act="w-remove-ex" data-i="${i}" aria-label="Odebrat cvik">${ic("trash", 18)}</button>
+        </div>
       </div>
+      ${ex && ex.description ? `<p class="ex-desc">${esc(ex.description)}</p>` : ""}
       ${hints}
-      ${sets ? `<div class="mt">${sets}</div>` : ""}
+      ${sets ? `<div class="sets">${sets}</div>` : ""}
       <div class="set-input mt">
         ${stepperHtml("reps-" + i, pfReps, 1, "Opakování", i, "reps")}
-        ${stepperHtml("weight-" + i, pfWeight, 2.5, weightUnit(), i, "weight")}
+        ${stepperHtml("weight-" + i, pfWeight, 2.5, "Váha · " + weightUnit(), i, "weight")}
       </div>
       <input class="input mt" id="note-${i}" type="text" placeholder="Poznámka (volitelné)">
-      <div class="row mt" style="gap:8px">
-        <button class="btn primary grow" data-act="w-add-set" data-i="${i}">+ Přidat sérii</button>
-        ${started ? `<button class="btn sm success" data-act="w-ex-done" data-i="${i}">${entry.done ? "✓ Zavřít" : "✓ Hotový"}</button>` : ""}
+      <div class="ex-actions">
+        <button class="btn primary grow" data-act="w-add-set" data-i="${i}">${ic("plus", 18, 2.6)} Přidat sérii</button>
+        ${started ? `<button class="btn tonal" data-act="w-ex-done" data-i="${i}">${ic("check", 18, 2.6)} ${entry.done ? "Zavřít" : "Hotovo"}</button>` : ""}
       </div>
-      ${restInlineHtml()}
     </div>`;
   }).join("");
 
-  const totalSets = a.entries.reduce((n, e) => n + (e.sets || []).length, 0);
-  const doneCount = a.entries.filter(e => e.done).length;
-  const dateInfo = a.date !== todayStr() ? ` · ${fmtDate(a.date)}` : "";
   return `
-    <div class="card">
-      <div class="row between">
-        <span class="badge neutral">Probíhá — ${esc(sessionLabel(a))}${dateInfo}</span>
-        <span class="small">${doneCount}/${a.entries.length} cviků · ${totalSets} ${setWordTop(totalSets)}</span>
-      </div>
-    </div>
     ${catCounterHtml(a)}
     <div class="ex-list" id="exList">${blocks}</div>
-    <button class="btn ghost full" style="border-style:dashed" data-act="w-add-ex">+ Přidat cvik</button>
-    <div class="row mt" style="gap:8px">
+    <button class="btn dashed full" data-act="w-add-ex">${ic("plus", 18, 2.4)} Přidat cvik</button>
+    <div class="mt">${coreCardHtml(a)}</div>
+    <div class="row" style="gap:8px">
       <button class="btn danger" data-act="w-cancel">Zrušit</button>
-      <button class="btn success grow" data-act="w-finish">✓ Dokončit trénink</button>
+      <button class="btn primary grow" data-act="w-finish">${ic("check", 18, 2.6)} Dokončit trénink</button>
+    </div>`;
+}
+
+/* ---- Core ano/ne ----
+   Core se často dělá bez zapisování sérií (plank na konci, podložka doma).
+   Přepínač ho započte jako pokrytou partii. Když už jsou v tréninku zapsané
+   série core, je zapnutý sám a přepnout nejde. */
+function coreCardHtml(a) {
+  const sets = sessionCatSets(a).Core || 0;
+  const on = a.core === true || sets > 0;
+  const sub = sets ? `${sets} ${setWordTop(sets)} zapsáno v cvicích`
+    : on ? "Odškrtnuto — partie se počítá jako pokrytá"
+    : "Dal jsi dnes core? I bez zapsaných sérií.";
+  return `
+    <div class="card core-card">
+      <i class="p-stripe" style="background:var(--p-core)"></i>
+      <div class="grow">
+        <div class="name">Core</div>
+        <div class="small">${sub}</div>
+      </div>
+      <button class="switch${on ? " on" : ""}" data-act="w-core" role="switch"
+        aria-checked="${on}" aria-label="Core odcvičen"${sets ? " disabled" : ""}></button>
     </div>`;
 }
 
@@ -315,11 +334,13 @@ const Drag = {
     });
   },
 
-  /* autoscroll, když prst dojede k okraji — dole počítá s navigací */
+  /* autoscroll, když prst dojede k okraji — dole počítá s navigací
+     a zamčeným timerem nad ní */
   loop() {
     const st = this.st;
     if (!st) return;
-    const top = 110, bottom = window.innerHeight - 150;
+    const top = 110;
+    const bottom = window.innerHeight - (document.body.classList.contains("has-dock") ? 210 : 150);
     let v = 0;
     if (st.lastY < top) v = -Math.ceil((top - st.lastY) / 5);
     else if (st.lastY > bottom) v = Math.ceil((st.lastY - bottom) / 5);
@@ -357,27 +378,10 @@ function stepperHtml(id, value, step, label, i, field) {
     <div class="set-field">
       <span class="set-lbl">${esc(label)}</span>
       <div class="set-step">
-        <button class="step-btn sm" data-act="w-step" data-id="${id}" data-d="${-step}">−</button>
+        <button class="step-btn sm" data-act="w-step" data-id="${id}" data-d="${-step}" aria-label="Méně">${ic("minus", 20, 2.4)}</button>
         <input class="input step-in" id="${id}" type="text" inputmode="decimal" value="${value}">
-        <button class="step-btn sm" data-act="w-step" data-id="${id}" data-d="${step}">+</button>
+        <button class="step-btn sm" data-act="w-step" data-id="${id}" data-d="${step}" aria-label="Více">${ic("plus", 20, 2.4)}</button>
       </div>
-    </div>`;
-}
-
-/* Pauza se ukazuje i pod cvikem — tam se stejně díváš. Plovoucí lišta
-   zůstává pro moment, kdy jsi odscrolloval jinam. */
-function restInlineHtml() {
-  const until = Number(localStorage.getItem(Rest.KEY) || 0);
-  if (!until || until <= Date.now()) return "";
-  const left = Math.ceil((until - Date.now()) / 1000);
-  const total = Settings.get().restSeconds || 90;
-  const pct = clamp(left / total * 100, 0, 100);
-  return `
-    <div class="rest-inline mt">
-      <span class="small">pauza</span>
-      <div class="rest-bar"><i style="width:${pct.toFixed(0)}%"></i></div>
-      <b id="restInlineTime">${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}</b>
-      <button class="btn sm ghost" data-act="rest-stop">✕</button>
     </div>`;
 }
 
@@ -397,10 +401,7 @@ function lastGapsHtml() {
   const when = ago === 0 ? "dnes" : ago === 1 ? "včera" : `před ${ago} dny`;
   return `
     <div class="card gap-card">
-      <div class="row between" style="margin-bottom:10px">
-        <span class="h2" style="margin:0">Minule ti uteklo</span>
-        <span class="small">${esc(sessionLabel(g.session))} · ${when}</span>
-      </div>
+      ${cardHead("alert", "Minule ti uteklo", `<span class="small">${esc(sessionLabel(g.session))} · ${when}</span>`)}
       ${g.missed.length ? `<div class="gap-row">
         <span class="gap-lbl">vynecháno</span>
         <div class="gap-chips">${g.missed.map(m => chip(m.cat, "")).join("")}</div>
@@ -420,13 +421,15 @@ function lastGapsHtml() {
 function catCounterHtml(session) {
   const sets = sessionCatSets(session);
   const exs = sessionCatExercises(session);
-  const hit = CAT_ORDER.filter(c => sets[c] > 0).length;
+  // core odškrtnutý přepínačem (bez zapsaných sérií) je pokrytý, ale s ✓ místo čísla
+  const ticked = c => c === "Core" && !sets[c] && session.core === true;
+  const hit = CAT_ORDER.filter(c => sets[c] > 0 || ticked(c)).length;
 
   /* Sbalený je pruh — v posilovně je nejcennější místo na obrazovce.
      Klepnutím se rozbalí na cviky · série u každé partie. */
   const bar = CAT_ORDER.map(c => `
-    <i class="${sets[c] ? "" : "zero"}" style="background:${catColor(c)}">
-      <b>${sets[c]}</b>
+    <i class="${sets[c] || ticked(c) ? "" : "zero"}" style="background:${catColor(c)}" title="${c}">
+      <b>${ticked(c) ? "✓" : sets[c]}</b>
     </i>`).join("");
 
   if (!WV.counterOpen) {
@@ -435,22 +438,22 @@ function catCounterHtml(session) {
         <div class="cat-bar">${bar}</div>
         <div class="row between" style="margin-top:8px">
           <span class="small">Partie dnes · <b style="color:var(--text)">${hit}</b> ze ${CAT_ORDER.length}</span>
-          <span class="small">série v pruhu · rozbal pro cviky ›</span>
+          <span class="small">série · rozbal pro cviky ${ic("chevD", 13, 2.4)}</span>
         </div>
       </div>`;
   }
 
   const cells = CAT_ORDER.map(c => `
-    <div class="cat-cell${sets[c] ? "" : " zero"}">
+    <div class="cat-cell${sets[c] || ticked(c) ? "" : " zero"}">
       <i style="background:${catColor(c)}"></i>
       <span class="cat-n">${c}</span>
-      <span class="cat-v"><b>${exs[c]}</b><s>·</s>${sets[c]}</span>
+      <span class="cat-v">${ticked(c) ? "✓" : `<b>${exs[c]}</b><s>·</s>${sets[c]}`}</span>
     </div>`).join("");
   return `
     <div class="card cat-counter" data-act="w-counter">
       <div class="row between" style="margin-bottom:2px">
         <span class="h2" style="margin:0">Partie dnes</span>
-        <span class="small"><b style="color:var(--text)">${hit}</b> ze ${CAT_ORDER.length} ⌃</span>
+        <span class="small"><b style="color:var(--text)">${hit}</b> ze ${CAT_ORDER.length} <span class="ex-chevron" style="transform:rotate(180deg);vertical-align:middle">${ic("chevD", 14, 2.4)}</span></span>
       </div>
       <div class="small" style="margin-bottom:10px">cviky · série</div>
       <div class="cat-grid">${cells}</div>
@@ -507,6 +510,7 @@ function beginWorkout(templateId) {
     type: "weights",
     templateUsed: tpl ? tpl.id : "custom",
     templateName: tpl ? tpl.name : "Libovolný",
+    startedAt: Date.now(),   // délka tréninku v zamčeném timeru
     entries: tpl ? tpl.exercises.filter(getExercise).map(exId => ({ exerciseId: exId, sets: [] })) : []
   };
   save();
@@ -546,7 +550,8 @@ function finishWorkout() {
   if (!entries.length) { toast("Trénink nemá žádnou zapsanou sérii", "err"); return; }
   const prCount = a.entries.reduce((n, e) => n + (e.sets || []).filter(s => s.isPR).length, 0);
   const sessionId = a.id;
-  S.sessions.push({ id: sessionId, date: a.date, type: "weights", templateUsed: a.templateUsed, templateName: a.templateName || null, entries });
+  S.sessions.push({ id: sessionId, date: a.date, type: "weights", templateUsed: a.templateUsed,
+    templateName: a.templateName || null, core: a.core === true, entries });
   S.activeSession = null;
   WV.openIdx = null;
   Rest.stop();
@@ -560,10 +565,10 @@ function finishWorkout() {
 function openRatingModal(sessionId) {
   WV.rateVal = null;
   const chips = Array.from({ length: 10 }, (_, k) => k + 1).map(n =>
-    `<button class="chip ratechip" data-act="w-rate-chip" data-val="${n}">${n}</button>`).join("");
+    `<button class="scale-chip ratechip" data-act="w-rate-chip" data-val="${n}">${n}</button>`).join("");
   openModal(`${modalTitle("Jak ti trénink sedl?")}
-    <label class="field" style="margin-bottom:4px"><span>Kvalita (1 = nekvalitní, 10 = skvělý)</span></label>
-    <div class="chips">${chips}</div>
+    <label class="field" style="margin-bottom:6px"><span>Kvalita (1 = nekvalitní, 10 = skvělý)</span></label>
+    <div class="scale-row" style="margin-bottom:16px">${chips}</div>
     <label class="field"><span>Poznámka</span>
       <input class="input" id="rateNote" placeholder="volitelné — pocit, únava, co příště jinak…"></label>
     <div class="row" style="gap:8px">
@@ -572,34 +577,21 @@ function openRatingModal(sessionId) {
     </div>`);
 }
 
-/* ---- Výběr cviku (přidání / výměna v session) ---- */
+/* ---- Výběr cviku (přidání / výměna v session) ----
+   Při výměně se sheet otevře rovnou na partii měněného cviku — náhrada
+   je skoro vždy ze stejné partie. Cviky, které v tréninku už jsou, jsou
+   vidět, ale vybrat nejdou. */
 function openExercisePicker(swapIndex) {
   WV.pickerIndex = swapIndex;
-  openModal(`${modalTitle(swapIndex == null ? "Přidat cvik" : "Vyměnit cvik")}
-    <input class="input" id="exPickSearch" placeholder="Hledat cvik…" style="margin-bottom:10px">
-    <div id="exPickList">${exercisePickerList("")}</div>`);
-  const inp = document.getElementById("exPickSearch");
-  inp.addEventListener("input", () => {
-    document.getElementById("exPickList").innerHTML = exercisePickerList(inp.value);
+  const a = S.activeSession;
+  const cur = swapIndex != null && a ? a.entries[swapIndex] : null;
+  const inSession = new Set(a ? a.entries.map(e => e.exerciseId) : []);
+  openExPicker({
+    title: cur ? "Vyměnit cvik" : "Přidat cvik",
+    act: "w-pick-ex",
+    cat: cur ? exCategory(cur.exerciseId) : "all",
+    used: id => cur && id === cur.exerciseId ? "měníš" : inSession.has(id) ? "v tréninku" : null
   });
-}
-
-function exercisePickerList(query) {
-  const q = query.trim().toLowerCase();
-  const groups = CAT_ORDER.map(cat => {
-    const items = S.exercises
-      .filter(e => e.category === cat && (!q || e.name.toLowerCase().includes(q)))
-      .map(e => `<div class="list-item" data-act="w-pick-ex" data-exid="${e.id}" style="cursor:pointer">
-        <i class="p-stripe" style="background:${catColor(cat)}"></i>
-        <div class="grow">
-          <div class="name">${esc(e.name)}</div>
-          ${exNameEn(e) ? `<div class="name-en">${esc(exNameEn(e))}</div>` : ""}
-        </div>
-        ${e.isCustom ? `<span class="badge neutral">vlastní</span>` : ""}
-      </div>`).join("");
-    return items ? `<div class="h3 cat-head"><i class="p-dot" style="background:${catColor(cat)}"></i>${cat}</div>${items}` : "";
-  }).join("");
-  return groups || `<div class="empty-note">Nic nenalezeno</div>`;
 }
 
 /* ---- Kardio formulář ---- */
@@ -656,18 +648,19 @@ function renderPRList() {
   const prs = allPRs();
   if (!prs.length) return `<div class="card"><div class="empty-note">Zatím žádné rekordy.<br>Zapiš první silový trénink!</div></div>`;
   const rows = prs.map(({ exerciseId, pr }) => `
-    <div class="list-item" data-act="w-pr-history" data-exid="${exerciseId}" style="cursor:pointer">
+    <div class="list-item" data-act="w-pr-history" data-exid="${exerciseId}">
+      <i class="p-stripe" style="background:${exColor(exerciseId)}"></i>
       <div class="grow">
         <div class="name">${esc(exName(exerciseId))}</div>
         <div class="small">${fmtDate(pr.date)}</div>
       </div>
       <div style="text-align:right">
-        <div style="font-weight:700;color:var(--yellow)">${fmtWeight(pr.weight)} × ${pr.reps}</div>
+        <div class="num" style="font-weight:750;color:var(--yellow)">${fmtWeight(pr.weight)} × ${pr.reps}</div>
         <div class="small">e1RM ${fmtWeight(pr.e1rm)}</div>
       </div>
     </div>`).join("");
-  return `<div class="card"><div class="h2">Osobní rekordy</div>${rows}
-    <p class="small mt">e1RM = odhad maxima na 1 opakování (Epley). Klikni na cvik pro historii.</p></div>`;
+  return `<div class="card">${rows}
+    <p class="small mt" style="margin-bottom:0">e1RM = odhad maxima na 1 opakování (Epley). Klepni na cvik pro historii.</p></div>`;
 }
 
 function openPRHistory(exerciseId) {
@@ -687,13 +680,14 @@ function openPRHistory(exerciseId) {
 
 /* ---- Detail session (sdílený s kalendářem v Souhrnu) ---- */
 function sessionDetailHtml(s) {
+  const delBtn = `<button class="btn sm danger" data-act="w-del-session" data-id="${s.id}">${ic("trash", 16)} Smazat</button>`;
   if (s.type === "cardio") {
     const c = s.entries[0] || {};
     return `<div>
       <div class="row between"><span class="badge cardio"><i class="p-dot" style="background:var(--p-cardio)"></i>${esc(cardioLabel(c))}</span>
-        <button class="btn sm danger" data-act="w-del-session" data-id="${s.id}">Smazat</button></div>
+        ${delBtn}</div>
       <div class="card2 mt">
-        <div><b>${fmtNum(c.duration)} min</b>${c.distance ? ` · ${fmtNum(c.distance, 2)} km` : ""}</div>
+        <div class="num"><b>${fmtNum(c.duration)} min</b>${c.distance ? ` · ${fmtNum(c.distance, 2)} km` : ""}</div>
         ${c.pace ? `<div class="muted">tempo ${fmtNum(c.pace, 2)} min/km</div>` : ""}
         ${c.calories ? `<div class="muted">${fmtNum(c.calories)} kcal</div>` : ""}
       </div></div>`;
@@ -701,19 +695,29 @@ function sessionDetailHtml(s) {
   const blocks = s.entries.map(e => {
     const sets = (e.sets || []).map((st, j) =>
       `<div class="set-row"><span class="set-num">${j + 1}</span>
-       <span class="grow">${fmtNum(st.reps)} × ${fmtWeight(st.weight)}${st.note ? ` <span class="small">· ${esc(st.note)}</span>` : ""}</span></div>`).join("");
+       <span class="grow"><span class="set-val">${fmtNum(st.reps)}<span>×</span>${fmtWeight(st.weight)}</span>${st.note ? ` <span class="small">· ${esc(st.note)}</span>` : ""}</span></div>`).join("");
     return `<div class="card2 mt">
       <div class="row"><i class="p-stripe" style="background:${exColor(e.exerciseId)}"></i>
-        <b style="font-size:14px">${esc(exName(e.exerciseId))}</b></div>${sets}</div>`;
+        <b style="font-size:14.5px">${esc(exName(e.exerciseId))}</b></div>${sets}</div>`;
   }).join("");
+  /* core jde doplnit i zpětně — kdo zapomněl odškrtnout v tréninku */
+  const coreSets = sessionCatSets(s).Core || 0;
+  const coreRow = `
+    <div class="card2 mt row">
+      <i class="p-dot" style="background:var(--p-core)"></i>
+      <span class="grow" style="font-weight:650">Core</span>
+      ${coreSets ? `<span class="small">${coreSets} ${setWordTop(coreSets)} v cvicích</span>`
+        : `<button class="switch${s.core === true ? " on" : ""}" data-act="w-core-session" data-id="${s.id}"
+            role="switch" aria-checked="${s.core === true}" aria-label="Core odcvičen"></button>`}
+    </div>`;
   return `<div>
-    <div class="row between">
+    <div class="row" style="flex-wrap:wrap;gap:8px">
       <span class="badge neutral">${esc(sessionLabel(s))}</span>
       ${s.rating ? `<span class="badge green">${s.rating}/10</span>` : ""}
-      <span class="small">objem ${fmtWeight(sessionVolume(s))}</span>
-      <button class="btn sm danger" data-act="w-del-session" data-id="${s.id}">Smazat</button>
+      <span class="small grow">objem ${fmtWeight(sessionVolume(s))}</span>
+      ${delBtn}
     </div>
-    ${s.note ? `<div class="small mt">„${esc(s.note)}"</div>` : ""}${blocks}</div>`;
+    ${s.note ? `<div class="small mt">„${esc(s.note)}"</div>` : ""}${coreRow}${blocks}</div>`;
 }
 
 function openSessionDetail(id) {

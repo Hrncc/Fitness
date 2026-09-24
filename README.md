@@ -53,4 +53,4 @@ Data se ukládají při každé změně a načítají při startu. Změny z víc
 
 ## Zálohy
 
-Hamburger menu → **Export & Backup**: JSON (kompletní data, lze importovat zpět) + Markdown souhrn, včetně systémového sdílení.
+Více → **Export & Backup**: JSON (kompletní data, lze importovat zpět) + Markdown souhrn, včetně systémového sdílení.

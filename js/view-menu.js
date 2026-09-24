@@ -1,7 +1,7 @@
 /* ===== Obrazovky z hamburger menu ===== */
 "use strict";
 
-const APP_VERSION = "1.22.1";
+const APP_VERSION = "1.23";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -15,7 +15,29 @@ const MV = {
   rcPickId: null    // vybraná potravina při přidávání do receptu
 };
 
+/* ================= Více (sheet místo bočního šuplíku) ================= */
+function openMoreSheet() {
+  const tiles = [
+    ["food", "Jídlo", "nav", "tab", "food", true],
+    ["book", "Exercise Library", "menu", "page", "exlib"],
+    ["list", "Workout Templates", "menu", "page", "templates"],
+    ["star", "Food Library", "menu", "page", "foodlib"],
+    ["camera", "Fotky postupu", "menu", "page", "photos"],
+    ["clipboard", "Týdenní check‑in", "menu", "page", "checkin"],
+    ["share", "Export & Backup", "menu", "page", "export"],
+    ["sliders", "Nastavení", "menu", "page", "settings"],
+    ["info", "O aplikaci", "menu", "page", "about"]
+  ].map(([icon, label, act, key, val, accent]) => `
+    <button class="more-tile${accent ? " accent" : ""}" data-act="${act}" data-${key}="${val}">
+      <span class="card-ic">${ic(icon, 20)}</span>${esc(label)}</button>`).join("");
+  openModal(`${modalTitle("Více")}
+    <div class="more-grid">${tiles}</div>
+    <div class="small more-foot">Fitness Log ${APP_VERSION}</div>`);
+}
+
 /* ================= Exercise Library ================= */
+/* Hledání a filtr partií drží lepkavý panel pod top barem — zůstávají
+   po ruce, i když odscrolluješ hluboko do knihovny (140+ cviků). */
 function renderExLib() {
   const chips = [`<button class="chip${MV.exCat === "all" ? " on" : ""}" data-act="el-cat" data-cat="all">Vše</button>`]
     .concat(CAT_ORDER.map(c =>
@@ -23,20 +45,24 @@ function renderExLib() {
         <i class="p-dot" style="background:${catColor(c)}"></i>${c}</button>`))
     .join("");
   return `
-    <button class="btn primary full" style="margin-bottom:14px" data-act="el-add">+ Přidat vlastní cvik</button>
-    <input class="input" id="elSearch" placeholder="Hledat cvik…" value="${esc(MV.exQuery)}" style="margin-bottom:12px">
-    <div class="chips">${chips}</div>
-    <div class="card" id="elList">${elListHtml()}</div>`;
+    <div class="sticky-bar">
+      <label class="search">${ic("search", 19)}
+        <input class="input" id="elSearch" type="search" placeholder="Hledat cvik…" value="${esc(MV.exQuery)}"
+          autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search"></label>
+      <div class="chips scroll">${chips}</div>
+    </div>
+    <div class="card" id="elList">${elListHtml()}</div>
+    <button class="btn dashed full" data-act="el-add">${ic("plus", 18, 2.4)} Přidat vlastní cvik</button>`;
 }
 
 function elListHtml() {
-  const q = MV.exQuery.toLowerCase();
+  const q = norm(MV.exQuery.trim());
   const list = S.exercises
-    .filter(e => (MV.exCat === "all" || e.category === MV.exCat) && (!q || e.name.toLowerCase().includes(q)))
+    .filter(e => (MV.exCat === "all" || e.category === MV.exCat) && exMatches(e, q))
     .sort((a, b) => CAT_ORDER.indexOf(a.category) - CAT_ORDER.indexOf(b.category)
       || a.name.localeCompare(b.name, "cs"))
     .map(e => `
-      <div class="list-item" data-act="el-detail" data-id="${e.id}" style="cursor:pointer">
+      <div class="list-item" data-act="el-detail" data-id="${e.id}">
         <i class="p-stripe" style="background:${catColor(e.category)}"></i>
         <div class="grow">
           <div class="name">${esc(e.name)}</div>
@@ -63,10 +89,10 @@ function openExerciseDetail(id) {
       ${pr ? `<span class="badge yellow">PR ${fmtWeight(pr.weight)} × ${pr.reps}</span>` : ""}
     </div>
     <p class="muted" style="margin:0 0 16px">${esc(e.description || "Bez popisu")}</p>
-    ${pr ? `<button class="btn ghost full" style="margin-bottom:8px" data-act="w-pr-history" data-exid="${id}">Historie rekordů</button>` : ""}
+    ${pr ? `<button class="btn ghost full" style="margin-bottom:8px" data-act="w-pr-history" data-exid="${id}">${ic("trophy", 17)} Historie rekordů</button>` : ""}
     <div class="row" style="gap:8px">
-      <button class="btn grow" data-act="el-edit" data-id="${id}">Upravit</button>
-      <button class="btn danger grow" data-act="el-del" data-id="${id}">Smazat</button>
+      <button class="btn grow" data-act="el-edit" data-id="${id}">${ic("edit", 17)} Upravit</button>
+      <button class="btn danger grow" data-act="el-del" data-id="${id}">${ic("trash", 17)} Smazat</button>
     </div>`);
 }
 
@@ -109,13 +135,13 @@ function renderTemplates() {
       <div class="card ex-collapsed" data-act="tpl-open" data-tpl="${t.id}">
         <div class="row">
           <div class="grow">
-            <div class="name" style="font-weight:700;color:var(--green)">${esc(t.name)}</div>
+            <div class="name" style="font-weight:700;font-size:16px">${esc(t.name)}</div>
             <div class="small">${count ? `${count} ${exWord(count)}` : "prázdná šablona"}</div>
             ${count ? `<div class="tpl-cats">${CAT_ORDER
               .filter(c => t.exercises.some(id => exCategory(id) === c))
               .map(c => `<i class="p-dot" style="background:${catColor(c)}"></i>`).join("")}</div>` : ""}
           </div>
-          <span class="ex-chevron">›</span>
+          <span class="ex-chevron">${ic("chevR", 20)}</span>
         </div>
       </div>`;
     }
@@ -128,27 +154,27 @@ function renderTemplates() {
           <div class="name">${esc(exName(exId))}</div>
           ${exNameEn(exId) ? `<div class="name-en">${esc(exNameEn(exId))}</div>` : ""}
         </div>
-        <button class="btn sm ghost" data-act="tpl-move" data-tpl="${t.id}" data-i="${i}" data-dir="-1" ${i === 0 ? "disabled" : ""}>↑</button>
-        <button class="btn sm ghost" data-act="tpl-move" data-tpl="${t.id}" data-i="${i}" data-dir="1" ${i === count - 1 ? "disabled" : ""}>↓</button>
-        <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="tpl-rm" data-tpl="${t.id}" data-i="${i}">✕</button>
+        <button class="iconbtn sm soft" data-act="tpl-move" data-tpl="${t.id}" data-i="${i}" data-dir="-1" ${i === 0 ? "disabled" : ""} aria-label="Nahoru"><span style="transform:rotate(180deg);display:flex">${ic("chevD", 16, 2.4)}</span></button>
+        <button class="iconbtn sm soft" data-act="tpl-move" data-tpl="${t.id}" data-i="${i}" data-dir="1" ${i === count - 1 ? "disabled" : ""} aria-label="Dolů">${ic("chevD", 16, 2.4)}</button>
+        <button class="iconbtn sm danger" data-act="tpl-rm" data-tpl="${t.id}" data-i="${i}" aria-label="Odebrat">${ic("x", 16)}</button>
       </div>`).join("");
     return `
       <div class="card ex-open" id="tplblock-${t.id}">
-        <div class="row between" data-act="tpl-open" data-tpl="${t.id}">
-          <span class="h2" style="color:var(--green);margin:0">${esc(t.name)}</span>
-          <div class="row" style="gap:4px">
-            <button class="btn sm ghost" data-act="tpl-rename" data-tpl="${t.id}">✎</button>
-            <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="tpl-del" data-tpl="${t.id}">✕</button>
-            <span class="ex-chevron" style="transform:rotate(90deg)">›</span>
+        <div class="row between" data-act="tpl-open" data-tpl="${t.id}" style="cursor:pointer;margin-bottom:4px">
+          <span class="h2" style="margin:0">${esc(t.name)}</span>
+          <div class="row" style="gap:6px">
+            <button class="iconbtn sm soft" data-act="tpl-rename" data-tpl="${t.id}" aria-label="Přejmenovat">${ic("edit", 16)}</button>
+            <button class="iconbtn sm soft danger" data-act="tpl-del" data-tpl="${t.id}" aria-label="Smazat šablonu">${ic("trash", 16)}</button>
+            <span class="ex-chevron" style="transform:rotate(180deg)">${ic("chevD", 20)}</span>
           </div>
         </div>
         ${rows || `<div class="empty-note">Šablona je prázdná</div>`}
-        <button class="btn ghost full mt" style="border-style:dashed" data-act="tpl-add" data-tpl="${t.id}">+ Přidat cvik</button>
+        <button class="btn dashed full mt" data-act="tpl-add" data-tpl="${t.id}">${ic("plus", 18, 2.4)} Přidat cvik</button>
       </div>`;
   }).join("");
-  return `<p class="muted" style="margin:0 0 12px">Trvalá správa šablon. Klepni na šablonu pro seznam cviků. Jednorázové změny dělej přímo v tréninku.</p>`
+  return `<p class="muted" style="margin:-8px 4px 14px">Trvalá správa šablon. Klepni na šablonu pro seznam cviků. Jednorázové změny dělej přímo v tréninku.</p>`
     + cards
-    + `<button class="btn ghost full" style="border-style:dashed" data-act="tpl-new">+ Nová šablona</button>`;
+    + `<button class="btn dashed full" data-act="tpl-new">${ic("plus", 18, 2.4)} Nová šablona</button>`;
 }
 
 function openTemplateNameModal(id) {
@@ -163,29 +189,11 @@ function openTemplateNameModal(id) {
 function openTplPicker(tplId) {
   MV.tplTarget = tplId;
   const t = getTemplate(tplId);
-  openModal(`${modalTitle("Přidat cvik do " + (t ? t.name : "šablony"))}
-    <input class="input" id="exPickSearch" placeholder="Hledat cvik…" style="margin-bottom:10px">
-    <div id="exPickList">${tplPickerList("")}</div>`);
-  const inp = document.getElementById("exPickSearch");
-  inp.addEventListener("input", () => {
-    document.getElementById("exPickList").innerHTML = tplPickerList(inp.value);
+  openExPicker({
+    title: "Přidat do " + (t ? t.name : "šablony"),
+    act: "tpl-pick",
+    used: id => t && t.exercises.includes(id) ? "v šabloně" : null
   });
-}
-
-function tplPickerList(query) {
-  const t = getTemplate(MV.tplTarget);
-  const q = query.trim().toLowerCase();
-  return CAT_ORDER.map(cat => {
-    const items = S.exercises
-      .filter(e => e.category === cat && !t.exercises.includes(e.id) && (!q || e.name.toLowerCase().includes(q)))
-      .map(e => `<div class="list-item" data-act="tpl-pick" data-exid="${e.id}" style="cursor:pointer">
-        <i class="p-stripe" style="background:${catColor(cat)}"></i>
-        <div class="grow">
-          <div class="name">${esc(e.name)}</div>
-          ${exNameEn(e) ? `<div class="name-en">${esc(exNameEn(e))}</div>` : ""}
-        </div></div>`).join("");
-    return items ? `<div class="h3 cat-head"><i class="p-dot" style="background:${catColor(cat)}"></i>${cat}</div>${items}` : "";
-  }).join("") || `<div class="empty-note">Nic nenalezeno</div>`;
 }
 
 /* ================= Food Library ================= */
@@ -199,15 +207,15 @@ function renderFoodLib() {
         <div class="name">${esc(r.name)}</div>
         <div class="small">${r.items.length} položek · ${fmtNum(perPortion)} kcal / porce (${r.portions || 1} porcí)</div>
       </div>
-      <button class="btn sm ghost" data-act="rl-edit" data-id="${r.id}">✎</button>
-      <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="rl-del" data-id="${r.id}">✕</button>
+      <button class="iconbtn sm soft" data-act="rl-edit" data-id="${r.id}" aria-label="Upravit">${ic("edit", 16)}</button>
+      <button class="iconbtn sm danger" data-act="rl-del" data-id="${r.id}" aria-label="Smazat">${ic("trash", 16)}</button>
     </div>`;
   }).join("");
   const recipesCard = `
     <div class="card">
       <div class="row between">
         <span class="h2" style="margin:0">Recepty</span>
-        <button class="btn sm primary" data-act="rl-new">+ Nový</button>
+        <button class="btn sm tonal" data-act="rl-new">${ic("plus", 16, 2.4)} Nový</button>
       </div>
       ${recipeRows ? `<div class="mt">${recipeRows}</div>`
         : `<div class="empty-note" style="padding:14px">Složená jídla z více potravin — jednou vytvoříš, pak zapisuješ po porcích.</div>`}
@@ -218,17 +226,17 @@ function renderFoodLib() {
   if (!foods.length) return recipesCard + `<div class="card"><div class="empty-note">Knihovna je prázdná.<br>Položky se ukládají automaticky při zápisu jídla.</div></div>`;
   const rows = foods.map(f => `
     <div class="list-item">
-      <button class="iconbtn" style="width:34px;height:34px;font-size:19px;color:${f.isFavorite ? "var(--green)" : "var(--text3)"}" data-act="fl-star" data-id="${f.id}">${f.isFavorite ? "★" : "☆"}</button>
+      <button class="iconbtn sm" style="color:${f.isFavorite ? "var(--green)" : "var(--text3)"}" data-act="fl-star" data-id="${f.id}" aria-label="Oblíbené">${ic(f.isFavorite ? "starFill" : "star", 19)}</button>
       <div class="grow">
         <div class="name">${esc(f.name)}</div>
         <div class="small">${fmtNum(f.caloriesPer100g)} kcal · B ${fmtNum(f.proteinPer100g, 1)} · S ${fmtNum(f.carbsPer100g, 1)} · T ${fmtNum(f.fatPer100g, 1)} /100 g</div>
       </div>
       ${sourceBadge(f.source)}
-      <button class="btn sm ghost" data-act="fl-edit" data-id="${f.id}">✎</button>
-      <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="fl-del" data-id="${f.id}">✕</button>
+      <button class="iconbtn sm soft" data-act="fl-edit" data-id="${f.id}" aria-label="Upravit">${ic("edit", 16)}</button>
+      <button class="iconbtn sm danger" data-act="fl-del" data-id="${f.id}" aria-label="Smazat">${ic("trash", 16)}</button>
     </div>`).join("");
   return recipesCard + `<div class="card"><div class="h2">Knihovna potravin</div>${rows}
-    <p class="small mt">★ = oblíbené (rychlý výběr při zápisu jídla)</p></div>`;
+    <p class="small mt">Hvězdička = oblíbené (rychlý výběr při zápisu jídla)</p></div>`;
 }
 
 /* ---- Builder receptu (kroky: formulář → výběr potraviny → gramy) ---- */
@@ -255,7 +263,7 @@ function renderRecipeModal() {
         <div class="name">${esc(f ? f.name : "(smazaná potravina)")}</div>
         <div class="small">${fmtNum(it.grams)} g</div>
       </div>
-      <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="rc-item-rm" data-i="${i}">✕</button>
+      <button class="iconbtn sm danger" data-act="rc-item-rm" data-i="${i}" aria-label="Odebrat">${ic("x", 16)}</button>
     </div>`;
   }).join("");
   const t = recipeTotals(r);
@@ -266,7 +274,7 @@ function renderRecipeModal() {
       <input class="input" id="rcPortions" type="number" inputmode="numeric" min="1" value="${r.portions || 1}"></label>
     <div class="h3" style="margin-top:4px">Položky</div>
     ${rows || `<div class="empty-note" style="padding:12px">Zatím žádné položky</div>`}
-    <button class="btn ghost full mt" style="border-style:dashed" data-act="rc-add-item">+ Přidat položku</button>
+    <button class="btn dashed full mt" data-act="rc-add-item">${ic("plus", 18, 2.4)} Přidat položku</button>
     ${t.grams ? `<div class="card2 mt"><b>Celkem:</b> ${fmtNum(t.grams)} g · ${fmtNum(t.kcal)} kcal ·
       B ${fmtNum(t.protein, 1)} · S ${fmtNum(t.carbs, 1)} · T ${fmtNum(t.fat, 1)} g
       ${r.portions > 1 ? `<div class="small mt">1 porce ≈ ${fmtNum(t.grams / r.portions)} g · ${fmtNum(t.kcal / r.portions)} kcal</div>` : ""}</div>` : ""}
@@ -278,7 +286,7 @@ function renderRecipePicker(query = "") {
   const list = S.foods
     .filter(f => !q || f.name.toLowerCase().includes(q))
     .sort((a, b) => (b.isFavorite - a.isFavorite) || a.name.localeCompare(b.name, "cs"))
-    .map(f => `<div class="list-item" data-act="rc-pick" data-id="${f.id}" style="cursor:pointer">
+    .map(f => `<div class="list-item" data-act="rc-pick" data-id="${f.id}">
       <div class="grow">
         <div class="name">${esc(f.name)}</div>
         <div class="small">${fmtNum(f.caloriesPer100g)} kcal /100 g</div>
@@ -294,7 +302,7 @@ function renderRecipePicker(query = "") {
     const qq = inp.value.trim().toLowerCase();
     document.getElementById("rcPickList").innerHTML = S.foods
       .filter(f => !qq || f.name.toLowerCase().includes(qq))
-      .map(f => `<div class="list-item" data-act="rc-pick" data-id="${f.id}" style="cursor:pointer">
+      .map(f => `<div class="list-item" data-act="rc-pick" data-id="${f.id}">
         <div class="grow"><div class="name">${esc(f.name)}</div>
         <div class="small">${fmtNum(f.caloriesPer100g)} kcal /100 g</div></div>${sourceBadge(f.source)}
       </div>`).join("") || `<div class="empty-note">Nic nenalezeno</div>`;
@@ -384,7 +392,7 @@ function renderExport() {
       <div class="chips">${chips}</div>
       ${MV.reportRange === "custom" ? dateRangeRow("rep", MV.repFrom, MV.repTo) : ""}
       <div class="row" style="gap:8px">
-        <button class="btn primary grow" data-act="rep-copy">Zkopírovat</button>
+        <button class="btn primary grow" data-act="rep-copy">${ic("copy", 17, 2.2)} Zkopírovat</button>
         <button class="btn grow" data-act="rep-share">Sdílet</button>
       </div>
       <button class="btn ghost sm full mt" data-act="rep-preview">Zobrazit náhled</button>
@@ -393,7 +401,7 @@ function renderExport() {
       <div class="h2">Export &amp; Backup</div>
       <p class="muted" style="margin:0 0 14px">Záloha nad rámec automatického cloud syncu. JSON lze později importovat, Markdown je čitelný souhrn.
       Fotky postupu součástí nejsou — stahují se jednotlivě v galerii.</p>
-      <button class="btn primary full" data-act="exp-share">📤 Export &amp; Share</button>
+      <button class="btn primary full" data-act="exp-share">${ic("share", 18, 2.2)} Export &amp; Share</button>
       <div class="row mt" style="gap:8px">
         <button class="btn grow" data-act="exp-json">Stáhnout JSON</button>
         <button class="btn grow" data-act="exp-md">Stáhnout Markdown</button>
@@ -660,7 +668,7 @@ function renderPhotos() {
   const items = PV.items;
   const addBtn = `
     <input type="file" id="photoAddInput" accept="image/*" style="display:none">
-    <button class="btn primary full" style="margin-bottom:14px" data-act="ph-add">+ Přidat fotku</button>`;
+    <button class="btn primary full" style="margin-bottom:14px" data-act="ph-add">${ic("camera", 18, 2.2)} Přidat fotku</button>`;
 
   if (!items.length) {
     return addBtn + `<div class="card"><div class="empty-note">
@@ -824,7 +832,7 @@ async function importQrFile(file) {
 function renderAbout() {
   return `
     <div class="card center">
-      <div style="font-size:26px;font-weight:900;letter-spacing:.06em;margin-top:6px">FITNESS<span style="color:var(--green)">LOG</span></div>
+      <div style="font-size:28px;font-weight:850;letter-spacing:-.03em;margin-top:6px">Fitness<span style="color:var(--green)">Log</span></div>
       <p class="muted">Verze ${APP_VERSION}</p>
       <p class="muted" style="text-align:left">
         Osobní deník silových a kardio tréninků a stravy.

@@ -13,6 +13,17 @@ const SV = {
   calM: new Date().getMonth()
 };
 
+/* Titulek obrazovky Týden — podtitulek je rozsah aktuálního týdne */
+function summaryHead() {
+  const { from, to } = weekBounds();
+  const s = parseDate(from), e = parseDate(to);
+  return {
+    title: SV.sub === "detail" ? "Přehled" : "Týden",
+    sub: SV.sub === "detail" ? "Kalendář, partie a trendy"
+      : `${s.getDate()}. ${s.getMonth() + 1}. – ${e.getDate()}. ${e.getMonth() + 1}. ${e.getFullYear()}`
+  };
+}
+
 function renderSummary() {
   /* Statistické karty jedou na pevném měsíčním okně; rozsah se přepíná
      jen tam, kde na něm záleží — v kartě Partie. */
@@ -239,7 +250,7 @@ function renderSummary() {
 
   const tabs = `
     <div class="subtabs">
-      <button class="subtab${SV.sub === "week" ? " on" : ""}" data-act="s-sub" data-sub="week">Týden</button>
+      <button class="subtab${SV.sub === "week" ? " on" : ""}" data-act="s-sub" data-sub="week">Tento týden</button>
       <button class="subtab${SV.sub === "detail" ? " on" : ""}" data-act="s-sub" data-sub="detail">Přehled</button>
     </div>`;
   if (SV.sub === "week") return tabs + weekAnswersHtml() + weekTrainingHtml() + checkinPrepHtml();
@@ -265,11 +276,8 @@ function weekAnswersHtml() {
   const ringCenter = `<b>${a.pct != null ? a.pct + "%" : "—"}</b><span>v cíli</span>`;
   return `
     <div class="card">
-      <div class="row between">
-        <span class="h2" style="margin:0">Týden</span>
-        <span class="small">${s.getDate()}.${s.getMonth() + 1}.–${e.getDate()}.${e.getMonth() + 1}.</span>
-      </div>
-      <div class="hero-main mt">
+      ${cardHead("food", "Jídlo a váha", `<span class="small">${s.getDate()}.${s.getMonth() + 1}.–${e.getDate()}.${e.getMonth() + 1}.</span>`)}
+      <div class="hero-main">
         ${ringHtml(a.ok, a.logged || 1, 120, ringCenter)}
         <div class="wk-kv">
           <div><span>dní v cíli</span><b>${a.ok} ze ${a.logged}</b></div>
@@ -300,7 +308,8 @@ function weekTrainingHtml() {
     const cs = sessionCatSets(s);
     for (const c of CAT_ORDER) counts[c] += cs[c] || 0;
   }
-  const zero = CAT_ORDER.filter(c => !counts[c]);
+  const coreTicked = weights.some(s => s.core === true);   // core ano bez sérií
+  const zero = CAT_ORDER.filter(c => !counts[c] && !(c === "Core" && coreTicked));
   const line = sess.slice().sort((a, b) => a.date.localeCompare(b.date)).map(s => {
     const d = parseDate(s.date);
     const dow = CZ_DOW[(d.getDay() + 6) % 7].toLowerCase();
@@ -313,12 +322,9 @@ function weekTrainingHtml() {
 
   return `
     <div class="card">
-      <div class="row between" style="margin-bottom:10px">
-        <span class="h2" style="margin:0">Tréninky</span>
-        <span class="badge ${weights.length >= 3 ? "green" : "neutral"}">${weights.length} silové${cardio.length ? ` + ${cardio.length}× kardio` : ""}</span>
-      </div>
+      ${cardHead("dumbbell", "Tréninky", `<span class="badge ${weights.length >= 3 ? "green" : "neutral"}">${weights.length} silové${cardio.length ? ` + ${cardio.length}× kardio` : ""}</span>`)}
       ${line ? `<div class="small" style="margin-bottom:10px">${line}</div>` : `<div class="small" style="margin-bottom:10px">Tento týden zatím nic.</div>`}
-      ${catPipsHtml(counts)}
+      ${catPipsHtml(counts, coreTicked)}
       ${zero.length ? `<p class="small mt" style="margin-bottom:0;color:var(--yellow)">
         Tento týden 0 sérií: <b>${zero.join(", ")}</b></p>`
         : weights.length ? `<p class="small mt" style="margin-bottom:0">Všech ${CAT_ORDER.length} partií pokryto.</p>` : ""}
@@ -333,16 +339,13 @@ function checkinPrepHtml() {
   const since = daysSinceCheckin();
   return `
     <div class="card item-hero">
-      <div class="row between">
-        <span class="h2" style="margin:0">Check-in pro trenéra</span>
-        <span class="badge ${since === null || since >= 7 ? "green" : "neutral"}">${
-          since === null ? "první" : since >= 7 ? "na řadě" : `před ${since} dny`}</span>
-      </div>
-      <p class="small" style="margin:10px 0 14px">Předvyplní se z týdne: váha
+      ${cardHead("clipboard", "Check-in", `<span class="badge ${since === null || since >= 7 ? "green" : "neutral"}">${
+          since === null ? "první" : since >= 7 ? "na řadě" : `před ${since} dny`}</span>`)}
+      <p class="small" style="margin:0 0 14px">Předvyplní se z týdne: váha
         <b style="color:var(--text)">${avg != null ? fmtNum(kgOut(avg), 1) + " " + weightUnit() : "—"}</b>,
         dodržování <b style="color:var(--text)">${a.pct != null ? a.pct + " %" : "—"}</b>, obvody z minula.
         Zkontroluj, doplň pocity, odešli.</p>
-      <button class="btn primary full" data-act="menu" data-page="checkin">Připravit check-in →</button>
+      <button class="btn primary full" data-act="menu" data-page="checkin">Připravit check-in ${ic("arrowR", 18, 2.4)}</button>
     </div>`;
 }
 
@@ -358,7 +361,7 @@ function movingAvgAt(list, date) {
 function openDaySummary(ds) {
   const sess = sessionsOn(ds);
   const workoutHtml = sess.length
-    ? sess.map(sessionDetailHtml).join(`<hr style="border-color:var(--line);margin:14px 0">`)
+    ? sess.map(sessionDetailHtml).join(`<hr style="border:none;border-top:1px solid var(--line);margin:16px 0">`)
     : `<div class="empty-note" style="padding:14px">Žádný trénink</div>`;
   const bw = bodyWeightOn(ds);
   openModal(`${modalTitle(fmtDate(ds))}
@@ -366,7 +369,7 @@ function openDaySummary(ds) {
     <div class="h3" style="margin-top:18px">Strava</div>${foodDayHtml(ds)}
     <div class="h3" style="margin-top:18px">Váha</div>
     <div class="card2">${bw != null
-      ? `<b>${fmtWeight(bw)}</b>`
+      ? `<b class="num">${fmtWeight(bw)}</b>`
       : `<span class="muted">Bez záznamu</span>`}</div>
     <div class="h3" style="margin-top:18px">Přidat do tohoto dne</div>
     ${dayAddButtons(ds)}`);
@@ -376,18 +379,16 @@ function openDaySummary(ds) {
    rovnou s datem daného dne (WV.date), kardio otevře svůj formulář. */
 function dayAddButtons(ds) {
   const tplBtns = S.templates.map(t =>
-    `<button class="btn sm" style="flex:1 1 40%;border-color:var(--green);color:var(--green)"
+    `<button class="btn sm tonal" style="flex:1 1 40%"
       data-act="sum-add-workout" data-tpl="${t.id}" data-date="${ds}">${esc(t.name)}</button>`).join("");
   return `
     <div class="row" style="flex-wrap:wrap;gap:8px">${tplBtns}
-      <button class="btn sm" style="flex:1 1 40%;border-color:var(--green);color:var(--green)"
-        data-act="sum-add-workout" data-tpl="custom" data-date="${ds}">Libovolný cvik</button>
+      <button class="btn sm tonal" style="flex:1 1 40%"
+        data-act="sum-add-workout" data-tpl="custom" data-date="${ds}">Volný trénink</button>
     </div>
     <div class="row mt" style="gap:8px">
-      <button class="btn sm grow" style="border-color:var(--green);color:var(--green)"
-        data-act="sum-add-cardio" data-date="${ds}">+ Kardio</button>
-      <button class="btn sm grow" style="border-color:var(--green);color:var(--green)"
-        data-act="bw-open" data-date="${ds}">${bodyWeightOn(ds) != null ? "Upravit váhu" : "+ Váha"}</button>
+      <button class="btn sm tonal grow" data-act="sum-add-cardio" data-date="${ds}">+ Kardio</button>
+      <button class="btn sm tonal grow" data-act="bw-open" data-date="${ds}">${bodyWeightOn(ds) != null ? "Upravit váhu" : "+ Váha"}</button>
       <button class="btn sm primary grow" data-act="sum-add-food" data-date="${ds}">+ Jídlo</button>
     </div>`;
 }

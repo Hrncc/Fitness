@@ -12,6 +12,31 @@ const TITLES = {
   export: "Export & Backup", settings: "Nastavení", about: "O aplikaci"
 };
 
+/* Velký titulek stránky (iOS large title) — nad obsahem každé obrazovky.
+   Malá verze v top baru se objeví, až velký odjede nahoru. Obrazovka může
+   dodat vlastní titulek, podtitulek (HTML), tlačítko vpravo a obsah pod. */
+function pageHead(key) {
+  if (key === "today") {
+    const now = new Date();
+    return { title: "Dnes", sub: `${CZ_DAYS_FULL[now.getDay()]} · ${now.getDate()}. ${CZ_MONTHS_GEN[now.getMonth()]}` };
+  }
+  if (key === "workout") return workoutHead();
+  if (key === "summary") return summaryHead();
+  return { title: TITLES[key] || "Fitness Log" };
+}
+
+function pageHeadHtml(h) {
+  return `
+    <header class="page-head">
+      <div class="grow">
+        <h1>${esc(h.title)}</h1>
+        ${h.sub ? `<p>${h.sub}</p>` : ""}
+        ${h.below || ""}
+      </div>
+      ${h.right || ""}
+    </header>`;
+}
+
 /* Nahoru se skočí jen při přechodu na jinou obrazovku (nebo s {top: true}).
    Dřív se scrollovalo po každém překreslení — přidání série v tréninku
    pak vyhodilo obrazovku na začátek. */
@@ -20,24 +45,44 @@ let _lastRouteKey = null;
 function render(opts = {}) {
   const { tab, page } = App.route;
   const key = page || tab;
-  document.getElementById("topbarTitle").textContent = TITLES[key] || "Fitness Log";
+  const head = pageHead(key);
+  document.getElementById("topbarTitle").textContent = head.title;
+  document.getElementById("topbar").classList.toggle("has-back", !!page);
 
   const view = document.getElementById("view");
-  view.innerHTML = page ? {
+  view.innerHTML = pageHeadHtml(head) + (page ? {
     exlib: renderExLib, templates: renderTemplates, foodlib: renderFoodLib,
     photos: renderPhotos, checkin: renderCheckin,
     export: renderExport, settings: renderSettings, about: renderAbout
   }[page]() : {
     today: renderToday, workout: renderWorkout, food: renderFood, summary: renderSummary
-  }[tab]();
+  }[tab]());
 
   document.querySelectorAll(".navbtn").forEach(b =>
     b.classList.toggle("on", !page && !!b.dataset.tab && b.dataset.tab === tab));
 
   wireViewInputs();
-  if (opts.top || key !== _lastRouteKey) window.scrollTo(0, 0);
+  Dock.sync();
+  const changed = key !== _lastRouteKey;
+  if (opts.top || changed) window.scrollTo(0, 0);
+  if (changed) {   // jemný nájezd nové obrazovky
+    view.classList.remove("enter");
+    void view.offsetWidth;
+    view.classList.add("enter");
+  }
   _lastRouteKey = key;
+  updateTopbar();
 }
+
+/* Top bar zesklovatí a ukáže malý titulek, jakmile velký odjede.
+   Lepkavý panel s hledáním (Exercise Library) dostane sklo, až se přilepí. */
+function updateTopbar() {
+  const bar = document.getElementById("topbar");
+  bar.classList.toggle("scrolled", window.scrollY > 34);
+  const sticky = document.querySelector(".sticky-bar");
+  if (sticky) sticky.classList.toggle("stuck", sticky.getBoundingClientRect().top <= bar.offsetHeight + 1);
+}
+window.addEventListener("scroll", updateTopbar, { passive: true });
 
 /* Inputy, které potřebují živé wiring po překreslení */
 function wireViewInputs() {
@@ -63,11 +108,6 @@ function wireViewInputs() {
   }
 }
 
-function openDrawer(open) {
-  document.getElementById("drawer").classList.toggle("open", open);
-  document.getElementById("drawerBackdrop").classList.toggle("open", open);
-}
-
 /* ===== Undo — mazání bez potvrzovacích dialogů =====
    Před destruktivní operací se uloží snapshot stavu; toast nabídne Vrátit. */
 let UNDO_SNAP = null;
@@ -83,10 +123,10 @@ function withUndo(msg, fn) {
 /* ===== Akce (event delegation přes data-act) ===== */
 const ACTIONS = {
   /* navigace */
-  "nav": d => { App.route = { tab: d.tab, page: null }; closeModal(); openDrawer(false); render({ top: true }); },
-  "menu": d => { App.route.page = d.page; openDrawer(false); render({ top: true }); },
-  "drawer-open": () => openDrawer(true),
-  "drawer-close": () => openDrawer(false),
+  "nav": d => { App.route = { tab: d.tab, page: null }; closeModal(); render({ top: true }); },
+  "menu": d => { App.route.page = d.page; closeModal(); render({ top: true }); },
+  "page-back": () => { App.route.page = null; render({ top: true }); },
+  "more-open": () => openMoreSheet(),
   "modal-close": () => closeModal(),
   "app-undo": () => {
     if (!UNDO_SNAP) return;
@@ -176,7 +216,7 @@ const ACTIONS = {
   },
 
   /* ---- Trénink ---- */
-  "w-sub": d => { WV.sub = d.sub; render(); },
+  "w-sub": d => { WV.sub = d.sub; render({ top: true }); },
   "w-day-nav": d => { WV.date = addDays(WV.date, Number(d.dir)); render(); },
   "w-day-today": () => { WV.date = todayStr(); render(); },
   "w-begin": d => beginWorkout(d.template === "custom" ? null : d.template),
@@ -204,6 +244,21 @@ const ACTIONS = {
     S.activeSession.entries[Number(d.i)].sets.splice(Number(d.j), 1);
     save(); render();
   },
+  /* core ano/ne — v probíhajícím tréninku i zpětně v detailu */
+  "w-core": () => {
+    const a = S.activeSession;
+    if (!a) return;
+    a.core = !a.core;
+    save(); render();
+  },
+  "w-core-session": (d, t) => {
+    const s = S.sessions.find(x => x.id === d.id);
+    if (!s) return;
+    s.core = !(s.core === true);
+    t.classList.toggle("on", s.core);
+    t.setAttribute("aria-checked", String(s.core));
+    save(); render();
+  },
   "w-remove-ex": d => {
     S.activeSession.entries.splice(Number(d.i), 1);
     WV.openIdx = null; // indexy se posunuly
@@ -225,6 +280,12 @@ const ACTIONS = {
     save(); render();
   },
   "w-add-ex": () => openExercisePicker(null),
+  /* filtr partie ve výběru cviku */
+  "pk-cat": d => {
+    PK.cat = d.cat;
+    refreshPicker(true);
+    document.getElementById("modal").scrollTop = 0;
+  },
   "w-pick-ex": d => {
     const a = S.activeSession;
     if (!a) { closeModal(); return; }
@@ -255,7 +316,15 @@ const ACTIONS = {
     toast("Hodnocení uloženo ✓", "ok");
   },
 
-  /* ---- Rest timer ---- */
+  /* ---- Rest timer (zamčený dock) ---- */
+  "rest-start": () => Rest.start(Settings.get().restSeconds || 120),
+  "dock-open": () => {
+    closeModal();
+    WV.sub = "log";
+    if (App.route.tab === "workout" && !App.route.page) { render(); return; }
+    App.route = { tab: "workout", page: null };
+    render({ top: true });
+  },
   "rest-plus": () => Rest.adjust(30),
   "rest-minus": () => Rest.adjust(-30),
   "rest-stop": () => Rest.stop(),
@@ -356,6 +425,7 @@ const ACTIONS = {
     const t = getTemplate(MV.tplTarget);
     if (t && !t.exercises.includes(d.exid)) t.exercises.push(d.exid);
     save(); closeModal(); render();
+    toast(`Přidáno: ${exName(d.exid)}`, "ok");
   },
   "tpl-move": d => {
     const t = getTemplate(d.tpl);

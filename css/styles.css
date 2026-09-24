@@ -1,12 +1,16 @@
-/* ===== Design systém v2 — minimal / bold / dark =====
-   Paleta: volt (limetková) jako hlavní akcent na téměř černém podkladu.
-   Původní názvy proměnných zůstávají — mění se jen hodnoty. */
+/* ===== Design systém v3 — moderní tmavý, „glass" =====
+   v1.23: kompletní přestylování (plochy, typografie, tvary, ikony, pohyb).
+   Barevná logika ve dvou vrstvách zůstává beze změny — viz níž. */
 :root {
-  --bg0: #0A0B0D;
-  --bg1: #121317;
-  --bg2: #1A1C22;
-  --bg3: #262932;
-  --line: #23252C;
+  --bg0: #07080A;     /* stránka */
+  --bg1: #111317;     /* karta */
+  --bg2: #1A1D23;     /* vnořená plocha, pole */
+  --bg3: #272B33;     /* zvýšená plocha, neutrální štítek */
+  --line: rgba(255,255,255,.07);
+  --line2: rgba(255,255,255,.11);
+  --glass: rgba(18,20,25,.74);
+  --glass-strong: rgba(26,28,34,.9);
+  --sheet: #121419;
 
   /* ===== Vrstva 1 — STAV (co se právě děje) =====
      Vždy jako výplň nebo plný text: tlačítka, badge, chybové hlášky.
@@ -17,6 +21,7 @@
   --green: #CDFB51;   /* volt — akcent */
   --yellow: #F7C948;  /* zlatá — rekordy a varování */
   --red: #FF4D5E;     /* jen chyby, mazání, překročení */
+  --on-green: #0B0C0E;
 
   --green-bg: rgba(205,251,81,.12);
   --yellow-bg: rgba(247,201,72,.13);
@@ -48,14 +53,25 @@
   --chart: #C9CDC2;   /* neutrální datové křivky a sloupce */
 
   --text: #F4F5F1;
-  --text2: #9EA2AD;
-  --text3: #62666F;
+  --text2: #A0A4AE;
+  --text3: #666B75;
 
-  --stroke: rgba(255,255,255,.05);
-  --radius: 22px;
-  --nav-h: 62px;
-  --top-h: 52px;
+  --stroke: var(--line);
+  --radius: 24px;
+  --r-lg: 18px;
+  --r-md: 14px;
+  --r-sm: 10px;
+  --nav-h: 64px;
+  --top-h: 46px;
+  --dock-h: 0px;      /* výška zamčeného timeru nad navigací (0 = skrytý) */
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  /* čísla v zaoblené variantě systémového písma (SF Pro Rounded na iOS) */
+  --font-num: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --ease: cubic-bezier(.22, 1, .36, 1);
+  --shadow-float: 0 18px 40px -12px rgba(0,0,0,.75), 0 2px 10px rgba(0,0,0,.35);
 }
+body.has-dock { --dock-h: 62px; }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; padding: 0; }
@@ -75,36 +91,51 @@ body { touch-action: manipulation; }
 body {
   background: var(--bg0);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font);
   font-size: 15px;
   line-height: 1.45;
-  padding-bottom: calc(var(--nav-h) + 28px + env(safe-area-inset-bottom));
+  letter-spacing: -.005em;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: calc(var(--nav-h) + var(--dock-h) + 34px + env(safe-area-inset-bottom));
 }
-button { font-family: inherit; }
+/* jemná volt záře u horního okraje — odjede se stránkou */
+body::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 420px;
+  z-index: -1; pointer-events: none;
+  background: radial-gradient(80% 70% at 50% -20%, rgba(205,251,81,.07), transparent 70%);
+}
+button { font-family: inherit; letter-spacing: inherit; }
+svg { flex: none; }
+.num, .big-num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 
-/* ===== Top bar ===== */
+/* ===== Top bar =====
+   Průhledný, dokud je vidět velký titulek stránky; po odscrollování se
+   z něj stane skleněná lišta s malým titulkem. */
 .topbar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 40;
   height: calc(var(--top-h) + env(safe-area-inset-top));
-  padding-top: env(safe-area-inset-top);
-  display: flex; align-items: center; gap: 10px;
-  padding-left: 10px; padding-right: 18px;
-  background: rgba(10,11,13,.9);
-  backdrop-filter: blur(14px);
+  padding: env(safe-area-inset-top) 8px 0;
+  display: grid; grid-template-columns: 48px 1fr 48px; align-items: center;
+  transition: background .25s, box-shadow .25s;
+}
+.topbar.scrolled {
+  background: var(--glass);
+  backdrop-filter: blur(22px) saturate(1.7);
+  -webkit-backdrop-filter: blur(22px) saturate(1.7);
+  box-shadow: 0 1px 0 var(--line);
 }
 .topbar-title {
-  font-weight: 900; font-size: 15px; flex: 1;
-  text-transform: uppercase; letter-spacing: .14em;
+  text-align: center; font-weight: 650; font-size: 16px; letter-spacing: -.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  opacity: 0; transform: translateY(6px);
+  transition: opacity .2s, transform .25s var(--ease);
 }
-.iconbtn {
-  background: none; border: none; color: var(--text);
-  width: 42px; height: 42px; border-radius: 12px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 16px; cursor: pointer;
-}
-.iconbtn:active { background: var(--bg2); }
+.topbar.scrolled .topbar-title { opacity: 1; transform: none; }
+.topbar-back { visibility: hidden; }
+.topbar.has-back .topbar-back { visibility: visible; }
 .sync-dot {
-  width: 9px; height: 9px; border-radius: 50%;
+  justify-self: center;
+  width: 8px; height: 8px; border-radius: 50%;
   background: var(--text3); flex-shrink: 0;
   transition: background .3s;
 }
@@ -113,194 +144,408 @@ button { font-family: inherit; }
 .sync-dot.error { background: var(--red); box-shadow: 0 0 10px rgba(255,77,94,.7); }
 @keyframes pulse { 50% { opacity: .35; } }
 
+.iconbtn {
+  background: none; border: none; color: var(--text);
+  width: 40px; height: 40px; border-radius: 50%; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  font-size: 16px; cursor: pointer; transition: background .15s, transform .15s;
+}
+.iconbtn:active { background: var(--bg3); transform: scale(.94); }
+.iconbtn.soft { background: var(--bg2); }
+.iconbtn.soft:active { background: var(--bg3); }
+.iconbtn.sm { width: 32px; height: 32px; }
+.iconbtn.danger { color: var(--red); }
+.iconbtn.muted { color: var(--text3); }
+.iconbtn.on { background: var(--green-bg); color: var(--green); }
+
 /* ===== View / layout ===== */
 .view {
-  padding: calc(var(--top-h) + env(safe-area-inset-top) + 16px) 16px 24px;
+  padding: calc(var(--top-h) + env(safe-area-inset-top)) 16px 24px;
   max-width: 640px; margin: 0 auto;
 }
+.view.enter { animation: viewIn .32s var(--ease); }
+@keyframes viewIn { from { opacity: 0; transform: translateY(10px); } }
+
+/* Velký titulek stránky (iOS large title) */
+.page-head {
+  display: flex; align-items: flex-end; gap: 10px;
+  padding: 2px 4px 16px;
+}
+.page-head h1 {
+  font-size: 32px; font-weight: 800; letter-spacing: -.03em; line-height: 1.08;
+  margin: 0;
+}
+.page-head p { margin: 5px 0 0; color: var(--text2); font-size: 14.5px; font-weight: 500; }
+.page-head .grow > p b { color: var(--text); font-weight: 650; }
+.page-prog { height: 4px; border-radius: 2px; background: var(--bg3); margin-top: 10px; overflow: hidden; }
+.page-prog i { display: block; height: 100%; background: var(--green); border-radius: 2px; transition: width .4s var(--ease); }
+
 .card {
-  background: var(--bg1);
-  border: 1px solid var(--stroke);
+  background: linear-gradient(180deg, #14161B, var(--bg1) 140px);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 20px;
+  padding: 18px;
   margin-bottom: 12px;
 }
-.card2 { background: var(--bg2); border-radius: 16px; padding: 14px; }
+.card2 { background: var(--bg2); border-radius: var(--r-lg); padding: 14px; }
 
-/* Nadpisy karet = malé bold labely (minimal/bold hierarchie: labely malé, čísla velká) */
+/* hlavička karty: ikona v dlaždici + titulek + volitelně vpravo štítek */
+.card-head { display: flex; align-items: center; gap: 11px; margin-bottom: 14px; }
+.card-head .h2 { margin: 0; }
+.card-ic {
+  width: 34px; height: 34px; border-radius: 11px; flex: none;
+  background: var(--bg2); color: var(--text2);
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Nadpisy: sentence case, čitelné; drobné štítky mají vlastní třídu */
 .h2 {
-  font-size: 11.5px; font-weight: 900; margin: 0 0 12px;
-  text-transform: uppercase; letter-spacing: .15em; color: var(--text2);
+  font-size: 16px; font-weight: 700; margin: 0 0 12px; letter-spacing: -.015em;
+  color: var(--text);
 }
-.h2 .small { text-transform: none; letter-spacing: 0; font-weight: 600; }
+.h2 .small { font-weight: 500; letter-spacing: 0; }
 .h3 {
-  font-size: 10.5px; font-weight: 800; margin: 0 0 6px;
-  text-transform: uppercase; letter-spacing: .12em; color: var(--text3);
+  font-size: 11.5px; font-weight: 700; margin: 0 0 6px;
+  text-transform: uppercase; letter-spacing: .08em; color: var(--text3);
 }
-.muted { color: var(--text2); font-size: 13px; }
-.small { font-size: 12px; color: var(--text3); }
+.muted { color: var(--text2); font-size: 14px; }
+.small { font-size: 12.5px; color: var(--text3); }
 .row { display: flex; align-items: center; gap: 10px; }
 .row.between { justify-content: space-between; }
 .grow { flex: 1; min-width: 0; }
 .mt { margin-top: 12px; }
 .center { text-align: center; }
-.big-num { font-size: 36px; font-weight: 900; letter-spacing: -0.02em; line-height: 1; }
+.big-num { font-size: 36px; font-weight: 800; letter-spacing: -.03em; line-height: 1; }
 
 /* ===== Buttons ===== */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   background: var(--bg2); color: var(--text);
-  border: 1px solid transparent; border-radius: 999px;
-  padding: 13px 20px; font-size: 15px; font-weight: 700;
-  cursor: pointer; min-height: 48px;
+  border: 1px solid transparent; border-radius: 16px;
+  padding: 13px 20px; font-size: 15.5px; font-weight: 650;
+  cursor: pointer; min-height: 50px;
+  transition: transform .15s var(--ease), background .15s, box-shadow .2s;
 }
-.btn:active { transform: scale(.97); }
-.btn.primary { background: var(--green); color: #0A0B0D; font-weight: 800; }
-.btn.success { background: var(--green); color: #0A0B0D; font-weight: 800; }
+.btn:active { transform: scale(.97); background: var(--bg3); }
+.btn.primary, .btn.success {
+  background: var(--green); color: var(--on-green); font-weight: 750;
+  box-shadow: 0 8px 22px -10px rgba(205,251,81,.55), inset 0 1px 0 rgba(255,255,255,.35);
+}
+.btn.primary:active, .btn.success:active { background: #BDEB43; }
+/* tónované volt tlačítko — sekundární akce, která pořád je akce */
+.btn.tonal { background: var(--green-bg); color: var(--green); }
+.btn.tonal:active { background: rgba(205,251,81,.2); }
 .btn.danger { background: var(--red-bg); color: var(--red); }
-.btn.ghost { background: transparent; border-color: var(--bg3); }
+.btn.ghost { background: transparent; border-color: var(--line2); }
+.btn.ghost:active { background: var(--bg2); }
+.btn.dashed { background: transparent; border: 1.5px dashed var(--line2); color: var(--text2); }
 .btn.full { width: 100%; }
-.btn.sm { padding: 7px 14px; min-height: 34px; font-size: 13px; }
+.btn.sm { padding: 8px 14px; min-height: 36px; font-size: 13.5px; border-radius: 12px; }
 .btn:disabled { opacity: .4; pointer-events: none; }
 
 /* ===== Badges & chips ===== */
 .badge {
-  display: inline-block; padding: 4px 10px; border-radius: 999px;
-  font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 700; letter-spacing: .01em; white-space: nowrap;
+  background: var(--bg3); color: #C9CCD3;
 }
 .badge.green { background: var(--green-bg); color: var(--green); }
 .badge.yellow { background: var(--yellow-bg); color: var(--yellow); }
 .badge.red { background: var(--red-bg); color: var(--red); }
-.badge.neutral { background: var(--bg3); color: #C7CAD1; }
+.badge.neutral { background: var(--bg3); color: #C9CCD3; }
 
 .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-.chip {
-  background: var(--bg2); border: 1px solid transparent; color: var(--text2);
-  border-radius: 999px; padding: 8px 15px; font-size: 13px; font-weight: 700; cursor: pointer;
+/* vodorovně posuvný řádek chipů (filtr partií) */
+.chips.scroll {
+  flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+  margin-left: -18px; margin-right: -18px; padding: 0 18px;
+  scroll-padding: 0 18px;
 }
-.chip.on { background: var(--green); color: #0A0B0D; }
+.chips.scroll::-webkit-scrollbar { display: none; }
+.chip {
+  background: var(--bg2); border: 1px solid var(--line); color: var(--text2);
+  border-radius: 999px; padding: 8px 15px; font-size: 13.5px; font-weight: 650; cursor: pointer;
+  white-space: nowrap; flex: none; transition: background .15s, color .15s;
+}
+.chip:active { background: var(--bg3); }
+.chip.on { background: var(--green); border-color: var(--green); color: var(--on-green); }
 
-/* ===== Sub-tabs (segmented) ===== */
+/* ===== Sub-tabs (segmented control) ===== */
 .subtabs {
-  display: flex; background: var(--bg1); border: 1px solid var(--stroke);
-  border-radius: 999px; padding: 4px; margin-bottom: 14px;
+  display: flex; background: var(--bg1); border: 1px solid var(--line);
+  border-radius: 14px; padding: 3px; margin-bottom: 14px; gap: 2px;
 }
 .subtab {
-  flex: 1; background: none; border: none; color: var(--text3);
-  padding: 10px 4px; border-radius: 999px; font-size: 13px; font-weight: 800; cursor: pointer;
-  text-transform: uppercase; letter-spacing: .06em;
+  flex: 1; background: none; border: none; color: var(--text2);
+  padding: 9px 4px; border-radius: 11px; font-size: 14px; font-weight: 650; cursor: pointer;
+  transition: background .2s, color .2s;
 }
-.subtab.on { background: var(--bg3); color: var(--text); }
+.subtab.on { background: var(--bg3); color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+
+/* ===== iOS přepínač (checkbox ano/ne) ===== */
+.switch {
+  width: 51px; height: 31px; border-radius: 999px; padding: 0;
+  background: var(--bg3); border: none; position: relative; flex: none;
+  cursor: pointer; transition: background .22s;
+}
+.switch::after {
+  content: ""; position: absolute; top: 2px; left: 2px;
+  width: 27px; height: 27px; border-radius: 50%; background: #fff;
+  box-shadow: 0 3px 8px rgba(0,0,0,.35);
+  transition: transform .28s var(--ease);
+}
+.switch.on { background: var(--green); }
+.switch.on::after { transform: translateX(20px); }
+.switch:disabled { opacity: .55; cursor: default; }
 
 /* ===== Progress bars ===== */
 .bar { height: 8px; background: var(--bg3); border-radius: 999px; overflow: hidden; }
-.bar > div { height: 100%; border-radius: 999px; transition: width .4s; min-width: 3px; }
+.bar > div { height: 100%; border-radius: 999px; transition: width .5s var(--ease); min-width: 3px; }
 .bar.mini { height: 5px; }
 
 /* ===== Inputs ===== */
 .input, select.input, textarea.input {
-  width: 100%; background: var(--bg2); border: 1.5px solid transparent;
-  color: var(--text); border-radius: 14px; padding: 12px 14px;
+  width: 100%; background: var(--bg2); border: 1px solid var(--line);
+  color: var(--text); border-radius: var(--r-md); padding: 12px 14px;
   font-size: 16px;  /* méně než 16 px = iOS při klepnutí do pole přiblíží stránku */
-  font-family: inherit; appearance: none;
+  font-family: inherit; appearance: none; -webkit-appearance: none;
+  transition: border-color .15s, box-shadow .15s;
 }
-.input:focus { outline: none; border-color: var(--green); }
+.input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 4px rgba(205,251,81,.14); }
 .input::placeholder { color: var(--text3); }
+select.input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23A0A4AE' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px;
+}
 label.field { display: block; margin-bottom: 12px; }
 label.field > span {
-  display: block; font-size: 10.5px; color: var(--text3); margin-bottom: 6px;
-  font-weight: 800; text-transform: uppercase; letter-spacing: .1em;
+  display: block; font-size: 13px; color: var(--text2); margin-bottom: 6px;
+  font-weight: 600;
 }
 .input-row { display: flex; gap: 8px; }
 .input-row > * { flex: 1; min-width: 0; }
 
-/* ===== Bottom nav — plovoucí pilulka ===== */
+/* ===== Vyhledávání (plovoucí pole s lupou) ===== */
+.search { position: relative; display: block; }
+.search > svg {
+  position: absolute; left: 15px; top: 50%; transform: translateY(-50%);
+  color: var(--text3); pointer-events: none;
+}
+.search .input {
+  padding-left: 44px; border-radius: 999px; height: 48px;
+  background: var(--bg2); border-color: var(--line2);
+}
+.search .input::-webkit-search-decoration { -webkit-appearance: none; }
+.search .input::-webkit-search-cancel-button {
+  -webkit-appearance: none; appearance: none; width: 20px; height: 20px; cursor: pointer;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='%23666B75'/%3E%3Cpath d='M8.5 8.5l7 7M15.5 8.5l-7 7' stroke='%2307080A' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* Lepkavý panel se hledáním na stránce (Exercise Library) — drží se pod
+   top barem, takže hledání i filtr partií zůstávají po ruce při scrollu. */
+.sticky-bar {
+  position: sticky; top: calc(var(--top-h) + env(safe-area-inset-top)); z-index: 30;
+  margin: 0 -16px 12px; padding: 6px 16px 2px;
+  transition: background .2s, box-shadow .2s;
+}
+/* sklo až ve chvíli, kdy se panel přilepí pod top bar */
+.sticky-bar.stuck {
+  background: var(--glass);
+  backdrop-filter: blur(22px) saturate(1.7);
+  -webkit-backdrop-filter: blur(22px) saturate(1.7);
+  box-shadow: 0 1px 0 var(--line);
+}
+.sticky-bar .chips.scroll { margin: 10px -16px 0; padding: 0 16px 10px; }
+.sticky-bar .search .input { box-shadow: 0 8px 24px -12px rgba(0,0,0,.8); }
+
+/* ===== Bottom nav — plovoucí skleněná pilulka ===== */
 .bottomnav {
   position: fixed; z-index: 40;
-  left: 14px; right: 14px;
-  bottom: calc(12px + env(safe-area-inset-bottom));
-  max-width: 500px; margin: 0 auto;
-  height: var(--nav-h);
+  left: 16px; right: 16px;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  max-width: 460px; margin: 0 auto;
+  height: var(--nav-h); padding: 6px; gap: 2px;
   display: flex;
-  background: rgba(24,26,31,.88);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  border: 1px solid var(--stroke);
+  background: var(--glass);
+  backdrop-filter: blur(24px) saturate(1.8);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  border: 1px solid var(--line2);
   border-radius: 999px;
-  box-shadow: 0 10px 30px rgba(0,0,0,.45);
+  box-shadow: var(--shadow-float);
 }
 .navbtn {
   flex: 1; background: none; border: none; color: var(--text3);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  font-size: 9.5px; font-weight: 800; cursor: pointer;
-  text-transform: uppercase; letter-spacing: .08em;
-  border-radius: 999px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  font-size: 10.5px; font-weight: 650; cursor: pointer; letter-spacing: .01em;
+  border-radius: 999px; transition: color .2s, background .25s;
 }
-.navbtn.on { color: var(--green); }
+.navbtn:active { background: rgba(255,255,255,.05); }
+.navbtn.on { color: var(--green); background: rgba(255,255,255,.07); }
 
-/* ===== Drawer ===== */
-.drawer-backdrop, .modal-backdrop {
-  position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 50;
-  opacity: 0; pointer-events: none; transition: opacity .2s;
+/* ===== Zamčený timer (dock) =====
+   Sedí nad plovoucí navigací na každé obrazovce — pauza mezi sériemi,
+   a když pauza neběží, čas probíhajícího tréninku. Při otevřeném sheetu
+   se přesune nahoru, aby ho sheet nezakryl. */
+.dock {
+  position: fixed; z-index: 45;
+  left: 16px; right: 16px;
+  bottom: calc(var(--nav-h) + 18px + env(safe-area-inset-bottom));
+  max-width: 460px; margin: 0 auto; height: 54px;
+  display: none; align-items: center; gap: 6px;
+  padding: 6px 7px 6px 7px;
+  background: var(--glass-strong);
+  backdrop-filter: blur(24px) saturate(1.8);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  border: 1px solid var(--line2); border-radius: 999px;
+  box-shadow: var(--shadow-float);
+  color: var(--text);
 }
-.drawer-backdrop.open, .modal-backdrop.open { opacity: 1; pointer-events: auto; }
-.drawer {
-  position: fixed; top: 0; bottom: 0; left: 0; width: min(300px, 82vw); z-index: 51;
-  background: var(--bg1);
-  transform: translateX(-105%); transition: transform .22s ease;
-  padding: calc(env(safe-area-inset-top) + 14px) 14px 14px;
-  overflow-y: auto;
+.dock.show { display: flex; animation: dockIn .4s var(--ease); }
+@keyframes dockIn { from { opacity: 0; transform: translateY(14px) scale(.97); } }
+body.modal-open .dock.show {
+  top: calc(env(safe-area-inset-top) + 10px); bottom: auto; z-index: 65;
+  animation: none;
 }
-.drawer.open { transform: translateX(0); }
-.drawer-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-left: 8px; }
-.drawer-logo { font-weight: 900; font-size: 17px; letter-spacing: .06em; }
-.drawer-logo span { color: var(--green); }
-.drawer-item {
-  display: block; width: 100%; text-align: left;
-  background: none; border: none; color: var(--text);
-  padding: 15px 14px; border-radius: 14px; font-size: 15px; font-weight: 700; cursor: pointer;
+.dock-main {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
+  background: none; border: none; color: inherit; text-align: left;
+  padding: 0; cursor: pointer; height: 100%;
 }
-.drawer-item:active { background: var(--bg2); }
+.dock-ring {
+  width: 40px; height: 40px; border-radius: 50%; flex: none; position: relative;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg3); color: var(--text2);
+}
+.dock-ring svg.ring { position: absolute; inset: 0; transform: rotate(-90deg); }
+.dock-ring.live { background: var(--green-bg); color: var(--green); }
+.dock-ring.live::after {
+  content: ""; position: absolute; top: 1px; right: 1px; width: 9px; height: 9px;
+  border-radius: 50%; background: var(--green); border: 2px solid var(--glass-strong);
+  animation: pulse 1.6s infinite;
+}
+.dock-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.1; }
+.dock-k {
+  font-size: 11.5px; font-weight: 650; color: var(--text2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dock-time {
+  font-family: var(--font-num); font-size: 20px; font-weight: 750;
+  font-variant-numeric: tabular-nums; letter-spacing: -.01em; margin-top: 2px;
+}
+.dock-btn {
+  height: 40px; min-width: 46px; padding: 0 12px; border-radius: 999px; flex: none;
+  background: rgba(255,255,255,.08); border: none; color: var(--text);
+  font-weight: 700; font-size: 13.5px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font-variant-numeric: tabular-nums; transition: background .15s, transform .15s;
+}
+.dock-btn:active { background: rgba(255,255,255,.16); transform: scale(.95); }
+.dock-btn.icon { min-width: 40px; width: 40px; padding: 0; color: var(--text2); }
+.dock-btn.go { background: var(--green-bg); color: var(--green); }
+.dock.over { background: var(--green); border-color: var(--green); color: var(--on-green); }
+.dock.over .dock-k { color: rgba(11,12,14,.7); }
+.dock.over .dock-ring { background: rgba(11,12,14,.12); color: var(--on-green); }
+.dock.over .dock-btn { background: rgba(11,12,14,.12); color: var(--on-green); }
 
-/* ===== Modal ===== */
+/* ===== Sheet (modal zespodu) ===== */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 50;
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  opacity: 0; pointer-events: none; transition: opacity .25s;
+}
+.modal-backdrop.open { opacity: 1; pointer-events: auto; }
 .modal {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
   max-width: 640px; margin: 0 auto;
-  background: var(--bg1);
-  border: 1px solid var(--stroke); border-bottom: none;
-  border-radius: 26px 26px 0 0;
-  transform: translateY(105%); transition: transform .25s ease;
-  max-height: 88vh; overflow-y: auto;
-  padding: 26px 18px calc(20px + env(safe-area-inset-bottom));
+  background: var(--sheet);
+  border: 1px solid var(--line2); border-bottom: none;
+  border-radius: 28px 28px 0 0;
+  transform: translateY(105%);
+  /* zavřený sheet je schovaný úplně — jinak by jeho stín prosvítal u spodního okraje */
+  visibility: hidden;
+  transition: transform .4s var(--ease), visibility 0s linear .4s;
+  max-height: 86vh;
+  /* nahoře zůstane místo na zamčený timer */
+  max-height: calc(100dvh - env(safe-area-inset-top) - 76px);
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: 22px 18px calc(22px + env(safe-area-inset-bottom));
+  box-shadow: 0 -24px 60px rgba(0,0,0,.55);
 }
 .modal::before {
-  content: ""; position: absolute; top: 9px; left: 50%; transform: translateX(-50%);
-  width: 38px; height: 4px; border-radius: 999px; background: var(--bg3);
+  content: ""; position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+  width: 38px; height: 5px; border-radius: 999px; background: var(--bg3); z-index: 3;
 }
-.modal.open { transform: translateY(0); }
+.modal.open { transform: translateY(0); visibility: visible; transition: transform .4s var(--ease); }
 .modal-title {
-  font-size: 17px; font-weight: 800; margin: 0 0 16px;
-  display: flex; justify-content: space-between; align-items: center;
+  font-size: 19px; font-weight: 750; letter-spacing: -.02em; margin: 0 0 16px;
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
 }
+.modal-title .iconbtn { background: var(--bg2); width: 34px; height: 34px; color: var(--text2); }
+
+/* Lepkavá hlavička sheetu (výběr cviku): titulek, hledání a partie
+   zůstávají nahoře, zatímco seznam pod nimi scrolluje. */
+.sheet-sticky {
+  position: sticky; top: 0; z-index: 2;
+  margin: -22px -18px 6px; padding: 22px 18px 2px;
+  background: var(--sheet);
+  transition: box-shadow .2s;
+}
+.sheet-sticky .modal-title { margin-bottom: 12px; }
+.sheet-sticky .chips.scroll { margin-top: 12px; margin-bottom: 0; padding-bottom: 12px; }
+.modal.scrolled .sheet-sticky { box-shadow: 0 1px 0 var(--line), 0 14px 24px -14px rgba(0,0,0,.8); }
+
+/* Více — mřížka dlaždic místo bočního šuplíku */
+.more-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.more-tile {
+  background: var(--bg2); border: 1px solid var(--line); border-radius: 18px;
+  color: var(--text); cursor: pointer; padding: 14px 6px 12px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  font-size: 12.5px; font-weight: 650; line-height: 1.2; text-align: center;
+  min-height: 96px; transition: background .15s, transform .15s;
+}
+.more-tile:active { background: var(--bg3); transform: scale(.96); }
+.more-tile .card-ic { width: 40px; height: 40px; border-radius: 13px; background: var(--bg3); color: var(--text); }
+.more-tile.accent .card-ic { background: var(--green-bg); color: var(--green); }
+.more-foot { text-align: center; margin-top: 14px; }
 
 /* ===== Lists ===== */
 .list-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 13px 2px; border-bottom: 1px solid var(--stroke);
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 2px; border-bottom: 1px solid var(--line);
 }
 .list-item:last-child { border-bottom: none; }
-.list-item .name { font-weight: 700; font-size: 14.5px; }
+.list-item .name { font-weight: 650; font-size: 15px; letter-spacing: -.01em; }
+.list-item[data-act] { cursor: pointer; }
+.list-item[data-act]:active { opacity: .7; }
+.list-item.used { opacity: .45; }
+
+/* ===== Navigace po dnech ===== */
+.daynav {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg1); border: 1px solid var(--line); border-radius: 20px;
+  padding: 6px; margin-bottom: 12px;
+}
+.daynav-mid {
+  flex: 1; position: relative; text-align: center; cursor: pointer;
+  display: flex; flex-direction: column; line-height: 1.2;
+}
+.daynav-mid b { font-size: 15.5px; font-weight: 700; }
+.daynav-mid span { font-size: 12px; color: var(--text3); font-weight: 500; }
+.daynav-mid input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.daynav + .btn { margin: -4px 0 12px; }
 
 /* ===== Kalendář ===== */
 .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.cal-head b { font-size: 14px; text-transform: uppercase; letter-spacing: .1em; font-weight: 900; }
-.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
-.cal-dow { text-align: center; font-size: 10px; color: var(--text3); font-weight: 800; padding: 4px 0; text-transform: uppercase; }
+.cal-head b { font-size: 16px; font-weight: 700; text-transform: capitalize; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.cal-dow { text-align: center; font-size: 11px; color: var(--text3); font-weight: 650; padding: 4px 0; }
 .cal-day {
-  aspect-ratio: 1; border-radius: 13px; background: var(--bg2);
+  aspect-ratio: 1; border-radius: 14px; background: var(--bg2);
   border: 1.5px solid transparent; color: var(--text2);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
-  font-size: 13px; font-weight: 600; cursor: pointer; position: relative;
+  font-size: 13.5px; font-weight: 600; cursor: pointer; position: relative;
+  font-family: var(--font-num); font-variant-numeric: tabular-nums;
 }
 .cal-day.empty { background: none; cursor: default; }
 /* den s tréninkem je světlejší; co se cvičilo, řeknou proužky partií */
@@ -328,31 +573,31 @@ label.field > span {
 .cal-legend { display: flex; flex-wrap: wrap; gap: 5px 12px; align-items: center; }
 .cal-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .cal-legend i { width: 11px; height: 11px; border-radius: 4px; display: block; }
-.cal-legend i.dot { width: 6px; height: 6px; border-radius: 50%; margin: 0 2px; }
+.cal-legend i.dot { width: 7px; height: 7px; border-radius: 50%; margin: 0 1px; }
 
 /* Anglický název cviku — druhý řádek pod českým, kvůli hledání videí
    a zahraničním zdrojům. Záměrně tlumený: je to doplněk, ne titulek. */
 .name-en {
-  font-size: 12.5px; color: var(--text3); font-weight: 500;
-  letter-spacing: .01em; margin-top: 1px;
+  font-size: 13px; color: var(--text3); font-weight: 500;
+  letter-spacing: 0; margin-top: 1px;
 }
 
 /* ===== Identita partie ===== */
 /* Hlavička kategorie se svou tečkou (pickery cviků). */
-.cat-head { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.cat-head { display: flex; align-items: center; gap: 8px; margin-top: 16px; margin-bottom: 2px; }
 /* Chip kategorie a badge v detailu cviku — tečka nese identitu, ne výplň. */
 .cat-chip { display: inline-flex; align-items: center; gap: 7px; }
-.cat-chip.on .p-dot { background: #0A0B0D !important; }
+.cat-chip.on .p-dot { background: var(--on-green) !important; }
 .cat-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--bg3); }
 /* kardio se v seznamech značí stejně jako partie — tečkou, ne výplní */
 .badge.cardio { display: inline-flex; align-items: center; gap: 6px; background: var(--bg3); color: var(--p-cardio); }
 /* Pokrytí partií u sbalené šablony. */
-.tpl-cats { display: flex; gap: 4px; margin-top: 7px; }
+.tpl-cats { display: flex; gap: 4px; margin-top: 8px; }
 
 /* Levý proužek na kartě nebo řádku — nese barvu přes inline style. */
 .p-stripe {
   width: 3px; border-radius: 2px; display: block; align-self: stretch;
-  min-height: 16px; flex: none;
+  min-height: 18px; flex: none;
 }
 /* Tečka vedle textu (chipy, hlavičky kategorií, legendy). */
 .p-dot {
@@ -361,45 +606,70 @@ label.field > span {
 
 /* Pokrytí partií jedním řádkem (obrazovka Dnes, seznam tréninků). */
 .cat-pips { display: flex; gap: 3px; }
-.cat-pips i { flex: 1; height: 5px; border-radius: 2px; display: block; max-width: 40px; }
+.cat-pips i { flex: 1; height: 5px; border-radius: 3px; display: block; max-width: 44px; }
+
+/* ===== Trénink: výběr šablony ===== */
+.tpl-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tpl-tile {
+  background: var(--bg2); border: 1px solid var(--line); border-radius: 18px;
+  color: var(--text); text-align: left; cursor: pointer;
+  padding: 14px 14px 12px; min-height: 86px;
+  display: flex; flex-direction: column; gap: 4px;
+  transition: transform .15s var(--ease), background .15s;
+}
+.tpl-tile:active { transform: scale(.97); background: var(--bg3); }
+.tpl-tile b { font-size: 15.5px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25; }
+.tpl-tile .small { margin-top: auto; }
+.tpl-tile.next { border-color: rgba(205,251,81,.55); background: linear-gradient(180deg, rgba(205,251,81,.1), rgba(205,251,81,.03)); }
+.tpl-tile.next .tpl-flag { color: var(--green); font-size: 11.5px; font-weight: 750; }
+.tpl-tile .tpl-cats { margin-top: 6px; }
 
 /* ===== Gym mód ===== */
 /* Partie v hlavičce cviku — v posilovně jde o orientaci na jeden pohled. */
 .ex-cat {
   display: flex; align-items: center; gap: 6px;
-  font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  font-size: 11.5px; font-weight: 750; letter-spacing: .07em; text-transform: uppercase;
   margin-bottom: 3px;
 }
+.ex-head { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
+.ex-head .ex-num { margin-top: 2px; }
+.ex-title { font-size: 19px; font-weight: 750; letter-spacing: -.02em; line-height: 1.2; }
+.ex-tools { display: flex; gap: 6px; flex: none; }
+.ex-desc { font-size: 13.5px; color: var(--text2); margin: 10px 0 0; line-height: 1.45; }
 /* Sbalený cvik je řádek, ne karta — rámeček nese jen ten otevřený. */
 .ex-row {
-  background: var(--bg1); border-radius: 16px; border: 1px solid transparent;
+  background: var(--bg1); border-radius: 18px; border: 1px solid var(--line);
   margin-bottom: 8px;
 }
 .ex-row.ex-active { background: var(--bg2); }
+.ex-row .name { font-size: 15px; letter-spacing: -.01em; }
 
 /* zápis série: ± po stranách, pole uprostřed zůstává editovatelné */
 .set-input { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .set-field { min-width: 0; }
 .set-lbl {
-  display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .1em;
-  text-transform: uppercase; color: var(--text3); margin-bottom: 5px;
+  display: block; font-size: 12.5px; font-weight: 650;
+  color: var(--text2); margin-bottom: 6px; padding-left: 2px;
 }
-.set-step { display: grid; grid-template-columns: 40px 1fr 40px; gap: 4px; align-items: center; }
-.step-btn.sm { height: 46px; border-radius: 13px; font-size: 21px; }
+.set-step {
+  display: grid; grid-template-columns: 40px 1fr 40px; gap: 2px; align-items: center;
+  background: var(--bg2); border: 1px solid var(--line); border-radius: 16px; padding: 3px;
+}
+.set-step:focus-within { border-color: var(--green); box-shadow: 0 0 0 4px rgba(205,251,81,.14); }
+.step-btn.sm { height: 46px; border-radius: 13px; font-size: 21px; background: transparent; }
+.step-btn.sm:active { background: var(--bg3); }
 .step-in {
-  text-align: center; font-size: 19px; font-weight: 800; padding: 10px 2px;
-  font-variant-numeric: tabular-nums;
+  text-align: center; font-size: 21px; font-weight: 750; padding: 10px 2px;
+  font-family: var(--font-num); font-variant-numeric: tabular-nums;
+  background: transparent !important; border: none !important; box-shadow: none !important;
 }
-
-/* plovoucí lišta ustoupí, když je pauza vidět pod cvikem */
-.restbar.hidden-by-inline { opacity: 0; pointer-events: none; transform: translateY(20px); }
 
 /* ===== Přetahování cviků ===== */
 /* Ostatní řádky ustupují plynule; tažený sleduje prst bez zpoždění. */
 .ex-list > [data-i] { transition: transform .2s cubic-bezier(.2, .8, .2, 1); }
 .ex-list > .dragging {
   transition: none; position: relative; z-index: 5;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, .55);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, .6);
   background: var(--bg2);
 }
 .ex-list > .settling { position: relative; z-index: 5; transition: transform .17s ease-out; }
@@ -412,29 +682,33 @@ label.field > span {
   width: 44px; height: 44px; margin: -8px -10px -8px 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
 }
-.drag-handle i { width: 18px; height: 2px; border-radius: 1px; background: var(--text3); display: block; }
+.drag-handle i { width: 16px; height: 2px; border-radius: 1px; background: var(--text3); display: block; }
 .dragging .drag-handle i { background: var(--text); }
 
-/* pauza pod cvikem */
-.rest-inline { display: flex; align-items: center; gap: 10px; background: var(--bg2); border-radius: 13px; padding: 8px 10px 8px 14px; }
-.rest-inline b { font-size: 17px; font-weight: 900; font-variant-numeric: tabular-nums; }
-.rest-bar { flex: 1; height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
-.rest-bar i { display: block; height: 100%; background: var(--green); transition: width .3s linear; }
+/* ===== Core ano/ne ===== */
+.core-card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
+.core-card .name { font-weight: 700; font-size: 15.5px; }
 
 /* ===== Dnes: denní seznam ===== */
 /* Rámeček má jen to, co máš právě udělat — hotové věci jsou ploché řádky. */
-.item-hero { border-color: var(--green); }
+.item-hero {
+  border-color: rgba(205,251,81,.5);
+  background: linear-gradient(180deg, rgba(205,251,81,.07), rgba(205,251,81,0) 55%), var(--bg1);
+}
+.item-hero .card-ic { background: var(--green-bg); color: var(--green); }
 
-.week-card { padding: 12px 10px 10px; }
+.week-card { padding: 10px; }
 .week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .wd {
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  padding: 8px 0 7px; border-radius: 12px; cursor: pointer;
-  border: 1.5px solid transparent;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 8px 0 8px; border-radius: 14px; cursor: pointer;
+  border: 1.5px solid transparent; transition: background .15s;
 }
-.wd.today { border-color: var(--green); }
+.wd:active { background: var(--bg2); }
+.wd.today { background: var(--bg2); border-color: var(--green); }
 .wd.future { opacity: .35; }
-.wd b { font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--text2); }
+.wd b { font-size: 11px; font-weight: 650; color: var(--text3); }
+.wd .wd-n { font-family: var(--font-num); font-size: 17px; font-weight: 750; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; }
 .wd .dots { display: flex; gap: 3px; }
 .wd .dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--bg3); display: block; }
 .wd .dots i.on { background: var(--green); }
@@ -443,138 +717,155 @@ label.field > span {
 
 /* hotová položka dne */
 .day-done {
-  display: flex; align-items: center; gap: 10px;
-  background: var(--bg1); border-radius: 14px; padding: 13px 16px;
-  margin-bottom: 8px; cursor: pointer;
+  display: flex; align-items: center; gap: 12px;
+  background: var(--bg1); border: 1px solid var(--line); border-radius: 18px; padding: 12px 14px;
+  margin-bottom: 8px; cursor: pointer; transition: background .15s;
 }
 .day-done.col { flex-direction: column; align-items: flex-start; }
 .day-done:active { background: var(--bg2); }
-.day-k { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--text2); }
-.day-v { flex: 1; font-weight: 700; font-size: 14.5px; text-align: right; }
+.day-k { font-size: 14px; font-weight: 650; color: var(--text2); display: inline-flex; align-items: center; gap: 8px; }
+.day-v { flex: 1; font-weight: 700; font-size: 15px; text-align: right; }
 .day-done.col .day-v { text-align: left; }
-.day-ok { color: var(--green); font-weight: 900; font-size: 15px; }
+.day-ok {
+  width: 24px; height: 24px; border-radius: 50%; flex: none;
+  background: var(--green); color: var(--on-green);
+  display: inline-flex; align-items: center; justify-content: center;
+}
 
 /* stepper váhy */
-.stepper { display: grid; grid-template-columns: 56px 1fr 56px; gap: 10px; align-items: center; margin-top: 14px; }
+.stepper { display: grid; grid-template-columns: 58px 1fr 58px; gap: 10px; align-items: center; margin-top: 6px; }
 .step-btn {
-  height: 56px; border-radius: 18px; background: var(--bg2); border: none;
-  color: var(--text2); font-size: 26px; font-weight: 900; cursor: pointer;
+  height: 58px; border-radius: 18px; background: var(--bg2); border: 1px solid var(--line);
+  color: var(--text); cursor: pointer; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s, transform .15s;
 }
-.step-btn:active { background: var(--bg3); }
+.step-btn:active { background: var(--bg3); transform: scale(.94); }
 .step-val {
   background: none; border: none; color: var(--text); cursor: pointer;
-  font-size: 40px; font-weight: 900; letter-spacing: -.02em;
+  font-family: var(--font-num);
+  font-size: 46px; font-weight: 800; letter-spacing: -.03em;
   font-variant-numeric: tabular-nums; padding: 0;
 }
-.step-val small { font-size: 15px; color: var(--text2); font-weight: 700; margin-left: 4px; }
+.step-val small { font-size: 16px; color: var(--text2); font-weight: 650; margin-left: 4px; letter-spacing: 0; }
 
 /* segmentovaná volba (rychlý zápis jídla) */
 .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .seg.two { grid-template-columns: 1fr 1fr; }
 .seg-btn {
-  padding: 13px 6px; border-radius: 14px; background: var(--bg2); border: none;
-  color: var(--text2); font-weight: 700; font-size: 14px; cursor: pointer;
-  font-family: inherit;
+  padding: 13px 6px; border-radius: 14px; background: var(--bg2); border: 1px solid var(--line);
+  color: var(--text2); font-weight: 650; font-size: 14.5px; cursor: pointer;
+  font-family: inherit; transition: background .15s, transform .15s;
 }
-.seg-btn:active { background: var(--bg3); }
-.seg-btn.on { background: var(--green); color: #0A0B0D; font-weight: 800; }
+.seg-btn:active { background: var(--bg3); transform: scale(.97); }
+.seg-btn.on { background: var(--green); border-color: var(--green); color: var(--on-green); font-weight: 750; }
 
 /* tabulka odpovědí v Týdnu */
-.wk-kv { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; flex: 1; min-width: 0; }
+.wk-kv { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; flex: 1; min-width: 0; }
 .wk-kv > div { min-width: 0; }
-.wk-kv span { display: block; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text3); }
-.wk-kv b { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.wk-kv span { display: block; font-size: 12px; font-weight: 600; color: var(--text3); }
+.wk-kv b { font-family: var(--font-num); font-size: 18px; font-weight: 750; font-variant-numeric: tabular-nums; }
 
 /* ===== Co uteklo minule ===== */
-.gap-card { border-color: rgba(247,201,72,.3); }
-.gap-row { padding: 4px 0 8px; }
+.gap-card { border-color: rgba(247,201,72,.28); background: linear-gradient(180deg, rgba(247,201,72,.06), rgba(247,201,72,0) 60%), var(--bg1); }
+.gap-card .card-ic { background: var(--yellow-bg); color: var(--yellow); }
+.gap-row { padding: 2px 0 8px; }
 .gap-lbl {
-  display: block; font-size: 11px; font-weight: 800; letter-spacing: .1em;
-  text-transform: uppercase; color: var(--yellow); margin-bottom: 7px;
+  display: block; font-size: 12.5px; font-weight: 700;
+  color: var(--yellow); margin-bottom: 7px;
 }
 .gap-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .gap-chip {
   display: inline-flex; align-items: center; gap: 6px;
-  background: var(--bg2); border-radius: 9px; padding: 5px 10px; font-size: 13px;
+  background: var(--bg2); border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; font-size: 13px;
 }
-.gap-chip b { font-weight: 700; }
+.gap-chip b { font-weight: 650; }
 .gap-chip span { color: var(--text3); font-size: 12px; }
 
 /* ===== Counter partií v aktivním tréninku ===== */
 /* sbalený pruh: sedm segmentů s počtem sérií, jeden řádek */
-.cat-bar-card { background: var(--bg1); border-radius: 16px; padding: 12px 14px 11px; margin-bottom: 12px; cursor: pointer; }
+.cat-bar-card {
+  background: var(--bg1); border: 1px solid var(--line); border-radius: 20px;
+  padding: 10px 10px 9px; margin-bottom: 12px; cursor: pointer;
+}
 .cat-bar-card:active { background: var(--bg2); }
 .cat-bar { display: flex; gap: 4px; }
 .cat-bar i {
-  flex: 1; height: 30px; border-radius: 8px; display: flex;
+  flex: 1; height: 32px; border-radius: 10px; display: flex; font-style: normal;
   align-items: center; justify-content: center; position: relative;
 }
-.cat-bar i b { font-size: 13px; font-weight: 900; color: #0A0B0D; font-variant-numeric: tabular-nums; }
-.cat-bar i.zero { background: transparent !important; box-shadow: inset 0 0 0 1px var(--line); }
+.cat-bar i b { font-family: var(--font-num); font-size: 14px; font-weight: 800; color: var(--on-green); font-variant-numeric: tabular-nums; }
+.cat-bar i.zero { background: transparent !important; box-shadow: inset 0 0 0 1px var(--line2); }
 .cat-bar i.zero b { color: var(--text3); }
+.cat-bar-card .row { padding: 0 4px; }
 
 .cat-counter { padding: 14px 15px; cursor: pointer; }
 .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .cat-cell {
   display: grid; grid-template-columns: 3px 1fr auto;
   align-items: center; gap: 8px; overflow: hidden;
-  background: var(--bg2); border-radius: 10px; padding: 7px 10px 7px 0;
+  background: var(--bg2); border-radius: 12px; padding: 8px 10px 8px 0;
 }
 /* poslední partie (Nohy) drží celou šířku — 7 buněk se do dvou sloupců
    jinak nerozdělí a osamocená buňka na konci vypadá jako chyba */
 .cat-cell:last-child { grid-column: 1 / -1; }
 .cat-cell i { width: 3px; align-self: stretch; min-height: 24px; border-radius: 0 2px 2px 0; }
-.cat-cell .cat-n { font-size: 13px; font-weight: 600; }
+.cat-cell .cat-n { font-size: 13.5px; font-weight: 600; }
 /* dvě čísla: cviky (tlumeně) · série (hlavní) */
-.cat-cell .cat-v { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cat-cell .cat-v { font-family: var(--font-num); font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cat-cell .cat-v b { font-weight: 600; color: var(--text2); font-size: 13px; }
 .cat-cell .cat-v s { text-decoration: none; color: var(--text3); margin: 0 3px; font-weight: 400; font-size: 12px; }
 /* nula = díra, ne další řádek */
-.cat-cell.zero { background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
+.cat-cell.zero { background: transparent; box-shadow: inset 0 0 0 1px var(--line2); }
 .cat-cell.zero .cat-n, .cat-cell.zero .cat-v { color: var(--text3); }
 .cat-cell.zero i { opacity: .4; }
 
 /* ===== Sety / trénink ===== */
+.sets { margin-top: 14px; background: var(--bg2); border-radius: 16px; padding: 2px 6px 2px 10px; }
 .set-row {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 0; font-size: 14px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 0; font-size: 15px; border-bottom: 1px solid var(--line);
 }
 .set-row:last-child { border-bottom: none; }
+.set-row .set-val { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 650; }
+.set-row .set-val span { color: var(--text3); font-weight: 500; margin: 0 2px; }
 .set-num {
-  width: 26px; height: 26px; border-radius: 9px; background: var(--bg3);
+  width: 26px; height: 26px; border-radius: 50%; background: var(--bg3);
   display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 800; color: var(--text2); flex-shrink: 0;
+  font-family: var(--font-num);
+  font-size: 12.5px; font-weight: 750; color: var(--text2); flex-shrink: 0;
 }
 .pr-flash { animation: prflash 1.4s ease 2; border-color: var(--yellow) !important; }
-@keyframes prflash { 50% { box-shadow: 0 0 26px rgba(247,201,72,.5); } }
+@keyframes prflash { 50% { box-shadow: 0 0 30px rgba(247,201,72,.45); } }
 
 /* Aktivní trénink: stavy cviků (akordeon — rozbalený je nejvýš jeden) */
 /* rozdělaný cvik je jen zvýrazněný podklad — volt si drží akci a splněno,
    ne „něco tu leží rozepsané" */
-.ex-active { border-color: var(--line); background: var(--bg2); }
-.ex-collapsed { padding: 14px 16px; cursor: pointer; }
+.ex-active { border-color: var(--line2); background: var(--bg2); }
+.ex-collapsed { padding: 13px 16px; cursor: pointer; transition: background .15s; }
 .ex-collapsed:active { background: var(--bg2); }
-.ex-open { border-color: var(--green); }
-.ex-open > .row:first-child { cursor: pointer; }
+.ex-open { border-color: rgba(205,251,81,.6); box-shadow: 0 0 0 4px rgba(205,251,81,.06); }
 .ex-done {
-  padding: 13px 16px; cursor: pointer; opacity: .72;
+  padding: 12px 16px; cursor: pointer; opacity: .7;
   border-color: transparent;
 }
 .ex-done:active { opacity: 1; }
 .done-check, .ex-num {
-  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
-  font-weight: 900; font-size: 14px;
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  font-family: var(--font-num);
+  font-weight: 800; font-size: 14px;
   display: flex; align-items: center; justify-content: center;
 }
-.done-check { background: var(--green); color: #0A0B0D; font-size: 15px; }
+.done-check { background: var(--green); color: var(--on-green); }
 .ex-num { background: var(--bg3); color: var(--text2); }
-.ex-num.done { background: var(--green); color: #0A0B0D; }
-.ex-chevron { color: var(--text3); font-size: 22px; font-weight: 700; line-height: 1; }
+.ex-num.done { background: var(--green); color: var(--on-green); }
+.ex-chevron { color: var(--text3); display: inline-flex; transition: transform .25s var(--ease); }
 .hint-last {
-  background: var(--bg2); border-radius: 10px; padding: 8px 11px;
-  font-size: 13px; color: var(--text2); margin-top: 8px;
+  background: var(--bg2); border-radius: 12px; padding: 9px 12px;
+  font-size: 13.5px; color: var(--text2); margin-top: 8px;
 }
-.hint-last b { color: var(--text); }
+.hint-last b { color: var(--text); font-family: var(--font-num); }
+.ex-actions { display: flex; gap: 8px; margin-top: 12px; }
 
 /* ===== Grafy ===== */
 .chart-wrap { width: 100%; overflow: hidden; }
@@ -582,39 +873,41 @@ label.field > span {
 
 /* ===== Toast ===== */
 .toast {
-  position: fixed; left: 50%; bottom: calc(var(--nav-h) + 30px + env(safe-area-inset-bottom));
-  transform: translate(-50%, 20px); z-index: 70;
-  background: var(--bg3); color: var(--text);
-  padding: 12px 22px; border-radius: 999px; font-size: 14px; font-weight: 700;
-  opacity: 0; pointer-events: none; transition: all .25s;
-  max-width: 86vw; text-align: center;
+  position: fixed; left: 50%;
+  bottom: calc(var(--nav-h) + var(--dock-h) + 28px + env(safe-area-inset-bottom));
+  transform: translate(-50%, 16px) scale(.96); z-index: 70;
+  background: var(--glass-strong); color: var(--text);
+  backdrop-filter: blur(20px) saturate(1.7); -webkit-backdrop-filter: blur(20px) saturate(1.7);
+  border: 1px solid var(--line2);
+  padding: 11px 18px; border-radius: 999px; font-size: 14px; font-weight: 650;
+  opacity: 0; pointer-events: none; transition: opacity .25s, transform .35s var(--ease);
+  max-width: 88vw; text-align: center; box-shadow: var(--shadow-float);
 }
-.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
+/* při otevřeném sheetu nahoře, ať nezakrývá jeho tlačítka (pod zamčeným timerem) */
+body.modal-open .toast { bottom: auto; top: calc(env(safe-area-inset-top) + 16px); }
+body.modal-open.has-dock .toast { top: calc(env(safe-area-inset-top) + 74px); }
 .toast-btn {
-  margin-left: 10px; background: var(--green); color: #0A0B0D;
-  border: none; border-radius: 999px; padding: 5px 13px;
-  font-weight: 800; font-size: 12.5px; cursor: pointer;
+  margin-left: 10px; background: var(--green); color: var(--on-green);
+  border: none; border-radius: 999px; padding: 6px 13px;
+  font-weight: 750; font-size: 13px; cursor: pointer;
 }
-.toast.pr { background: #2A2210; color: var(--yellow); }
-.toast.err { background: #291016; color: var(--red); }
-.toast.ok { background: #1A2410; color: var(--green); }
+.toast.pr { background: rgba(42,34,16,.94); color: var(--yellow); border-color: rgba(247,201,72,.3); }
+.toast.err { background: rgba(41,16,22,.94); color: var(--red); border-color: rgba(255,77,94,.3); }
+.toast.ok { background: rgba(26,36,16,.94); color: var(--green); border-color: rgba(205,251,81,.25); }
 
 /* ===== Statistiky ===== */
-.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .stat-grid.three { grid-template-columns: 1fr 1fr 1fr; }
-.stat { background: var(--bg2); border-radius: 18px; padding: 15px 10px; text-align: center; }
-.stat .val { font-size: 25px; font-weight: 900; letter-spacing: -0.02em; }
-.stat .lbl { font-size: 10.5px; color: var(--text3); margin-top: 3px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.stat { background: var(--bg2); border-radius: 18px; padding: 14px 10px; text-align: center; }
+.stat .val { font-family: var(--font-num); font-size: 25px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.stat .lbl { font-size: 12px; color: var(--text3); margin-top: 3px; font-weight: 600; }
 
 /* ===== Landing (Dnes) ===== */
-.hero-date {
-  font-size: 11px; font-weight: 900; color: var(--text3);
-  text-transform: uppercase; letter-spacing: .2em;
-  margin: 2px 0 12px 6px;
-}
 .hero-card { position: relative; }
 .hero-main { display: flex; align-items: center; gap: 20px; }
 .hero-macros { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.hero-title { font-size: 26px; font-weight: 800; letter-spacing: -.025em; line-height: 1.15; margin: 0 0 4px; }
 
 .ring-wrap { position: relative; flex-shrink: 0; }
 .ring-wrap svg { display: block; transform: rotate(-90deg); }
@@ -622,42 +915,20 @@ label.field > span {
   position: absolute; inset: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
 }
-.ring-center b { font-size: 30px; font-weight: 900; letter-spacing: -0.03em; line-height: 1; }
+.ring-center b { font-family: var(--font-num); font-size: 30px; font-weight: 800; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; }
 .ring-center span {
-  font-size: 9.5px; color: var(--text3); font-weight: 800;
-  text-transform: uppercase; letter-spacing: .12em; margin-top: 4px;
+  font-size: 11.5px; color: var(--text3); font-weight: 600; margin-top: 4px;
 }
-
-/* ===== Rest timer (pauza mezi sériemi) ===== */
-.restbar {
-  position: fixed; z-index: 45;
-  left: 14px; right: 14px;
-  bottom: calc(var(--nav-h) + 22px + env(safe-area-inset-bottom));
-  max-width: 500px; margin: 0 auto;
-  display: none; align-items: center; gap: 10px;
-  background: var(--bg3); border: 1px solid var(--stroke);
-  border-radius: 999px; padding: 8px 10px 8px 18px;
-  box-shadow: 0 10px 30px rgba(0,0,0,.45);
-}
-.restbar.show { display: flex; }
-.restbar.over { background: var(--green); }
-.restbar.over .restbar-label, .restbar.over .restbar-time { color: #0A0B0D; }
-.restbar-label {
-  font-size: 10.5px; font-weight: 900; color: var(--text2);
-  text-transform: uppercase; letter-spacing: .12em;
-}
-.restbar-time { font-size: 19px; font-weight: 900; flex: 1; letter-spacing: .02em; }
 
 /* zvýrazněný návrh progrese a „blízko rekordu" */
-.hint-prog { background: var(--green-bg); color: var(--green); font-weight: 700; }
+.hint-prog { background: var(--green-bg); color: var(--green); font-weight: 650; }
 .hint-prog b { color: var(--green); }
-.hint-near { background: var(--yellow-bg); color: var(--yellow); font-weight: 700; }
+.hint-near { background: var(--yellow-bg); color: var(--yellow); font-weight: 650; }
 .hint-near b { color: var(--yellow); }
 
 /* ===== Týdenní rekap ===== */
-.recap-card { border-color: var(--stroke); }
-.recap-rows { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--text2); }
-.recap-rows b { color: var(--text); font-size: 15px; }
+.recap-rows { display: flex; flex-direction: column; gap: 6px; font-size: 14.5px; color: var(--text2); }
+.recap-rows b { color: var(--text); font-size: 15.5px; font-family: var(--font-num); }
 
 /* ===== Milníky ===== */
 .ms-badge {
@@ -669,11 +940,12 @@ label.field > span {
 /* ===== Týdenní check-in ===== */
 .scale-row { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
 .scale-chip {
-  background: var(--bg2); border: none; color: var(--text2);
-  border-radius: 9px; padding: 9px 0; font-size: 12.5px; font-weight: 700;
+  background: var(--bg2); border: 1px solid var(--line); color: var(--text2);
+  border-radius: 10px; padding: 9px 0; font-size: 13px; font-weight: 700;
+  font-family: var(--font-num);
   cursor: pointer; text-align: center;
 }
-.scale-chip.on { background: var(--green); color: #0A0B0D; font-weight: 800; }
+.scale-chip.on { background: var(--green); border-color: var(--green); color: var(--on-green); font-weight: 800; }
 .ci-measures { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
 .ci-measures label.field { margin-bottom: 10px; }
 
@@ -682,23 +954,28 @@ label.field > span {
 .photo-cell { position: relative; cursor: pointer; }
 .photo-cell img {
   width: 100%; aspect-ratio: 3/4; object-fit: cover;
-  border-radius: 12px; display: block; background: var(--bg2);
+  border-radius: 14px; display: block; background: var(--bg2);
 }
 .photo-cell span {
   position: absolute; left: 0; right: 0; bottom: 0;
-  padding: 12px 6px 5px; border-radius: 0 0 12px 12px;
-  font-size: 10.5px; font-weight: 700; text-align: center; color: #fff;
+  padding: 12px 6px 6px; border-radius: 0 0 14px 14px;
+  font-size: 11px; font-weight: 650; text-align: center; color: #fff;
   background: linear-gradient(transparent, rgba(0,0,0,.75));
 }
 .photo-cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .photo-cmp img {
   width: 100%; aspect-ratio: 3/4; object-fit: cover;
-  border-radius: 14px; display: block; background: var(--bg2); margin-bottom: 8px;
+  border-radius: 16px; display: block; background: var(--bg2); margin-bottom: 8px;
 }
 
 .spin {
-  width: 18px; height: 18px; border: 2px solid var(--bg3); border-top-color: var(--green);
+  width: 20px; height: 20px; border: 2px solid var(--bg3); border-top-color: var(--green);
   border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 .empty-note { text-align: center; color: var(--text3); padding: 26px 10px; font-size: 14px; }
+.empty-note .btn { margin-top: 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

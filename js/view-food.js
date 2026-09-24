@@ -27,26 +27,12 @@ function renderFoodLog() {
   const g = S.goal;
   const over = nut.calories > g.dailyCalories * 1.05;
 
-  const hint = isToday ? "" : (day > today ? "budoucí den · plánování" : "klepni pro výběr data");
-  const dayNav = `
-    <div class="card" style="padding:10px 14px">
-      <div class="row between">
-        <button class="btn sm ghost" data-act="f-day-nav" data-dir="-1">‹</button>
-        <div class="center" style="position:relative;flex:1">
-          <b>${isToday ? "Dnes" : fmtDate(day)}</b>
-          ${hint ? `<div class="small">${hint}</div>` : ""}
-          <input type="date" data-change="f-date" value="${day}"
-            style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer">
-        </div>
-        <button class="btn sm ghost" data-act="f-day-nav" data-dir="1">›</button>
-      </div>
-      ${isToday ? "" : `<button class="btn sm full mt" style="border-color:var(--green);color:var(--green)" data-act="f-day-today">Zpět na dnešek</button>`}
-    </div>`;
+  const dayNav = dayNavHtml(day, "f-day-nav", "f-date", "f-day-today");
 
   const summary = `
     <div class="card">
-      <div class="h2">${isToday ? "Dnešní příjem" : `Příjem · ${fmtDate(day)}`}</div>
-      <div class="row between" style="align-items:baseline;margin-bottom:8px">
+      ${cardHead("food", isToday ? "Dnešní příjem" : `Příjem · ${fmtDate(day)}`)}
+      <div class="row between" style="align-items:baseline;margin-bottom:10px">
         <span class="big-num"${over ? ` style="color:var(--red)"` : ""}>${fmtNum(nut.calories)}</span>
         <span class="muted">z ${fmtNum(g.dailyCalories)} kcal</span>
       </div>
@@ -65,9 +51,9 @@ function renderFoodLog() {
         <div class="name">${esc(foodEntryName(e))}</div>
         <div class="small">${fmtNum(e.amountGrams)} g · B ${fmtNum(e.protein)} · S ${fmtNum(e.carbs)} · T ${fmtNum(e.fat)}</div>
       </div>
-      <b style="white-space:nowrap">${fmtNum(e.calories)}</b>
-      <button class="btn sm ghost" data-act="f-entry-edit" data-id="${e.id}">✎</button>
-      <button class="iconbtn" style="width:32px;height:32px;color:var(--red)" data-act="f-entry-del" data-id="${e.id}">✕</button>
+      <b class="num" style="white-space:nowrap">${fmtNum(e.calories)}</b>
+      <button class="iconbtn sm soft" data-act="f-entry-edit" data-id="${e.id}" aria-label="Upravit">${ic("edit", 16)}</button>
+      <button class="iconbtn sm danger" data-act="f-entry-del" data-id="${e.id}" aria-label="Smazat">${ic("trash", 16)}</button>
     </div>`;
 
   const mealCards = MEAL_TYPES.map(m => {
@@ -77,7 +63,7 @@ function renderFoodLog() {
       <div class="card">
         <div class="row between">
           <span class="h2" style="margin:0">${m.name}</span>
-          ${items.length ? `<b>${fmtNum(kcal)} kcal</b>` : `<span class="small">—</span>`}
+          ${items.length ? `<b class="num">${fmtNum(kcal)} kcal</b>` : `<span class="small">—</span>`}
         </div>
         ${items.length ? `<div class="mt">${items.map(entryRow).join("")}</div>` : ""}
       </div>`;
@@ -91,8 +77,8 @@ function renderFoodLog() {
     </div>` : "";
 
   return dayNav
-    + `<button class="btn primary full" style="margin-bottom:8px" data-act="f-add">+ Přidat jídlo${isToday ? "" : ` · ${fmtDate(day)}`}</button>
-       <button class="btn sm ghost full" style="margin-bottom:14px" data-act="f-copy-open">Zkopírovat jídla z jiného dne</button>`
+    + `<button class="btn primary full" style="margin-bottom:8px" data-act="f-add">${ic("plus", 18, 2.4)} Přidat jídlo${isToday ? "" : ` · ${fmtDate(day)}`}</button>
+       <button class="btn sm ghost full" style="margin-bottom:14px" data-act="f-copy-open">${ic("copy", 16)} Zkopírovat jídla z jiného dne</button>`
     + summary + mealCards + unassignedCard;
 }
 
@@ -149,9 +135,10 @@ function openAddFood(tab = "search") {
 function foodSearchHtml() {
   const barcode = "BarcodeDetector" in window ? `
     <input type="file" id="barcodeInput" accept="image/*" capture="environment" style="display:none">
-    <button class="btn sm ghost full" style="margin-bottom:10px" data-act="f-barcode">Vyfotit čárový kód</button>` : "";
+    <button class="btn sm ghost full" style="margin-bottom:10px" data-act="f-barcode">${ic("camera", 16)} Vyfotit čárový kód</button>` : "";
   return `
-    <input class="input" id="foodSearch" placeholder="Hledat potravinu (min. 3 znaky)…" style="margin-bottom:10px">
+    <label class="search" style="margin-bottom:10px">${ic("search", 19)}
+      <input class="input" id="foodSearch" type="search" placeholder="Hledat potravinu (min. 3 znaky)…" autocomplete="off" enterkeyhint="search"></label>
     ${barcode}
     <div class="small" style="margin:0 2px 8px">Zdroje: Open Food Facts (české → světové) + USDA (základní potraviny)</div>
     <div id="foodResults"></div>`;
@@ -181,7 +168,7 @@ function wireFoodSearch() {
     const { results, errors } = await FoodAPI.search(q);
     FV.results = results;
     let html = results.map((r, i) => `
-      <div class="list-item" data-act="f-pick" data-i="${i}" style="cursor:pointer">
+      <div class="list-item" data-act="f-pick" data-i="${i}">
         <div class="grow">
           <div class="name">${esc(r.name)}</div>
           <div class="small">${fmtNum(r.caloriesPer100g)} kcal · B ${fmtNum(r.proteinPer100g, 1)} · S ${fmtNum(r.carbsPer100g, 1)} · T ${fmtNum(r.fatPer100g, 1)} /100 g</div>
@@ -209,7 +196,7 @@ function foodFavHtml() {
     const t = recipeTotals(r);
     const perPortion = r.portions > 0 ? t.kcal / r.portions : t.kcal;
     return `
-    <div class="list-item" data-act="f-pick-recipe" data-id="${r.id}" style="cursor:pointer">
+    <div class="list-item" data-act="f-pick-recipe" data-id="${r.id}">
       <div class="grow">
         <div class="name">${esc(r.name)}</div>
         <div class="small">${fmtNum(perPortion)} kcal / porce · ${r.items.length} položek</div>
@@ -218,7 +205,7 @@ function foodFavHtml() {
     </div>`;
   }).join("");
   const favs = S.foods.filter(f => f.isFavorite).map(f => `
-    <div class="list-item" data-act="f-pick-fav" data-id="${f.id}" style="cursor:pointer">
+    <div class="list-item" data-act="f-pick-fav" data-id="${f.id}">
       <div class="grow">
         <div class="name">${esc(f.name)}</div>
         <div class="small">${fmtNum(f.caloriesPer100g)} kcal /100 g</div>
@@ -270,7 +257,7 @@ function foodManualHtml(pre = null) {
 function foodPhotoHtml() {
   return `
     <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none">
-    <button class="btn ghost full" data-act="f-photo-pick" style="border-style:dashed;min-height:56px">Vyfotit / vybrat etiketu</button>
+    <button class="btn dashed full" data-act="f-photo-pick" style="min-height:58px">${ic("camera", 19)} Vyfotit / vybrat etiketu</button>
     <div id="photoPreviewWrap" class="mt" style="display:none">
       <img id="photoPreview" alt="Náhled fotky"
         style="width:100%;max-height:260px;object-fit:contain;border-radius:16px;background:var(--bg2)">

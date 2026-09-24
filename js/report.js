@@ -149,7 +149,8 @@ function buildCoachReport(rangeId = "month") {
     for (const s of detail) {
       const sets = s.entries.reduce((n, e) => n + (e.sets || []).length, 0);
       L.push(`### ${fmtDate(s.date)} — ${sessionLabel(s)} · ${s.entries.length} cviků / ${sets} sérií / ${fmtNum(kgOut(sessionVolume(s)))} ${u}` +
-        (s.rating ? ` · hodnocení ${s.rating}/10` : ""));
+        (s.rating ? ` · hodnocení ${s.rating}/10` : "") +
+        (s.core === true ? " · core ✓" : ""));
       if (s.note) L.push(`_${s.note}_`);
       for (const e of s.entries) {
         const line = (e.sets || []).map(st => `${st.reps}×${fmtNum(kgOut(st.weight), 1)}${st.note ? ` (${st.note})` : ""}`).join(", ");
