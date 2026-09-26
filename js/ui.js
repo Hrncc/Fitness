@@ -124,7 +124,7 @@ const Rest = {
    Viditelný na každé obrazovce, i mimo Trénink. Režimy:
      rest    — běží pauza: odpočet, kroužek průběhu, −30 / +30 / zrušit
      over    — pauza doběhla: 5 s volt výzva
-     workout — probíhá trénink bez pauzy: délka tréninku + ruční start pauzy
+     workout — probíhá trénink bez pauzy: počet sérií + ruční start pauzy
    Klepnutí na levou část vrátí na Trénink. Stav se odvozuje z Rest a
    S.activeSession, takže stačí volat sync() po změně (dělá to render()). */
 const Dock = {
@@ -146,7 +146,8 @@ const Dock = {
     el.innerHTML = mode ? this.html(mode, a) : "";
     clearInterval(this.timer);
     this.timer = null;
-    if (mode) {
+    // tiká jen pauza — trénink sám časovač nemá, počet sérií se překreslí s render()
+    if (mode === "rest" || mode === "over") {
       this.tick();
       this.timer = setInterval(() => this.tick(), 250);
     }
@@ -161,7 +162,7 @@ const Dock = {
           <span class="dock-ring${a.editOf ? "" : " live"}">${ic(a.editOf ? "edit" : "dumbbell", 19)}</span>
           <span class="dock-txt">
             <span class="dock-k">${a.editOf ? "Úprava · " : ""}${esc(sessionLabel(a))}</span>
-            <b class="dock-time" id="dockTime"></b>
+            <b class="dock-time">${workoutSetsLabel(a)}</b>
           </span>
         </button>
         ${rs > 0 ? `<button class="dock-btn go" data-act="rest-start" aria-label="Spustit pauzu">
@@ -213,18 +214,14 @@ const Dock = {
       }
     } else if (this.mode === "over") {
       if (Date.now() > this.overUntil) { this.overUntil = 0; this.sync(); }
-    } else if (this.mode === "workout" && t) {
-      t.textContent = workoutClock(S.activeSession);
     }
   }
 };
 
-/* Délka probíhajícího tréninku; u zpětného zápisu (jiný den) nebo
-   zapomenutého tréninku (přes 5 h) dává smysl spíš počet sérií. */
-function workoutClock(a) {
+/* Počet zapsaných sérií v probíhajícím tréninku — ukazuje ho dock, když
+   neběží pauza. Časovač celého tréninku v appce záměrně není (v1.26). */
+function workoutSetsLabel(a) {
   if (!a) return "";
-  const sec = a.startedAt ? (Date.now() - a.startedAt) / 1000 : null;
-  if (sec != null && a.date === todayStr() && sec < 5 * 3600) return fmtClock(sec);
   const n = (a.entries || []).reduce((k, e) => k + (e.sets || []).length, 0);
   return `${n} ${n === 1 ? "série" : n >= 2 && n <= 4 ? "série" : "sérií"}`;
 }

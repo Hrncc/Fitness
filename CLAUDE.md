@@ -74,8 +74,8 @@ Sessions: `{id, date, type: "weights"|"cardio", templateUsed, templateName, core
 `core` (v1.23) = ruční „core ano/ne" z přepínače v tréninku (jde změnit i zpětně
 v detailu tréninku). Zaškrtnutý core se počítá jako pokrytá partie v counteru (✓ místo čísla),
 `lastSessionGaps()`, `dayCatColors()`, `catPipsHtml(counts, core)` i v Týdnu;
-počty sérií zůstávají jen skutečné série. Aktivní session nese i `startedAt`
-(délka tréninku v zamčeném timeru).
+počty sérií zůstávají jen skutečné série. (Starší aktivní session můžou nést
+`startedAt` z v1.23–1.25 — nic ho už nečte.)
 U silových `entries[] = {exerciseId, sets: [{reps, weight, note}]}` — váhy vždy
 interně v **kg**, na výstup přes `kgOut()`/`fmtWeight()`.
 
@@ -185,7 +185,9 @@ změnily se plochy, typografie, tvary, ikony a pohyb.
 
 Pilulka nad plovoucí navigací, **viditelná na každé obrazovce**: běží-li pauza,
 ukazuje odpočet s kroužkem, −30/+30 a zrušení; když pauza neběží a probíhá
-trénink, ukazuje jeho délku (`workoutClock()`) a tlačítko pro ruční start pauzy.
+trénink, ukazuje počet sérií (`workoutSetsLabel()`) a tlačítko pro ruční start
+pauzy. **Časovač celého tréninku není** — v1.26 na Martinovu žádost odstraněn,
+nevracet.
 Po doběhnutí pauzy 5 s svítí volt „Pauza skončila". Klepnutí vrací na Trénink
 (`dock-open`). Při otevřeném sheetu (`body.modal-open`) se přesune nahoru, aby ho
 sheet nezakryl — proto má `.modal` max. výšku `100dvh − 76 px`. Stav se odvozuje

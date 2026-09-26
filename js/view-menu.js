@@ -1,7 +1,7 @@
 /* ===== Obrazovky z hamburger menu ===== */
 "use strict";
 
-const APP_VERSION = "1.25";
+const APP_VERSION = "1.26";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library

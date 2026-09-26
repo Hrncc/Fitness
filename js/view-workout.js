@@ -545,7 +545,6 @@ function beginWorkout(templateId) {
     type: "weights",
     templateUsed: tpl ? tpl.id : "custom",
     templateName: tpl ? tpl.name : "Libovolný",
-    startedAt: Date.now(),   // délka tréninku v zamčeném timeru
     entries: tpl ? tpl.exercises.filter(getExercise).map(exId => ({ exerciseId: exId, sets: [] })) : []
   };
   save();
