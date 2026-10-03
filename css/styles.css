@@ -11,6 +11,7 @@
    IDENTITA — sedm partií + kardio, vždy jen proužek, tečka nebo vlastní
            malá řada v grafu. Text nikdy nenese barvu partie. */
 :root {
+  color-scheme: dark; /* nativní prvky (výběr data, soubor, select) v tmavém */
   --bg: #000000;      /* stránka */
   --s1: #0F0F11;      /* plocha — karta, sekce */
   --s2: #18181B;      /* vnořená plocha, pole, stepper */
