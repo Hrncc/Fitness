@@ -772,15 +772,37 @@ body.modal-open .dock.show {
 .recap-line b { color: var(--text); }
 
 /* ===== Trénink: start ===== */
-.next-card { padding: 20px; }
-.next-list { margin: 14px 0 16px; display: flex; flex-direction: column; gap: 7px; }
-.next-list div { display: flex; align-items: center; gap: 10px; font-size: 14.5px; color: var(--text2); }
-.next-list div .p-dot { width: 6px; height: 6px; }
-.next-list .more { color: var(--text3); padding-left: 16px; }
-.tpl-row .tpl-play {
-  width: 34px; height: 34px; border-radius: 50%; background: var(--s2); color: var(--text);
-  display: flex; align-items: center; justify-content: center; flex: none;
+.next-card { padding: 16px 16px 16px 18px; }
+/* šablona na řadě v jednom řádku, Začít vpravo */
+.next-row { display: flex; align-items: center; gap: 14px; }
+.next-name { font-size: 21px; font-weight: 780; letter-spacing: -.03em; line-height: 1.15; margin-top: 3px; }
+.next-meta { font-size: 13.5px; color: var(--text2); margin-top: 2px; }
+.next-go { flex: none; min-height: 44px; padding: 10px 18px; gap: 6px; font-size: 15px; }
+.next-card .td-warn { margin-top: 10px; font-size: 13px; }
+/* ostatní volby jako malé kapsle pod linkou */
+.start-opts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--hair); }
+.start-opts.solo { margin-top: 0; padding-top: 0; border-top: 0; }
+.start-opt {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 13px;
+  border-radius: 999px; border: 0; background: var(--s2); color: var(--text);
+  font-size: 14px; font-weight: 600; letter-spacing: -.01em; cursor: pointer; max-width: 100%;
 }
+.start-opt span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.start-opt svg { flex: none; color: var(--text2); }
+.start-opt .p-dot { width: 6px; height: 6px; }
+.start-opt:active { background: var(--s3); transform: scale(.97); }
+/* Rekordy · Templates · Library jednou řadou */
+.quick-links { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 28px; }
+.quick-links .start-opt { justify-content: center; min-height: 40px; padding: 0 8px; }
+/* nízký kalendář na kartě Trénink — bez legendy, měsíc vlevo, šipky vpravo */
+.cal-compact { padding: 12px 12px 10px; }
+.cal-compact .cal-head { margin-bottom: 2px; padding-left: 6px; gap: 2px; }
+.cal-compact .cal-head b { order: -1; margin-right: auto; font-size: 16px; }
+.cal-compact .cal-head .iconbtn { width: 34px; height: 34px; background: none; }
+.cal-compact .cal-dow { padding: 2px 0 4px; font-size: 11px; }
+.cal-compact .cal-grid { gap: 2px; }
+.cal-compact .cal-day { width: 100%; max-width: 36px; justify-self: center; font-size: 13.5px; }
+.sec.tight { margin-top: 12px; }
 .sess-row .sess-date { width: 40px; flex: none; text-align: center; line-height: 1.1; }
 .sess-row .sess-date b { display: block; font-size: 18px; font-weight: 750; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
 .sess-row .sess-date span { font-size: 11.5px; color: var(--text3); font-weight: 600; text-transform: lowercase; }

@@ -72,77 +72,50 @@ function renderWorkoutStart() {
       `<div class="card rows">${daySessions.map(sessionRowHtml).join("")}</div>`));
   }
 
-  /* hrdina: šablona na řadě */
+  /* jedna nízká karta: šablona na řadě v jednom řádku s tlačítkem Začít,
+     pod linkou ostatní volby jako malé kapsle (šablony, volný trénink, kardio) */
+  const opt = (attrs, label, dot = "") =>
+    `<button class="start-opt" ${attrs}>${dot}<span>${esc(label)}</span></button>`;
+  const opts = S.templates.filter(t => !next || t.id !== next.id)
+    .map(t => opt(`data-act="w-begin" data-template="${t.id}"`, t.name))
+    .concat(opt(`data-act="w-begin" data-template="custom"`, "Volný"),
+      opt(`data-act="w-cardio"`, "Kardio", `<i class="p-dot" style="background:var(--p-cardio)"></i>`)).join("");
+  let hero = "";
   if (next) {
     const last = lastWeightsSession();
-    const exs = next.exercises.filter(getExercise);
-    const preview = exs.slice(0, 5).map(id =>
-      `<div><i class="p-dot" style="background:${exColor(id)}"></i>${esc(exName(id))}</div>`).join("")
-      + (exs.length > 5 ? `<div class="more">+ ${exs.length - 5} ${plural(exs.length - 5, "další", "další", "dalších")}</div>` : "");
+    const n = next.exercises.filter(getExercise).length;
     const g = lastSessionGaps();
     const gaps = g ? [...g.missed.map(m => m.cat), ...g.low.map(l => l.cat)] : [];
-    out.push(`
-      <div class="card next-card">
-        <div class="td-eyebrow">Na řadě${day !== today ? ` · ${fmtShort(day)}` : ""}</div>
-        <div class="td-title">${esc(next.name)}</div>
-        <div class="td-meta">${exs.length} ${plural(exs.length, "cvik", "cviky", "cviků")}${last ? ` · naposledy ${relDay(last.date)}` : ""}</div>
-        <div class="next-list">${preview}</div>
-        ${gaps.length ? `<div class="td-warn" style="margin:-4px 0 16px">${ic("alert", 15)}Minule uteklo: ${gaps.join(", ")}</div>` : ""}
-        <button class="btn primary full" data-act="w-begin" data-template="${next.id}">${ic("play", 15)} Začít trénink</button>
-      </div>`);
+    hero = `
+      <div class="next-row">
+        <div class="grow">
+          <div class="td-eyebrow">Na řadě${day !== today ? ` · ${fmtShort(day)}` : ""}</div>
+          <div class="next-name">${esc(next.name)}</div>
+          <div class="next-meta">${n} ${plural(n, "cvik", "cviky", "cviků")}${last ? ` · naposledy ${relDay(last.date)}` : ""}</div>
+        </div>
+        <button class="btn primary next-go" data-act="w-begin" data-template="${next.id}">${ic("play", 14)} Začít</button>
+      </div>
+      ${gaps.length ? `<div class="td-warn">${ic("alert", 14)}Minule uteklo: ${gaps.join(", ")}</div>` : ""}`;
   }
+  out.push(`<div class="card next-card">${hero}<div class="start-opts${next ? "" : " solo"}">${opts}</div></div>`);
 
-  /* ostatní šablony + volný trénink + kardio */
-  const others = S.templates.filter(t => !next || t.id !== next.id).map(t => {
-    const n = t.exercises.length;
-    const counts = {};
-    for (const id of t.exercises) { const c = exCategory(id); if (c) counts[c] = (counts[c] || 0) + 1; }
-    return `<div class="list-item tpl-row" data-act="w-begin" data-template="${t.id}">
-      <div class="grow">
-        <div class="name">${esc(t.name)}</div>
-        <div class="li-sub">${n} ${plural(n, "cvik", "cviky", "cviků")}</div>
-      </div>
-      <span class="tpl-play">${ic("play", 13)}</span>
-    </div>`;
-  }).join("");
-  out.push(sec(next ? "Jiný trénink" : "Trénink", `
-    <div class="card rows">
-      ${others}
-      <div class="list-item tpl-row" data-act="w-begin" data-template="custom">
-        <div class="grow"><div class="name">Volný trénink</div><div class="li-sub">cviky vybereš průběžně</div></div>
-        <span class="tpl-play">${ic("plus", 16, 2.2)}</span>
-      </div>
-      <div class="list-item tpl-row" data-act="w-cardio">
-        <div class="grow"><div class="name">Kardio</div><div class="li-sub">sport, čas, vzdálenost</div></div>
-        <span class="tpl-play" style="color:var(--p-cardio)">${ic("flame", 16)}</span>
-      </div>
-    </div>`));
-
-  /* kalendář — ve v2.0 schovaný jen v Historii, Martin ho tu postrádal */
-  out.push(sec("Kalendář", monthCalendarCardHtml(),
-    { right: secLink("Měsíc", "menu", `data-page="history"`) }));
+  /* kalendář — nízký, bez legendy (ta je v Historii); měsíc a šipky v hlavičce */
+  out.push(`<section class="sec tight">${monthCalendarCardHtml(true)}</section>`);
 
   /* poslední tréninky */
   const recent = S.sessions.filter(s => !(daySessions.includes(s)))
-    .sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id))).slice(0, 5);
+    .sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id))).slice(0, 3);
   if (recent.length) {
-    out.push(sec("Poslední tréninky", `<div class="card rows">${recent.map(sessionRowHtml).join("")}</div>`,
+    out.push(sec("Naposledy", `<div class="card rows">${recent.map(sessionRowHtml).join("")}</div>`,
       { right: secLink("Historie", "menu", `data-page="history"`) }));
   }
 
-  out.push(sec("", `
-    <div class="card rows">
-      ${menuRow("trophy", "Rekordy", "records")}
-      ${menuRow("list", "Workout Templates", "templates")}
-      ${menuRow("book", "Exercise Library", "exlib")}
-    </div>`));
+  out.push(`<div class="quick-links">
+      <button class="start-opt" data-act="menu" data-page="records">${ic("trophy", 15)}<span>Rekordy</span></button>
+      <button class="start-opt" data-act="menu" data-page="templates">${ic("list", 15)}<span>Templates</span></button>
+      <button class="start-opt" data-act="menu" data-page="exlib">${ic("book", 15)}<span>Library</span></button>
+    </div>`);
   return out.join("");
-}
-
-function menuRow(icon, label, page) {
-  return `<div class="list-item" data-act="menu" data-page="${page}">
-    <span class="chev" style="color:var(--text2)">${ic(icon, 20)}</span>
-    <div class="grow name">${label}</div><span class="chev">${ic("chevR", 18)}</span></div>`;
 }
 
 /* Řádek tréninku v seznamu: datum, název, čísla, pokrytí partií, rekordy */
@@ -183,13 +156,14 @@ function sessionPRCount(s) {
 /* ---- Kalendář měsíce: proužky partií, kardio, tečka = kalorie v cíli ----
    Stejná karta je na kartě Trénink i na stránce Historie (sdílí SV.calY/calM).
    Klepnutí na den → openDaySummary() se zápisem do toho dne. */
-function monthCalendarCardHtml() {
+function monthCalendarCardHtml(compact = false) {
   const cal = calendarHtml(SV.calY, SV.calM, ds => {
     const bars = dayCatColors(ds);
     const f = calorieGoalMet(ds);
     if (!bars.length && !f) return null;
     return { cls: bars.length ? "trained" : "", bars, corner: f };
   }, "sum-cal-day");
+  if (compact) return `<div class="card cal-compact">${cal}</div>`;
   return `
     <div class="card">${cal}
       <div class="cal-legend small" style="margin-top:14px">

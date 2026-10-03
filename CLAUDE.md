@@ -278,15 +278,18 @@ Shora dolů od nejbližšího k nejširšímu:
 
 ### Trénink (`view-workout.js`)
 
-- **Start**: karta šablony na řadě (seznam cviků s tečkami partií, „Minule
-  uteklo", Začít), seznam Jiný trénink (ostatní šablony ▶, Volný trénink, Kardio),
-  Poslední tréninky (`sessionRowHtml()` — datum, čísla, partie, počet rekordů
-  `sessionPRCount()`) s odkazem na Historii, dole Rekordy / Templates / Library.
+- **Start** (v2.1.2 — na Martinovo „kompaktnější, víc minimalismu"): jedna nízká
+  karta `.next-card` — šablona na řadě v jednom řádku (Na řadě · název · „N cviků ·
+  naposledy …") s volt **Začít** vpravo, případně zlatý řádek „Minule uteklo",
+  pod linkou ostatní volby jako malé kapsle `.start-opt` bez ikon (ostatní
+  šablony, Volný, Kardio s tečkou). Seznam cviků šablony na startu záměrně není.
+  Pod tím **nízký kalendář** bez legendy (`monthCalendarCardHtml(true)` →
+  `.cal-compact`, měsíc vlevo, šipky vpravo; stejná data jako v Historii, sdílí
+  `SV.calY/calM`), pak **Naposledy** — 3 tréninky (`sessionRowHtml()` — datum,
+  čísla, partie, počet rekordů `sessionPRCount()`) s odkazem Historie, a dole
+  jedna řada kapslí Rekordy · Templates · Library (`.quick-links`).
   Den zápisu je **pilulka s datem v titulku** (`w-date`, `w-date-today`) — trénink
   se tak zapíše i zpětně; vybraný den ukáže své zapsané tréninky.
-  Mezi Jiným tréninkem a Posledními tréninky je **Kalendář** měsíce
-  (`monthCalendarCardHtml()` — stejná karta jako v Historii, sdílí `SV.calY/calM`),
-  „Měsíc ›" vede na Historii.
 - **Historie** (stránka `history`, i z Více → Kalendář a historie): kalendář měsíce (`SV.calY/calM`, proužky partií,
   tečka = kalorie v cíli) + čísla měsíce + tréninky měsíce. Klepnutí na den →
   `openDaySummary()` se zápisem do toho dne.
