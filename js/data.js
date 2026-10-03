@@ -11,7 +11,8 @@ const Settings = {
     if (!this._cache) {
       try { this._cache = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; }
       catch (e) { this._cache = {}; }
-      this._cache = Object.assign({ gasWebAppUrl: "", usdaApiKey: "", anthropicApiKey: "", weightUnit: "kg", restSeconds: 120 }, this._cache);
+      this._cache = Object.assign({ gasWebAppUrl: "", usdaApiKey: "", anthropicApiKey: "", weightUnit: "kg", restSeconds: 120,
+        weeklyGoal: 3, keepAwake: true }, this._cache);
     }
     return this._cache;
   },
@@ -341,10 +342,31 @@ function applyExerciseNamesEn() {
   persist();
 }
 
+/* Druh cviku (v2.1): weight = váha × opakování (výchozí), bw = vlastní váha
+   + volitelná zátěž (pole váhy = přidaná zátěž), time = výdrž na čas (sekundy
+   se ukládají do reps — stejně jako dřív u planku, takže stará data sedí). */
+const EX_KINDS = [["weight", "Váha × opakování"], ["bw", "Vlastní váha (+ zátěž)"], ["time", "Výdrž na čas"]];
+const KIND_DEFAULTS = {
+  time: ["ex-plank", "xd-side-plank", "xd-hollow-hold"],
+  bw: ["ex-pushup", "ex-pullup", "ex-dips", "xd-pushup-feet-up", "xd-pushup-diamond",
+    "xd-pullup-under", "xd-pullup-wide", "xd-bench-dips"]
+};
+function applyExerciseKinds() {
+  if (S.kindsV1) return;
+  for (const [kind, ids] of Object.entries(KIND_DEFAULTS)) {
+    for (const id of ids) { const e = getExercise(id); if (e && !e.kind) e.kind = kind; }
+  }
+  S.kindsV1 = true;
+  S.updatedAt = Date.now();
+  persist();
+}
+function exKind(exerciseId) { return (getExercise(exerciseId) || {}).kind || "weight"; }
+
 let S = loadState();
 applyCoachPlan();
 applyExerciseDb();
 applyExerciseNamesEn();
+applyExerciseKinds();
 /* backfill milníků je až na konci souboru — MILESTONES je const níž */
 
 function loadState() {
@@ -359,7 +381,11 @@ function loadState() {
   return defaultState();
 }
 
+/* revize dat — každý zápis ji zvedne; cache rekordů podle ní pozná změnu
+   (updatedAt má rozlišení 1 ms, dva zápisy v jedné ms by cache nepoznala) */
+var _dataRev = 0;
 function persist() {
+  _dataRev = (_dataRev || 0) + 1;
   localStorage.setItem(STORE_KEY, JSON.stringify(S));
 }
 
@@ -492,6 +518,142 @@ function allPRs() {
     .map(id => ({ exerciseId: id, pr: currentPR(id) }))
     .filter(x => x.pr)
     .sort((a, b) => b.pr.date.localeCompare(a.pr.date));
+}
+
+/* ===== Plán cviku v šabloně (v2.1) =====
+   t.plan = { [exerciseId]: { sets, lo, hi, rest, link } } — série, rozsah
+   opakování, pauza v s (null = výchozí z Nastavení) a superset s dalším cvikem.
+   Bez vlastního plánu se série a rozsah čtou z popisu cviku („3× 8–12 — …"),
+   což mají cviky z plánu trenéra. Knihovní popisy rozsahy záměrně nemají. */
+function parsePlan(ex) {
+  if (!ex || !ex.description) return null;
+  const m = /^\s*(\d+)(?:\s*[–-]\s*(\d+))?\s*×\s*(\d+)\s*[–-]\s*(\d+)/.exec(ex.description);
+  if (!m) return null;
+  return { sets: parseInt(m[2] || m[1], 10), lo: parseInt(m[3], 10), hi: parseInt(m[4], 10), rest: null, link: false };
+}
+function exDefaultPlan(exerciseId) { return parsePlan(getExercise(exerciseId)); }
+function tplPlan(tpl, exerciseId) {
+  const own = tpl && tpl.plan && tpl.plan[exerciseId];
+  if (own) return Object.assign({ sets: null, lo: null, hi: null, rest: null, link: false }, own);
+  return exDefaultPlan(exerciseId);
+}
+
+/* ===== Rekordy čtyř druhů (v2.1) =====
+   e1rm = odhad 1RM, weight = nejtěžší váha, volume = nejlepší série (váha ×
+   opakování), reps = víc opakování než kdykoli při stejné nebo vyšší váze
+   (u cviků bez váhy = nejvíc opakování / nejdelší výdrž). Rekord vyžaduje
+   předchozí sérii cviku — první trénink nového cviku rekordy nesbírá. */
+const REC_LABEL = { e1rm: "odhad 1RM", weight: "nejtěžší váha", volume: "nejlepší série", reps: "opakování" };
+const REC_ORDER = ["e1rm", "weight", "reps", "volume"];
+
+function recState() { return { n: 0, e1: 0, w: 0, vol: 0, at: [] }; }
+/* nejvíc opakování při váze ≥ w; null = při takové váze ještě nic */
+function repsAtOrAbove(state, w) {
+  let best = null;
+  for (const [wt, r] of state.at) if (wt >= w - 1e-9 && (best == null || r > best)) best = r;
+  return best;
+}
+function recTypes(state, st) {
+  const w = st.weight || 0, r = st.reps || 0;
+  if (!r || !state.n) return [];
+  const out = [];
+  if (w > 0 && est1RM(w, r) > state.e1 + 1e-9) out.push("e1rm");
+  if (w > 0 && w > state.w + 1e-9) out.push("weight");
+  const prev = repsAtOrAbove(state, w);
+  if (prev != null && r > prev) out.push("reps");
+  if (w > 0 && state.vol > 0 && w * r > state.vol + 1e-9) out.push("volume");
+  return out;
+}
+function recPush(state, st) {
+  const w = st.weight || 0, r = st.reps || 0;
+  if (!r) return;
+  state.n++;
+  if (w > 0) {
+    state.e1 = Math.max(state.e1, est1RM(w, r));
+    state.w = Math.max(state.w, w);
+    state.vol = Math.max(state.vol, w * r);
+  }
+  const hit = state.at.find(x => Math.abs(x[0] - w) < 1e-9);
+  if (hit) hit[1] = Math.max(hit[1], r); else state.at.push([w, r]);
+}
+
+let _recCache = { key: null, map: new Map() };
+function exerciseRecords(exerciseId) {
+  const key = `${_dataRev}|${S.updatedAt}|${S.sessions.length}`;
+  if (_recCache.key !== key || _recCache.ref !== S.sessions) _recCache = { key, ref: S.sessions, map: new Map() };
+  if (_recCache.map.has(exerciseId)) return _recCache.map.get(exerciseId);
+  const state = recState();
+  const events = [];
+  let bestE = null, bestW = null, bestV = null, bestR = null;
+  const sorted = S.sessions.filter(s => s.type === "weights")
+    .sort((a, b) => a.date.localeCompare(b.date) || String(a.id).localeCompare(String(b.id)));
+  for (const s of sorted) {
+    // rekordy jednoho tréninku se slévají do jedné události: druhy se sjednotí,
+    // zobrazí se série s nejdůležitějším druhem (pořadí REC_ORDER), sets = všechny
+    // série s rekordem ([index cviku v tréninku, index série]) pro štítky v detailu
+    let evS = null;
+    (s.entries || []).forEach((e, k) => {
+      if (e.exerciseId !== exerciseId) return;
+      (e.sets || []).forEach((st, j) => {
+        const types = recTypes(state, st);
+        if (types.length) {
+          const one = { date: s.date, sid: s.id, k, j, reps: st.reps, weight: st.weight || 0, types };
+          if (!evS) evS = Object.assign({ sets: [] }, one);
+          else {
+            const union = REC_ORDER.filter(t => evS.types.includes(t) || types.includes(t));
+            if (types.includes(union[0])) Object.assign(evS, one);
+            evS.types = union;
+          }
+          evS.sets.push([k, j]);
+        }
+        recPush(state, st);
+        const w = st.weight || 0, r = st.reps || 0;
+        if (!r) return;
+        const pt = { date: s.date, reps: r, weight: w };
+        if (w > 0 && (!bestE || est1RM(w, r) > est1RM(bestE.weight, bestE.reps))) bestE = pt;
+        if (w > 0 && (!bestW || w > bestW.weight || (w === bestW.weight && r > bestW.reps))) bestW = pt;
+        if (w > 0 && (!bestV || w * r > bestV.weight * bestV.reps)) bestV = pt;
+        if (!bestR || r > bestR.reps || (r === bestR.reps && w > bestR.weight)) bestR = pt;
+      });
+    });
+    if (evS) events.push(evS);
+  }
+  const out = { events, state, best: { e1rm: bestE, weight: bestW, volume: bestV, reps: bestR } };
+  _recCache.map.set(exerciseId, out);
+  return out;
+}
+
+/* Rekordy právě zapsané série v probíhajícím tréninku: proti uložené historii
+   (bez tréninku se stejným id — při zpětné úpravě) a dřívějším sériím cviku. */
+function liveRecordTypes(exerciseId, st, priorSets, excludeSid) {
+  const state = recState();
+  const sorted = S.sessions.filter(s => s.type === "weights" && s.id !== excludeSid)
+    .sort((a, b) => a.date.localeCompare(b.date) || String(a.id).localeCompare(String(b.id)));
+  for (const s of sorted) for (const e of s.entries || []) {
+    if (e.exerciseId === exerciseId) for (const x of e.sets || []) recPush(state, x);
+  }
+  for (const x of priorSets || []) recPush(state, x);
+  return recTypes(state, st);
+}
+
+/* Rekordy v období — jeden záznam na cvik a trénink (libovolného druhu) */
+function recordEventsInRange(from, to) {
+  const ids = new Set();
+  for (const s of S.sessions) if (s.type === "weights" && s.date <= to) for (const e of s.entries || []) ids.add(e.exerciseId);
+  const out = [];
+  for (const id of ids) for (const ev of exerciseRecords(id).events) {
+    if (ev.date >= from && ev.date <= to) out.push(Object.assign({ exerciseId: id }, ev));
+  }
+  return out;
+}
+function countRecordsInRange(from, to) { return recordEventsInRange(from, to).length; }
+function sessionRecordEvents(s) {
+  if (!s || s.type !== "weights") return [];
+  const out = [];
+  for (const id of new Set((s.entries || []).map(e => e.exerciseId))) {
+    for (const ev of exerciseRecords(id).events) if (ev.sid === s.id) out.push(Object.assign({ exerciseId: id }, ev));
+  }
+  return out;
 }
 
 /* Objem session (Σ opakování × váha v kg) */

@@ -281,11 +281,12 @@ const ACTIONS = {
     el.value = Number.isInteger(step) ? String(Math.round(v)) : fmtNum(Math.round(v * 10) / 10, 1);
   },
   "w-add-set": d => addSet(Number(d.i)),
-  "w-del-set": d => {
-    S.activeSession.entries[Number(d.i)].sets.splice(Number(d.j), 1);
+  "w-del-set": d => withUndo("Série smazána", () => {
+    const e = S.activeSession.entries[Number(d.i)];
+    e.sets.splice(Number(d.j), 1);
+    refreshEntryRecords(S.activeSession, e);
     WV.editSet = null;
-    save(); render();
-  },
+  }),
   /* oprava zapsané série — klepnutí na sérii ji načte do polí */
   "w-set-edit": d => {
     const i = Number(d.i), j = Number(d.j);
@@ -326,11 +327,61 @@ const ACTIONS = {
     t.setAttribute("aria-checked", String(s.core));
     save(); render();
   },
-  "w-remove-ex": d => {
+  "w-remove-ex": d => withUndo("Cvik odebrán", () => {
     S.activeSession.entries.splice(Number(d.i), 1);
     WV.openIdx = null; // indexy se posunuly
     WV.editSet = null;
+    WV.sw = null;
+    closeModal();
+  }),
+  /* nabídka cviku (⋯), superset, připnutá poznámka, stopky */
+  "w-ex-menu": d => openExerciseMenu(Number(d.i)),
+  "w-link": d => {
+    const e = S.activeSession && S.activeSession.entries[Number(d.i)];
+    if (!e) return;
+    if (e.link) delete e.link; else e.link = true;
+    closeModal();
     save(); render();
+    toast(e.link ? "Superset s dalším cvikem — pauza až po kole" : "Superset zrušen", "ok");
+  },
+  "w-pin": d => {
+    const e = S.activeSession && S.activeSession.entries[Number(d.i)];
+    if (e) openPinModal(e.exerciseId);
+  },
+  "pin-save": d => {
+    const ex = getExercise(d.exid);
+    if (!ex) return;
+    const v = d.clear ? "" : document.getElementById("pinInput").value.trim();
+    if (v) ex.pin = v; else delete ex.pin;
+    save(); closeModal(); render();
+    toast(v ? "Poznámka připnuta ✓" : "Poznámka odepnuta", "ok");
+  },
+  "w-sw": d => toggleStopwatch(Number(d.i)),
+  /* detail tréninku: zopakovat, uložit jako šablonu */
+  "w-repeat": d => repeatSession(d.id),
+  "w-save-tpl": d => openSaveTemplateModal(d.id),
+  "tpl-from-session": (d, t) => {
+    const s = S.sessions.find(x => x.id === d.id);
+    const inp = document.getElementById("newTplName");
+    const name = inp ? inp.value.trim() : "";
+    if (!s) return;
+    if (!name) { toast("Zadej název šablony", "err"); return; }
+    const tpl = templateFromSession(s, name);
+    save();
+    toast(`Šablona ${tpl.name} uložena ✓`, "ok");
+    if (d.inline) {
+      render();
+      const card = t.closest(".sum-tpl");
+      if (card) card.innerHTML = `<div class="name" style="font-weight:650">${ic("check", 15, 2.6)} Uloženo jako šablona ${esc(tpl.name)}</div>`;
+    } else { closeModal(); render(); }
+  },
+  /* shrnutí: uložit změny z tréninku do šablony */
+  "w-tpl-update": (d, t) => {
+    if (!updateTemplateFromFinish(d.tpl)) return;
+    save(); render();
+    const card = t.closest(".sum-tpl");
+    if (card) card.innerHTML = `<div class="name" style="font-weight:650">${ic("check", 15, 2.6)} Šablona aktualizována</div>`;
+    toast("Šablona aktualizována ✓", "ok");
   },
   "w-swap-ex": d => openExercisePicker(Number(d.i)),
   /* akordeon: rozbalený je vždy nejvýš jeden cvik */
@@ -369,11 +420,17 @@ const ACTIONS = {
     if (!a) { closeModal(); return; }
     if (a.entries.some(e => e.exerciseId === d.exid)) { toast("Cvik už v tréninku je", "err"); return; }
     WV.editSet = null;
+    WV.sw = null;
     if (WV.pickerIndex == null) {
-      a.entries.push({ exerciseId: d.exid, sets: [] });
+      // cíl z plánu šablony (nebo z popisu cviku), při úpravě uloženého bez cíle
+      const t = a.editOf ? null : tplPlan(getTemplate(a.templateUsed), d.exid);
+      a.entries.push({ exerciseId: d.exid, sets: [], target: t || null });
       WV.openIdx = a.entries.length - 1;   // nový cvik rovnou rozbal
     } else {
-      a.entries[WV.pickerIndex] = { exerciseId: d.exid, sets: [] };
+      // výměna: náhrada drží místo v plánu (série, rozsah, pauza) i superset
+      const old = a.entries[WV.pickerIndex] || {};
+      a.entries[WV.pickerIndex] = Object.assign({ exerciseId: d.exid, sets: [] },
+        old.target !== undefined ? { target: old.target } : {}, old.link ? { link: true } : {});
       WV.openIdx = WV.pickerIndex;
     }
     save(); closeModal(); render();
@@ -398,7 +455,7 @@ const ACTIONS = {
   },
 
   /* ---- Rest timer (zamčený dock) ---- */
-  "rest-start": () => Rest.start(Settings.get().restSeconds || 120),
+  "rest-start": () => Rest.start(currentRestSeconds() || 120),
   "dock-open": () => {
     closeModal();
     if (App.route.tab === "workout" && !App.route.page) { render(); return; }
@@ -521,9 +578,27 @@ const ACTIONS = {
   },
   "tpl-rm": d => {
     const t = getTemplate(d.tpl);
-    if (t) t.exercises.splice(Number(d.i), 1);
+    if (t) {
+      const [exId] = t.exercises.splice(Number(d.i), 1);
+      if (t.plan && exId && !t.exercises.includes(exId)) delete t.plan[exId];
+    }
     save(); render();
   },
+  /* plán cviku v šabloně: série × rozsah × pauza, superset s dalším */
+  "tpl-plan": d => openPlanModal(d.tpl, d.exid),
+  "plan-rest": (d, t) => {
+    if (!MV.plan) return;
+    MV.plan.rest = d.r ? Number(d.r) : null;
+    document.querySelectorAll(".planrest").forEach(c => c.classList.toggle("on", c === t));
+  },
+  "plan-link": (d, t) => {
+    if (!MV.plan) return;
+    MV.plan.link = !MV.plan.link;
+    t.classList.toggle("on", MV.plan.link);
+    t.setAttribute("aria-checked", MV.plan.link);
+  },
+  "plan-save": () => savePlan(),
+  "plan-clear": () => savePlan(true),
 
   /* ---- Food Library ---- */
   "fl-star": d => {
@@ -602,8 +677,16 @@ const ACTIONS = {
   "exp-share": () => exportShare(),
   "exp-json": () => downloadFile(`fitness-log-${todayStr()}.json`, JSON.stringify(S, null, 2), "application/json"),
   "exp-md": () => downloadFile(`fitness-log-${todayStr()}.md`, buildMarkdown(reportRangeArg()), "text/markdown"),
+  "exp-csv": () => downloadFile(`fitness-log-serie-${todayStr()}.csv`, buildSetsCsv(), "text/csv"),
   "exp-import": () => importBackup(),
   "set-save": () => saveSettings(),
+  "set-awake": (d, t) => {
+    const on = Settings.get().keepAwake === false;
+    Settings.set({ keepAwake: on });
+    t.classList.toggle("on", on);
+    t.setAttribute("aria-checked", on);
+    Dock.sync();
+  },
   "set-sync-now": async () => {
     const inp = document.getElementById("setGas");
     if (inp) Settings.set({ gasWebAppUrl: inp.value.trim() });

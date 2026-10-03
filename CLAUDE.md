@@ -22,17 +22,17 @@ Osobní PWA pro zápis silových a kardio tréninků a stravy. **Jeden uživatel
 | `js/exercise-db.js` | `EXERCISE_DB` — 90 cviků knihovny s vysvětlivkami, `EXERCISE_NAME_EN` — anglické názvy všech 142 cviků |
 | `js/qr.js` | QR generátor (ISO 18004, byte mode, EC L, v1–13, výběr masky) |
 | `js/photos.js` | fotky postupu v IndexedDB + zmenšení na JPEG |
-| `js/data.js` | stav `S`, `save()`, `replaceState()`, PR logika, milníky, plán trenéra, barvy partií (`CAT_COLOR`, `CAT_ORDER`, `sessionCatSets()`, `dayCatColors()`) |
+| `js/data.js` | stav `S`, `save()`, `replaceState()`, PR logika a **rekordy čtyř druhů** (`exerciseRecords()`), plán cviku v šabloně (`tplPlan()`), druhy cviků (`exKind()`), milníky, plán trenéra, barvy partií (`CAT_COLOR`, `CAT_ORDER`, `sessionCatSets()`, `dayCatColors()`) |
 | `js/sync.js` | cloud sync + `mergeStates()` (slévání podle id) |
 | `js/foodapi.js` | OFF (cz → world), USDA, Claude vision (etiketa / jídlo), čárový kód |
-| `js/ui.js` | ikony `ic()`, sekce `sec()`/`secHead()`/`secLink()`, segmenty `segHtml()`, čísla `statHtml()`, české tvary `plural()`, data `fmtShort()`/`relDay()`, `fmtVolume()`, `fmtFixed()`, toast (i s akcí), sheet, výběr cviku `openExPicker()`, kalendář, SVG grafy (`lineChart`, `columnChart`, `sparklineHtml`) + dotykový readout `ChartTip`, rest timer `Rest` + zamčený timer `Dock`, `dayNavHtml()` |
+| `js/ui.js` | ikony `ic()`, sekce `sec()`/`secHead()`/`secLink()`, segmenty `segHtml()`, čísla `statHtml()`, české tvary `plural()`, data `fmtShort()`/`relDay()`, `fmtVolume()`, `fmtFixed()`, toast (i s akcí), sheet, výběr cviku `openExPicker()`, kalendář, SVG grafy (`lineChart`, `columnChart`, `sparklineHtml`) + dotykový readout `ChartTip`, rest timer `Rest` + zamčený timer `Dock`, nezhasínání obrazovky `KeepAwake`, `dayNavHtml()` |
 | `js/view-today.js` | **Dnes** — seznam dne (váha · trénink · jídlo · check-in), týden s listováním, pokrok v kostce |
-| `js/view-workout.js` | **Trénink** — start (šablona na řadě, ostatní, kardio, poslední tréninky), gym mód, stránky Historie a Rekordy, detail tréninku |
+| `js/view-workout.js` | **Trénink** — start (šablona na řadě, ostatní, kardio, poslední tréninky), gym mód (plán, supersety, stopky, menu cviku ⋯), shrnutí po tréninku, stránky Historie a Rekordy, detail tréninku |
 | `js/view-progress.js` | **Pokrok** — segmenty Trénink · Tělo · Strava; segment Trénink (index síly, 30 dní, týdny, pravidelnost, partie, rekordy) |
 | `js/view-checkin.js` | Pokrok → **Tělo** (váha, check-in, fotky, obvody, historie) + stránka formuláře check-inu |
 | `js/view-summary.js` | Pokrok → **Strava**, detail dne `openDaySummary()`, `movingAvgAt()`, stav kalendáře `SV` |
 | `js/view-food.js` | stránka **Jídlo** (denní log) + přidání jídla (hledání, foto, oblíbené, ručně) |
-| `js/view-menu.js` | sheet **Více** + stránky Exercise Library, Workout Templates, Food Library, Export & Backup, Nastavení, O aplikaci; fotky (`PV`) |
+| `js/view-menu.js` | sheet **Více** + stránky Exercise Library, Workout Templates (+ editor plánu `openPlanModal()`), Food Library, Export & Backup (+ CSV sérií `buildSetsCsv()`), Nastavení, O aplikaci; fotky (`PV`) |
 | `js/report.js` | `buildCoachReport(range)` — textový report pro Clauda |
 | `js/app.js` | router + velký titulek (`pageHead()`), delegace akcí (`ACTIONS`), `withUndo()`, start |
 | `apps-script/Code.gs` | backend syncu v Google Sheetu + 7 denních záloh |
@@ -94,6 +94,35 @@ mini check „do selhání" **u série** — štítek mezi váhou a křížkem, 
 sérii hned po přidání (`failChipHtml()`, akce `w-set-fail`). Ukládá se jen zapnutý;
 oprava čísel série ho nemění. Sbalený cvik ukazuje „do selhání N×", detail štítek
 u série, report a export „(do selhání)".
+
+**v2.1 — plán, supersety, druhy cviků:**
+- Cvik: `kind` = `"weight"` (výchozí) | `"bw"` (vlastní váha + volitelná zátěž,
+  `weight` = zátěž, 0 = bez) | `"time"` (výdrž; **sekundy se ukládají do `reps`**,
+  `weight` 0). Výchozí druhy pro plank, kliky, shyby, dipy… doplní migrace
+  `applyExerciseKinds()` (flag `kindsV1`, `KIND_DEFAULTS`); ve formuláři cviku jde
+  změnit. `pin` = připnutá poznámka ke cviku (nastavení stroje, úchop) — patří
+  cviku, ne tréninku, ukazuje se v každém tréninku.
+- Šablona: `plan = {[exerciseId]: {sets, lo, hi, rest, link}}` — série, rozsah
+  opakování (u výdrže sekund), pauza v s (`null` = výchozí z Nastavení) a superset
+  s dalším cvikem. Bez vlastního plánu čte `tplPlan()` série a rozsah z popisu
+  cviku („3× 8–12 — …", mají ho cviky trenéra; „2× 12/10/8" ani „3× 10 / 20–30 s"
+  se záměrně nečtou). Editor plánu bez existujícího plánu nechá rozsah prázdný —
+  samotný superset nebo pauza nesmí potichu založit rozsah (spustil by návrhy
+  progrese).
+- Aktivní session: `entry.target` (cíl ze šablony při startu, `null` = bez plánu),
+  `entry.link` (superset s dalším). Uložená session nese jen `link` — a jen když
+  se odcvičil i ten další cvik (jinak by se po vynechání prázdných spojil s jiným).
+
+**Rekordy (v2.1)** — `exerciseRecords(id)` → `{events, state, best}`, cache podle
+revize dat (`_dataRev` z `persist()`). Čtyři druhy (`REC_LABEL`, pořadí `REC_ORDER`):
+odhad 1RM, nejtěžší váha, **opakování** (víc než kdykoli při stejné nebo vyšší váze)
+a nejlepší série (váha × opakování). Rekord vyžaduje předchozí sérii cviku — první
+trénink nového cviku nic nesbírá. Události se **slévají na jednu za cvik a trénink**
+(sjednocené druhy, `sets` = všechny série s rekordem jako `[k, j]`) — jinak by
+každá další lepší série v tom samém tréninku byla další „rekord" a počty by
+nafoukly. Živě v tréninku hlásí toast každou sérii (`liveRecordTypes()`).
+Počty v Dnes / Pokrok / Rekordy / reportu jdou přes `recordEventsInRange()`.
+`currentPR()` (e1RM) zůstal pro nápovědy v gym módu a hodnoty v seznamu Rekordů.
 
 Sync slévá kolekce **podle `id`** (ne last-write-wins), tombstony v `deletedIds`.
 
@@ -237,6 +266,9 @@ Shora dolů od nejbližšího k nejširšímu:
   se srovnává **se stejnou dobou minulého týdne**, uzavřený s celým předchozím.
   Rekap minulého týdne je řádek nad kartou (klepnutí = ukáže minulý týden,
   křížek = schovat do dalšího pondělí, `recapDismissed`).
+  **Týdenní cíl** (v2.1, Nastavení → `weeklyGoal`, výchozí 3, 0 = vypnuto):
+  první číslo týdne je kroužek „N / cíl" (`goalStatHtml()`), volt fajfka po splnění.
+  **Není to streak** — počítá jen tenhle týden, nic se nepřenáší, volno nic nestojí.
 - **Pokrok v kostce** — index síly za 90 dní (graf + „N z M cviků roste") a tři
   dlaždice: Rekordy za 30 dní, Váha Ø 7 dní se změnou za týden, Týdně (Ø tréninků
   za 8 týdnů). Dlaždice vedou do Pokroku / Rekordů.
@@ -252,7 +284,13 @@ Shora dolů od nejbližšího k nejširšímu:
 - **Historie** (stránka `history`): kalendář měsíce (`SV.calY/calM`, proužky partií,
   tečka = kalorie v cíli) + čísla měsíce + tréninky měsíce. Klepnutí na den →
   `openDaySummary()` se zápisem do toho dne.
-- **Rekordy** (stránka `records`): aktuální PR všech cviků, klepnutí → historie PR.
+- **Rekordy** (stránka `records`): počty za 30 / 90 dní, cviky podle posledního
+  rekordu, klepnutí → `openPRHistory()` — dlaždice nejlepších hodnot podle druhu,
+  opakování podle váhy, historie překonaných rekordů, Graf progresu.
+- **Detail tréninku**: PR štítky u sérií, superset, **Zopakovat** (`repeatSession()`
+  — stejné cviky a supersety, dnešní datum, cíle z šablony nebo počet sérií)
+  a **Nová šablona** (`openSaveTemplateModal()` → `templateFromSession()` — plán
+  z odcvičeného: počet sérií a rozsah min–max opakování).
 - **Gym mód** viz níž; po **Hotovo** se otevře další neodcvičený cvik (nejdřív za
   ním, pak od začátku) — o klepnutí méně u každého cviku.
 
@@ -263,11 +301,17 @@ ukazuje odpočet s kroužkem, −30/+30 a zrušení; když pauza neběží a pro
 trénink, ukazuje počet sérií (`workoutSetsLabel()`) a bílé tlačítko pro ruční
 start pauzy. **Časovač celého tréninku není** — v1.26 na Martinovu žádost
 odstraněn, nevracet.
-Po doběhnutí pauzy 5 s svítí volt „Pauza skončila". Klepnutí vrací na Trénink
+Délka pauzy jde z plánu otevřeného cviku (`currentRestSeconds()` / `entryRest()`),
+jinak z Nastavení. Po doběhnutí pauzy 5 s svítí volt „Pauza skončila". Zvuk na
+konci pauzy byl ve v2.1 nabídnutý a Martin ho nechtěl. Klepnutí vrací na Trénink
 (`dock-open`). Při otevřeném sheetu (`body.modal-open`) se přesune nahoru, aby ho
 sheet nezakryl — proto má `.modal` max. výšku `100dvh − 76 px`. Stav se odvozuje
 z `Rest` a `S.activeSession`; `render()` volá `Dock.sync()`.
 `body.has-dock` přidá `--dock-h` do spodního odsazení stránky i pozice toastu.
+**Obrazovka nezhasne** během živého silového tréninku (`KeepAwake` — Screen Wake
+Lock, synchronizuje ho `Dock.sync()`; ne v úpravě uloženého tréninku). Zámek drží
+jen viditelná stránka, po návratu do appky se vyžádá znovu. Vypínač je v Nastavení
+(`keepAwake`). `sync()` pouští jednu žádost naráz — `render()` ho volá často.
 
 ### Pokrok (`view-progress.js` + `view-checkin.js` + `view-summary.js`)
 
@@ -291,6 +335,8 @@ na Dnes a „Postava a check-in" ve Více skáčou rovnou na segment přes `go-p
   zlatě přes 14 dní — `partLastTrained()`), Souhrn = série a objem za rozsah
   Týden / Měsíc / Vše / Vlastní (`SV.catRange`). Záměrně ne skládaný sloupec:
   sedm barev partií od sebe v jednom sloupci spolehlivě rozeznat nejde.
+  Za sloupci je šedé **pásmo 10–20 sérií týdně** (`.cw-band`, měřítko aspoň do 22),
+  Ø v pásmu je volt — běžné doporučení pro růst svalů, ne tvrdý cíl.
 - **Rekordy** — naposledy překonané, „Vše" → stránka Rekordy.
 
 **Tělo** (`renderBody()`) — váha (7denní průměr jako hlavní číslo, změna za týden
@@ -307,6 +353,10 @@ jsou pryč, funkce zůstaly.
 i podrobného zápisu, bílkoviny, váha Ø a změna), posledních 30 dní (Ø kcal, dny
 v cíli, Ø makra, graf kalorií s cílem), bilance po týdnech (Ø příjem vs změna
 7denního průměru váhy) a vstup do jídelníčku.
+
+**Export & Backup** má i **CSV sérií** (`exp-csv`, `buildSetsCsv()`) — jedna série
+na řádek, středník a desetinná čárka (česká tabulka ho otevře rovnou do sloupců),
+BOM kvůli diakritice.
 
 **Cloud sync** je v Export & Backup (ne v Nastavení): URL se ukládá hned po
 změně pole (`data-change="set-gas"`), stav syncu překresluje jen štítek
@@ -332,11 +382,37 @@ sklo dostane až po přilepení — třída `.stuck` z `updateTopbar()`).
 - Sbalené cviky jsou **řádky na pozadí** oddělené linkou (proužek partie, číslo /
   volt fajfka, souhrn sérií, „do selhání N×", úchyt); otevřený cvik je karta.
   V kartě: partie (tečka + šedý text) · pořadí, název, anglický název, výměna
-  a odebrání, **Technika** jako `<details>` (popis cviku), nápovědy jako řádky
+  a menu ⋯, **Technika** jako `<details>` (popis cviku), nápovědy jako řádky
   s ikonou — rekord (zlatě), minule, návrh progrese (volt), blízko rekordu (zlatě).
   Série: číslo, hodnota, PR štítek, mini check „do selhání", křížek. Steppery
   opakování a váhy, **poznámka k sérii** schovaná v `<details>` (rozbalí se sama,
   když opravovaná série poznámku má), Přidat sérii (volt) + Hotovo.
+- **Plán cviku (v2.1)**: pod názvem řádek `.ex-plan` („3 × 8–12 · pauza 2:00 ·
+  superset s dalším"), v hlavičce „1/3 série"; nezapsané série plánu jsou tlumené
+  řádky `.set-row.ghost` s cílem a minulou hodnotou té série. Po splnění počtu
+  sérií je volt **Hotovo** a „Série navíc" neutrální. Návrh progrese (double
+  progression, `progressionSuggestion()`): minule všechny série na horní hranici
+  rozsahu → předvyplní +2,5 kg a spodek rozsahu; u výdrže a bez rozsahu se nenavrhuje.
+- **Supersety**: `entry.link` = jde se hned na další cvik bez pauzy; po sérii
+  posledního cviku skupiny pauza (podle jeho plánu) a zpět na první. Sbalené řádky
+  mají štítek „superset" a svislou linku v levém okraji (`.ss`, `.ss-prev/.ss-next`).
+- **Menu cviku ⋯** (`openExerciseMenu()`, místo koše v hlavičce): superset
+  s dalším, připnutá poznámka (`openPinModal()`, zobrazí se jako první nápověda,
+  klepnutím se upraví), progres a rekordy, video na YouTube (`youtubeUrl()` —
+  hledání podle anglického názvu + „technique"; odkaz je i v Technice a v Library),
+  odebrat z tréninku (`withUndo`).
+- **Druhy cviků**: výdrž = stepper „Výdrž · s" + **stopky** (`toggleStopwatch()`,
+  `WV.sw`; druhé klepnutí zapíše sekundy do pole), vlastní váha = „Zátěž" (prázdná
+  = 0). Zápis série čte pole podle druhu (`readSetInputs()`).
+- **Smazání série má undo** (`withUndo("Série smazána")`) a rekordy cviku se
+  přepočtou (`refreshEntryRecords()`). Pozor: schovaný toast musí vrátit
+  `pointer-events: none` — jinak neviditelné „Vrátit" blokuje tlačítka pod sebou.
+- **Shrnutí po dokončení** (`openWorkoutSummary()`, místo samotného hodnocení):
+  cviky · série · objem se změnou proti minulému tréninku **stejné šablony**,
+  pokrytí partií, padlé rekordy, karta „Trénink se lišil od šablony" (přidané /
+  vyřazené cviky, pořadí, supersety → `updateTemplateFromFinish()` z `WV.lastFinish`),
+  u volného tréninku „Uložit jako šablonu" přímo v kartě, pak hodnocení 1–10
+  a poznámka. **Délka tréninku záměrně ne** — časovač v appce není (v1.26).
 - Pod cviky Přidat cvik, přepínač **Core ano/ne** (`coreCardHtml()`; se zapsanými
   sériemi core je zapnutý sám), Dokončit trénink (volt) a Zrušit (textově červeně).
 - **Zpětná úprava tréninku** (v1.25) — v detailu tréninku (`sessionDetailHtml()`,
@@ -391,3 +467,5 @@ Sociální feed a veřejné rutiny (appka je jednouživatelská, bez backendu).
 AI kouč nad vlastními daty — postavený ve v1.20, na Martinovu žádost hned
 zase smazaný (v1.21). Nestavět znovu, dokud si o to výslovně neřekne.
 Rest timer původně taky vyloučen, ale uživatel si ho později vyžádal (v1.10).
+Ve v2.1 (inspirace Hevy) nabídnuté a odmítnuté: **zahřívací série** a **zvuk
+na konci pauzy** — nestavět bez výslovné žádosti.

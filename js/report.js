@@ -55,7 +55,7 @@ function buildCoachReport(rangeId = "month") {
   const cardio = sess.filter(s => s.type === "cardio");
   const volume = weights.reduce((v, s) => v + sessionVolume(s), 0);
   const rated = sess.filter(s => s.rating);
-  const prCount = countPRsInRange(from, to);
+  const prCount = countRecordsInRange(from, to);
   const foodDays = [...new Set(S.foodLog.filter(f => inRange(f.date)).map(f => f.date))];
   const kcals = foodDays.map(d => dayNutrition(d).calories);
   const avgKcal = kcals.length ? Math.round(kcals.reduce((a, b) => a + b, 0) / kcals.length) : null;
@@ -67,7 +67,7 @@ function buildCoachReport(rangeId = "month") {
   L.push(`## Souhrn období`);
   L.push(`- Silové tréninky: **${weights.length}** · kardio: **${cardio.length}**`);
   if (weights.length) L.push(`- Objem: **${fmtNum(kgOut(volume))} ${u}** (Ø ${fmtNum(kgOut(volume / weights.length))} ${u} na trénink)`);
-  L.push(`- Nové osobní rekordy: **${prCount}**`);
+  L.push(`- Nové rekordy (odhad 1RM, nejtěžší váha, opakování, nejlepší série): **${prCount}**`);
   if (rated.length) {
     const avgR = rated.reduce((a, s) => a + s.rating, 0) / rated.length;
     L.push(`- Ø hodnocení tréninku: **${fmtNum(avgR, 1)}/10** (${rated.length} ${rated.length === 1 ? "hodnocení" : "hodnocení"})`);

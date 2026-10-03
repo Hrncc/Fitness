@@ -1,7 +1,7 @@
 /* ===== Více: sheet s nabídkou a stránky z něj ===== */
 "use strict";
 
-const APP_VERSION = "2.0";
+const APP_VERSION = "2.1";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -11,6 +11,7 @@ const MV = {
   reportRange: "month",
   repFrom: addDays(todayStr(), -6),  // vlastní rozsah reportu (od–do včetně)
   repTo: todayStr(),
+  plan: null,       // upravovaný plán cviku v šabloně {tpl, exId, rest, link}
   rc: null,         // rozpracovaný recept (builder)
   rcPickId: null    // vybraná potravina při přidávání do receptu
 };
@@ -86,8 +87,14 @@ function openExerciseDetail(id) {
       ${e.isCustom ? `<span class="badge">vlastní</span>` : ""}
       ${pr ? `<span class="badge yellow">${ic("trophy", 12, 2.2)} ${fmtWeight(pr.weight)} × ${pr.reps}</span>` : ""}
     </div>
-    <p class="muted" style="margin:0 0 20px;line-height:1.55">${esc(e.description || "Bez popisu")}</p>
-    ${pr ? `<button class="btn ghost full" style="margin-bottom:8px" data-act="pg-ex" data-exid="${id}">${ic("trend", 17)} Progres cviku</button>` : ""}
+    <p class="muted" style="margin:0 0 ${e.pin ? 12 : 20}px;line-height:1.55">${esc(e.description || "Bez popisu")}</p>
+    ${e.pin ? `<div class="hint pin" style="margin-bottom:20px">${ic("pin", 15)}<span>${esc(e.pin)}</span></div>` : ""}
+    <div class="small" style="margin:-8px 2px 16px">${esc((EX_KINDS.find(k => k[0] === exKind(id)) || [])[1] || "")}</div>
+    ${pr || exerciseRecords(id).best.reps ? `<div class="btn-row" style="margin-bottom:8px">
+      <button class="btn ghost" data-act="pg-ex" data-exid="${id}">${ic("trend", 17)} Progres</button>
+      <button class="btn ghost" data-act="w-pr-history" data-exid="${id}">${ic("trophy", 17)} Rekordy</button>
+    </div>` : ""}
+    <a class="btn ghost full" style="margin-bottom:8px" href="${youtubeUrl(id)}" target="_blank" rel="noopener">${ic("play", 15)} Video na YouTube</a>
     <div class="btn-row">
       <button class="btn" data-act="el-edit" data-id="${id}">${ic("edit", 17)} Upravit</button>
       <button class="btn danger" data-act="el-del" data-id="${id}">${ic("trash", 17)} Smazat</button>
@@ -101,8 +108,12 @@ function openExerciseForm(id) {
   openModal(`${modalTitle(e ? "Upravit cvik" : "Nový cvik")}
     <label class="field"><span>Název *</span><input class="input" id="exfName" value="${esc(e ? e.name : "")}"></label>
     <label class="field"><span>Partie</span><select class="input" id="exfCat">${catOpts}</select></label>
+    <label class="field"><span>Druh</span><select class="input" id="exfKind">${EX_KINDS.map(([k, l]) =>
+      `<option value="${k}"${(e ? e.kind || "weight" : "weight") === k ? " selected" : ""}>${l}</option>`).join("")}</select></label>
     <label class="field"><span>Popis / technika</span>
       <textarea class="input" id="exfDesc" rows="3">${esc(e ? e.description : "")}</textarea></label>
+    <label class="field"><span>Připnutá poznámka (ukáže se v tréninku)</span>
+      <input class="input" id="exfPin" placeholder="např. sedačka 4, opěrka 2" value="${esc(e && e.pin || "")}"></label>
     <button class="btn primary full" data-act="el-save" data-id="${id || ""}">Uložit</button>`);
 }
 
@@ -111,12 +122,12 @@ function saveExercise(id) {
   if (!name) { toast("Zadej název cviku", "err"); return; }
   const category = document.getElementById("exfCat").value;
   const description = document.getElementById("exfDesc").value.trim();
-  if (id) {
-    const e = getExercise(id);
-    if (e) Object.assign(e, { name, category, description });
-  } else {
-    S.exercises.push({ id: uid(), name, category, description, isCustom: true });
-  }
+  const kind = document.getElementById("exfKind").value;
+  const pin = document.getElementById("exfPin").value.trim();
+  let e = id ? getExercise(id) : null;
+  if (e) Object.assign(e, { name, category, description, kind });
+  else S.exercises.push(e = { id: uid(), name, category, description, kind, isCustom: true });
+  if (pin) e.pin = pin; else delete e.pin;
   save(); closeModal(); render();
   toast("Cvik uložen ✓", "ok");
 }
@@ -144,17 +155,22 @@ function renderTemplates() {
     }
 
     /* --- rozbalená šablona: celý seznam cviků a úpravy --- */
-    const rows = t.exercises.map((exId, i) => `
-      <div class="list-item">
+    const rows = t.exercises.map((exId, i) => {
+      const pl = tplPlan(t, exId);
+      const own = !!(t.plan && t.plan[exId]);
+      const bits = [planText(pl, exId), pl && pl.rest ? `pauza ${fmtClock(pl.rest)}` : "", pl && pl.link && i < count - 1 ? "superset s dalším" : ""].filter(Boolean);
+      return `
+      <div class="list-item${pl && pl.link && i < count - 1 ? " tpl-ss" : ""}">
         <i class="p-stripe" style="background:${exColor(exId)}"></i>
-        <div class="grow">
+        <div class="grow" data-act="tpl-plan" data-tpl="${t.id}" data-exid="${exId}" style="cursor:pointer">
           <div class="name">${esc(exName(exId))}</div>
-          ${exNameEn(exId) ? `<div class="name-en">${esc(exNameEn(exId))}</div>` : ""}
+          <div class="li-sub"><span class="plan-edit">${ic("edit", 13)}</span>${bits.length ? esc(bits.join(" · ")) : "bez plánu"}${own ? "" : bits.length ? " · z popisu" : ""}</div>
         </div>
         <button class="iconbtn sm soft" data-act="tpl-move" data-tpl="${t.id}" data-i="${i}" data-dir="-1" ${i === 0 ? "disabled" : ""} aria-label="Nahoru">${ic("chevU", 16, 2.3)}</button>
         <button class="iconbtn sm soft" data-act="tpl-move" data-tpl="${t.id}" data-i="${i}" data-dir="1" ${i === count - 1 ? "disabled" : ""} aria-label="Dolů">${ic("chevD", 16, 2.3)}</button>
         <button class="iconbtn sm muted" data-act="tpl-rm" data-tpl="${t.id}" data-i="${i}" aria-label="Odebrat">${ic("x", 16, 2.1)}</button>
-      </div>`).join("");
+      </div>`;
+    }).join("");
     return `
       <div class="card" id="tplblock-${t.id}">
         <div class="row between" style="margin-bottom:6px">
@@ -169,9 +185,67 @@ function renderTemplates() {
         <button class="btn ghost full mt" data-act="tpl-add" data-tpl="${t.id}">${ic("plus", 18, 2.2)} Přidat cvik</button>
       </div>`;
   }).join("");
-  return `<p class="muted" style="margin:-6px 2px 18px">Trvalá správa šablon. Jednorázové změny dělej přímo v tréninku.</p>`
+  return `<p class="muted" style="margin:-6px 2px 18px">Klepni na cvik a nastav plán — série, rozsah opakování, pauzu a superset. Jednorázové změny dělej přímo v tréninku.</p>`
     + cards
     + `<button class="btn ghost full mt" data-act="tpl-new">${ic("plus", 18, 2.2)} Nová šablona</button>`;
+}
+
+/* ---- Plán cviku v šabloně: série × rozsah opakování, pauza, superset ---- */
+const PLAN_RESTS = [60, 90, 120, 150, 180, 240];
+function openPlanModal(tplId, exId) {
+  const t = getTemplate(tplId);
+  if (!t) return;
+  // bez plánu: rozsah prázdný (jen nápověda v placeholderu) — samotný superset
+  // nebo pauza nesmí potichu založit rozsah, který by spustil návrhy progrese
+  const pl = tplPlan(t, exId) || { sets: 3, lo: null, hi: null, rest: null, link: false };
+  const idx = t.exercises.indexOf(exId);
+  const time = exKind(exId) === "time";
+  MV.plan = { tpl: tplId, exId, rest: pl.rest || null, link: !!pl.link };
+  const def = Settings.get().restSeconds || 0;
+  const chips = [[null, `výchozí ${fmtClock(def)}`]].concat(PLAN_RESTS.map(r => [r, fmtClock(r)])).map(([r, l]) =>
+    `<button class="chip planrest${(MV.plan.rest || null) === r ? " on" : ""}" data-act="plan-rest" data-r="${r == null ? "" : r}">${l}</button>`).join("");
+  openModal(`${modalTitle(exName(exId))}
+    <p class="modal-sub">Plán v šabloně ${esc(t.name)}</p>
+    <div class="set-input" style="margin-top:0">
+      ${stepperHtml("planSets", pl.sets || 3, 1, "Série")}
+      <div class="set-field"><span class="set-lbl">${time ? "Výdrž (s)" : "Opakování"} od – do</span>
+        <div class="row" style="gap:6px">
+          <input class="input" id="planLo" type="text" inputmode="numeric" value="${pl.lo || ""}" placeholder="8" style="text-align:center">
+          <span class="small">–</span>
+          <input class="input" id="planHi" type="text" inputmode="numeric" value="${pl.hi || ""}" placeholder="12" style="text-align:center">
+        </div></div>
+    </div>
+    <div class="set-lbl" style="margin-top:18px">Pauza po sérii</div>
+    <div class="chips">${chips}</div>
+    ${idx < t.exercises.length - 1 ? `<div class="row detail-core" style="margin-top:4px">
+      <span class="grow"><b style="font-weight:600">Superset s dalším cvikem</b><br><span class="small">${esc(exName(t.exercises[idx + 1]))} — pauza až po obou</span></span>
+      <button class="switch${MV.plan.link ? " on" : ""}" data-act="plan-link" role="switch" aria-checked="${MV.plan.link}" aria-label="Superset s dalším"></button>
+    </div>` : ""}
+    <p class="small" style="margin:14px 2px 16px">Když minule dáš ve všech sériích horní hranici rozsahu, trénink navrhne přidat váhu.</p>
+    <button class="btn primary full" data-act="plan-save">Uložit plán</button>
+    ${t.plan && t.plan[exId] ? `<button class="btn text full" data-act="plan-clear">Bez vlastního plánu</button>` : ""}`);
+}
+
+function savePlan(clear = false) {
+  const p = MV.plan;
+  const t = p && getTemplate(p.tpl);
+  if (!t) return;
+  t.plan = t.plan || {};
+  if (clear) {
+    delete t.plan[p.exId];
+  } else {
+    const sets = parseInt(document.getElementById("planSets").value, 10);
+    let lo = parseInt(document.getElementById("planLo").value, 10);
+    let hi = parseInt(document.getElementById("planHi").value, 10);
+    if (!(sets > 0)) { toast("Zadej počet sérií", "err"); return; }
+    if (lo > 0 && !(hi > 0)) hi = lo;
+    if (hi > 0 && !(lo > 0)) lo = hi;
+    if (lo > hi) [lo, hi] = [hi, lo];
+    t.plan[p.exId] = { sets, lo: lo > 0 ? lo : null, hi: hi > 0 ? hi : null, rest: p.rest || null, link: !!p.link };
+  }
+  MV.plan = null;
+  save(); closeModal(); render();
+  toast(clear ? "Plán odebrán" : "Plán uložen ✓", "ok");
 }
 
 function openTemplateNameModal(id) {
@@ -407,8 +481,9 @@ function renderExport() {
       <div class="btn-row mt">
         <button class="btn" data-act="exp-json">JSON</button>
         <button class="btn" data-act="exp-md">Markdown</button>
+        <button class="btn" data-act="exp-csv">CSV</button>
       </div>
-      <p class="small" style="margin:12px 2px 0">Markdown i report níž jdou omezit na rozsah zvolený v reportu.</p>
+      <p class="small" style="margin:12px 2px 0">CSV = jedna série na řádek (do Google Sheets nebo Excelu). Markdown i report níž jdou omezit na rozsah zvolený v reportu.</p>
     </div>`)
   + sec("Report pro Clauda", `
     <div class="card">
@@ -515,6 +590,23 @@ function buildMarkdown(rangeId) {
   return lines.join("\n");
 }
 
+/* Série jako CSV — jedna série na řádek, středník a desetinná čárka (česká
+   tabulka je otevře rovnou do sloupců), BOM kvůli diakritice v Excelu. */
+function buildSetsCsv() {
+  const cell = v => {
+    const t = v == null ? "" : String(v);
+    return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  const num = v => v == null ? "" : String(Math.round(v * 100) / 100).replace(".", ",");
+  const rows = [["datum", "trenink", "cvik", "partie", "druh", "serie", "opakovani_nebo_s", `vaha_${weightUnit()}`, "do_selhani", "superset", "poznamka"]];
+  const sess = S.sessions.filter(s => s.type === "weights").sort((a, b) => a.date.localeCompare(b.date));
+  for (const s of sess) for (const e of s.entries) (e.sets || []).forEach((st, j) => rows.push([
+    s.date, sessionLabel(s), exName(e.exerciseId), exCategory(e.exerciseId) || "", exKind(e.exerciseId),
+    j + 1, st.reps, num(kgOut(st.weight || 0)), st.failure ? "ano" : "", e.link ? "s dalším" : "", st.note || ""
+  ]));
+  return "\ufeff" + rows.map(r => r.map(cell).join(";")).join("\r\n");
+}
+
 function downloadFile(name, content, type) {
   const blob = new Blob([content], { type });
   const a = document.createElement("a");
@@ -586,8 +678,17 @@ function renderSettings() {
     </div>`)
   + sec("Trénink a jednotky", `
     <div class="card">
-      <label class="field"><span>Pauza mezi sériemi (s, 0 = vypnuto)</span>
-        <input class="input" id="setRest" type="number" inputmode="numeric" value="${st.restSeconds ?? 120}"></label>
+      <div class="input-row">
+        <label class="field"><span>Výchozí pauza (s, 0 = vypnuto)</span>
+          <input class="input" id="setRest" type="number" inputmode="numeric" value="${st.restSeconds ?? 120}"></label>
+        <label class="field"><span>Týdenní cíl tréninků (0 = bez cíle)</span>
+          <input class="input" id="setGoal" type="number" inputmode="numeric" value="${st.weeklyGoal ?? 3}"></label>
+      </div>
+      <div class="row detail-core" style="margin:0 0 14px">
+        <span class="grow"><b style="font-weight:600">Nezhasínat obrazovku při tréninku</b><br>
+          <span class="small">Funguje na novějším iOS a v Chrome</span></span>
+        <button class="switch${st.keepAwake !== false ? " on" : ""}" data-act="set-awake" role="switch" aria-checked="${st.keepAwake !== false}" aria-label="Nezhasínat obrazovku"></button>
+      </div>
       <label class="field" style="margin:0"><span>Jednotka váhy</span>
         <select class="input" id="setUnit">
           <option value="kg"${st.weightUnit === "kg" ? " selected" : ""}>kilogramy (kg)</option>
@@ -620,7 +721,8 @@ function saveSettings() {
     usdaApiKey: document.getElementById("setUsda").value.trim(),
     anthropicApiKey: document.getElementById("setAnthropic").value.trim(),
     weightUnit: document.getElementById("setUnit").value,
-    restSeconds: Math.max(0, parseInt(document.getElementById("setRest").value, 10) || 0)
+    restSeconds: Math.max(0, parseInt(document.getElementById("setRest").value, 10) || 0),
+    weeklyGoal: clamp(parseInt(document.getElementById("setGoal").value, 10) || 0, 0, 14)
   });
   S.goal = {
     dailyCalories: parseInt(document.getElementById("setKcal").value, 10) || 0,

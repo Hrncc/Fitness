@@ -573,7 +573,7 @@ body.modal-open .dock.show {
 }
 .more-item:last-child { border-bottom: none; }
 .more-item:active { opacity: .6; }
-.more-item .mi-ic { color: var(--text2); display: flex; }
+.more-item .mi-ic { color: var(--text2); display: flex; width: 24px; justify-content: center; flex: none; }
 .more-item .mi-chev { margin-left: auto; color: var(--text3); display: flex; }
 .more-foot { text-align: center; margin-top: 16px; }
 
@@ -1111,6 +1111,66 @@ body.modal-open.has-dock .toast { top: calc(env(safe-area-inset-top) + 74px); }
 .empty-note { text-align: center; color: var(--text3); padding: 28px 10px; font-size: 14.5px; line-height: 1.5; }
 .empty-note .btn { margin-top: 14px; }
 .about-logo { font-size: 30px; font-weight: 800; letter-spacing: -.045em; margin: 10px 0 2px; }
+
+/* ===== v2.1 — plán v šabloně, supersety, druhy cviků, shrnutí ===== */
+/* plán cviku pod názvem v otevřené kartě: 3 × 8–12 · pauza 2:00 */
+.ex-plan { font-size: 13.5px; font-weight: 550; color: var(--text2); margin-top: 6px; font-variant-numeric: tabular-nums; }
+/* naplánované, ještě nezapsané série — tlumené řádky s cílem */
+.set-row.ghost { color: var(--text3); font-size: 14px; min-height: 40px; }
+.set-row.ghost .set-num { background: transparent; box-shadow: inset 0 0 0 1px var(--hair2); color: var(--text3); }
+.ex-open .set-row.ghost { cursor: default; }
+.ex-open .set-row.ghost:active { background-color: transparent; }
+
+/* superset: svislá linka v levém okraji spojuje cviky, které jdou za sebou bez pauzy */
+.ex-row, .ex-open { position: relative; }
+.ss::before {
+  content: ""; position: absolute; left: -10px; top: 0; bottom: 0; width: 2px;
+  border-radius: 1px; background: var(--text3); pointer-events: none;
+}
+.ss.ss-next:not(.ss-prev)::before { top: 22px; }
+.ss.ss-prev:not(.ss-next)::before { bottom: auto; height: 24px; }
+.ex-open.ss.ss-next::before { bottom: -11px; }
+.ex-open.ss.ss-prev::before { top: -11px; }
+.ex-open.ss.ss-next:not(.ss-prev)::before { top: 26px; }
+.ex-open.ss.ss-prev:not(.ss-next)::before { height: 48px; }
+.ss-tag {
+  display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text2); background: var(--s3); padding: 1px 6px; border-radius: 6px; vertical-align: 1px;
+}
+.list-item.tpl-ss { border-bottom-style: dashed; }
+.plan-edit { color: var(--text3); display: inline-flex; vertical-align: -2px; margin-right: 5px; }
+
+/* stopky u cviků na čas (plank) — výška jako stepper vedle */
+.sw-btn { width: 100%; height: 54px; font-size: 17px; font-variant-numeric: tabular-nums; gap: 6px; }
+.sw-btn.on { background: var(--text); color: #000; }
+
+/* video a připnutá poznámka ke cviku */
+.video-link {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 10px;
+  font-size: 13.5px; font-weight: 600; color: var(--text); text-decoration: none;
+  padding: 7px 12px; border-radius: 999px; background: var(--s2);
+}
+.video-link:active { background: var(--s3); }
+.hint.pin { color: var(--text); cursor: pointer; }
+.hint.pin svg { color: var(--text2); }
+a.more-item, a.btn { text-decoration: none; }
+.more-item.danger, .more-item.danger .mi-ic { color: var(--red); }
+
+/* shrnutí po tréninku */
+.sum-tpl { margin-top: 16px; }
+
+/* týdenní cíl tréninků — kroužek, ne streak */
+.goal-stat { display: flex; align-items: center; gap: 9px; }
+.goal-ring { position: relative; flex: none; width: 34px; height: 34px; }
+.goal-ring svg { width: 34px; height: 34px; display: block; }
+.goal-ring span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--green); }
+
+/* partie po týdnech: pásmo 10–20 sérií týdně za sloupci */
+.cw-bars { position: relative; }
+.cw-bars i { position: relative; }
+.cw-band { position: absolute; left: 0; right: 0; background: rgba(255,255,255,.07); border-radius: 2px; pointer-events: none; }
+.cw-band-key { display: inline-block; width: 12px; height: 9px; border-radius: 2px; background: rgba(255,255,255,.14); vertical-align: -1px; margin-right: 3px; }
+.cw-avg.in { color: var(--green); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

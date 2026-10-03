@@ -53,7 +53,10 @@ const ICONS = {
   history: '<path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4.5V9H8"/><path d="M12 8v4.5l3 1.8"/>',
   note: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17Z"/>',
   download: '<path d="M12 3v12"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M5 19.5h14"/>',
-  upload: '<path d="M12 15V3"/><path d="m7.5 7.5 4.5-4.5 4.5 4.5"/><path d="M5 19.5h14"/>'
+  upload: '<path d="M12 15V3"/><path d="m7.5 7.5 4.5-4.5 4.5 4.5"/><path d="M5 19.5h14"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  pin: '<path d="M9 4h6l-1 6 3 3H7l3-3Z"/><path d="M12 13v7"/>',
+  more: '<circle cx="5.5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.5" fill="currentColor" stroke="none"/>'
 };
 function ic(name, size = 20, sw = 1.9) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -144,7 +147,8 @@ function toast(msg, kind = "", action = null) {
   t.className = "toast show" + (kind ? " " + kind : "");
   t.style.pointerEvents = action ? "auto" : "none";
   clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => t.classList.remove("show"), action ? 6000 : 2600);
+  // schovaný toast nesmí dál chytat klepnutí (tlačítko „Vrátit" zapíná pointer-events)
+  _toastTimer = setTimeout(() => { t.classList.remove("show"); t.style.pointerEvents = "none"; }, action ? 6000 : 2600);
 }
 
 /* ---- Rest timer — pauza mezi sériemi ----
@@ -212,6 +216,7 @@ const Dock = {
     el.className = "dock" + (mode ? " show " + mode : "");
     document.body.classList.toggle("has-dock", !!mode);
     el.innerHTML = mode ? this.html(mode, a) : "";
+    KeepAwake.sync(!!(a && a.type === "weights" && !a.editOf));
     clearInterval(this.timer);
     this.timer = null;
     // tiká jen pauza — trénink sám časovač nemá, počet sérií se překreslí s render()
@@ -223,8 +228,8 @@ const Dock = {
 
   html(mode, a) {
     if (mode === "workout") {
-      // při zpětné úpravě se necvičí — bez tlačítka pauzy
-      const rs = a.editOf ? 0 : Settings.get().restSeconds;
+      // při zpětné úpravě se necvičí — bez tlačítka pauzy; délka podle otevřeného cviku
+      const rs = a.editOf ? 0 : currentRestSeconds();
       return `
         <button class="dock-main" data-act="dock-open">
           <span class="dock-ring${a.editOf ? "" : " live"}">${ic(a.editOf ? "edit" : "dumbbell", 19)}</span>
@@ -285,6 +290,40 @@ const Dock = {
     }
   }
 };
+
+/* ---- Obrazovka nezhasne během tréninku (Screen Wake Lock) ----
+   Zámek drží jen viditelná stránka — po návratu do appky se vyžádá znovu.
+   Kde prohlížeč zámek neumí (nebo ho odmítne), nic se neděje. Vypnout jde
+   v Nastavení (keepAwake). */
+const KeepAwake = {
+  lock: null,
+  want: false,
+  busy: false,
+  async sync(want) {
+    this.raw = want;
+    this.want = want && Settings.get().keepAwake !== false;
+    // render() volá sync často — jedna žádost naráz, jinak by vznikly dva zámky
+    if (!("wakeLock" in navigator) || this.busy) return;
+    const w = this.want;
+    this.busy = true;
+    try {
+      if (w && !this.lock && document.visibilityState === "visible") {
+        const lock = await navigator.wakeLock.request("screen");
+        lock.addEventListener("release", () => { if (this.lock === lock) this.lock = null; });
+        this.lock = lock;
+      } else if (!w && this.lock) {
+        const lock = this.lock;
+        this.lock = null;
+        await lock.release();
+      }
+    } catch (e) { /* prohlížeč zámek odmítl nebo už je uvolněný */ }
+    this.busy = false;
+    if (this.want !== w) this.sync(this.raw); // přání se mezitím změnilo
+  }
+};
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && KeepAwake.want) KeepAwake.sync(true);
+});
 
 /* Počet zapsaných sérií v probíhajícím tréninku — ukazuje ho dock, když
    neběží pauza. Časovač celého tréninku v appce záměrně není (v1.26). */

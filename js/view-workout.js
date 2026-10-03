@@ -12,7 +12,9 @@ const WV = {
   pickerIndex: null,          // null = přidání cviku, číslo = výměna na indexu
   editSet: null,              // {i, j} — opravovaná série v otevřeném cviku
   cardioEdit: null,           // id upravovaného kardia (null = nový zápis)
-  sportChoice: CARDIO_SPORTS[0]
+  sportChoice: CARDIO_SPORTS[0],
+  sw: null,                   // běžící stopky u výdrže {i, start}
+  lastFinish: null            // pořadí cviků z dokončeného tréninku (shrnutí → šablona)
 };
 
 function renderWorkout() {
@@ -169,14 +171,9 @@ function sessionRowHtml(s) {
   </div>`;
 }
 
-/* Kolik rekordů v tréninku padlo (události PR v den tréninku u jeho cviků) */
+/* Kolik sérií v tréninku přineslo rekord (libovolného druhu) */
 function sessionPRCount(s) {
-  if (s.type !== "weights") return 0;
-  let n = 0;
-  for (const id of new Set(s.entries.map(e => e.exerciseId))) {
-    n += prHistory(id).filter(h => h.date === s.date).length;
-  }
-  return n;
+  return sessionRecordEvents(s).length;
 }
 
 /* ---- Historie: kalendář a tréninky měsíce ---- */
@@ -214,35 +211,88 @@ function renderHistory() {
       : `<div class="card"><div class="empty-note" style="padding:12px">V tomhle měsíci nic. Klepni na den v kalendáři a zapiš trénink zpětně.</div></div>`)}`;
 }
 
+/* ---- Zobrazení série podle druhu cviku ----
+   weight: 10 × 45 kg · bw: 12 × vl. váha / 10 × +10 kg · time: 0:45 */
+function setValHtml(exId, st) {
+  const k = exKind(exId);
+  if (k === "time") return fmtClock(st.reps);
+  if (k === "bw") return `${fmtNum(st.reps)}<span>×</span>${st.weight ? "+" + fmtWeight(st.weight) : "vl. váha"}`;
+  return `${fmtNum(st.reps)}<span>×</span>${fmtWeight(st.weight)}`;
+}
+function setShort(exId, st) {
+  const k = exKind(exId);
+  if (k === "time") return fmtClock(st.reps);
+  if (k === "bw") return st.weight ? `${st.reps}×+${fmtNum(kgOut(st.weight), 1)}` : `${st.reps}`;
+  return `${st.reps}×${fmtNum(kgOut(st.weight), 1)}`;
+}
+function setsSummary(exId, sets) {
+  const txt = sets.map(st => setShort(exId, st)).join(" · ");
+  const k = exKind(exId);
+  return k === "weight" ? `${txt} ${weightUnit()}` : k === "bw" ? `${txt} opak.` : txt;
+}
+/* „3 × 8–12" (u výdrže v sekundách) */
+function planText(t, exId) {
+  if (!t || !t.sets) return "";
+  const range = t.lo && t.hi ? (t.lo === t.hi ? `${t.lo}` : `${t.lo}–${t.hi}`) : "";
+  return `${t.sets} × ${range}${range && exKind(exId) === "time" ? " s" : ""}`.trim().replace(/ ×$/, " série");
+}
+/* cíl cviku v probíhajícím tréninku: uložený při startu, jinak plán šablony */
+function entryTarget(a, entry) {
+  if (entry.target !== undefined) return entry.target;
+  return tplPlan(getTemplate(a.templateUsed), entry.exerciseId);
+}
+/* pauza po sérii: z plánu cviku, jinak výchozí z Nastavení */
+function entryRest(a, entry) {
+  const t = a && entry ? entryTarget(a, entry) : null;
+  return (t && t.rest) || Settings.get().restSeconds || 0;
+}
+function currentRestSeconds() {
+  const a = S.activeSession;
+  const e = a && WV.openIdx != null ? a.entries[WV.openIdx] : null;
+  return e ? entryRest(a, e) : (Settings.get().restSeconds || 0);
+}
+function youtubeUrl(exId) {
+  const e = getExercise(exId);
+  const q = (e && (e.nameEn || e.name)) || exName(exId);
+  return "https://www.youtube.com/results?search_query=" + encodeURIComponent(q + " technique");
+}
+
 /* ---- Aktivní silová session ---- */
 function renderActiveSession() {
   const a = S.activeSession;
   if (a.type === "cardio") return ""; // kardio se zapisuje přímo formulářem
+  const n = a.entries.length;
 
   const blocks = a.entries.map((entry, i) => {
-    const ex = getExercise(entry.exerciseId);
+    const exId = entry.exerciseId;
+    const ex = getExercise(exId);
+    const kind = exKind(exId);
     const pcol = catColor(ex && ex.category);   // identita partie — jen proužek
-    const pr = currentPR(entry.exerciseId);
-    const last = lastExerciseSets(entry.exerciseId, a.id);
+    const last = lastExerciseSets(exId, a.id);
+    const target = a.editOf ? null : entryTarget(a, entry);
     const setCount = (entry.sets || []).length;
     const isOpen = WV.openIdx === i;
-    const summary = entry.sets.map(st => `${st.reps}×${fmtNum(kgOut(st.weight), 1)}`).join(" · ");
     const failN = entry.sets.filter(st => st.failure).length;
     const failTxt = failN ? ` · do selhání ${failN}×` : "";
+    /* superset = řada cviků propojených „s dalším"; svislá linka vlevo */
+    const linkPrev = i > 0 && !!a.entries[i - 1].link;
+    const linkNext = !!entry.link && i < n - 1;
+    const ss = linkPrev || linkNext ? ` ss${linkPrev ? " ss-prev" : ""}${linkNext ? " ss-next" : ""}` : "";
+    const progress = target && target.sets ? `${setCount}/${target.sets} ${setWordTop(target.sets)}` : `${setCount} ${setWordTop(setCount)}`;
 
     /* --- sbalený cvik: hotový, rozdělaný, nezačatý --- */
     if (!isOpen) {
       const sub = setCount
-        ? `${setCount} ${setWordTop(setCount)} · ${summary} ${weightUnit()}${failTxt}`
-        : (planShort(ex) || "klepni pro zápis");
+        ? `${progress} · ${setsSummary(exId, entry.sets)}${failTxt}`
+        : (planText(target, exId) || "klepni pro zápis");
       return `
-      <div class="ex-row${entry.done ? " ex-done" : setCount ? " ex-active" : ""}" id="exblock-${i}" data-act="w-ex-open" data-i="${i}">
+      <div class="ex-row${entry.done ? " ex-done" : setCount ? " ex-active" : ""}${ss}" id="exblock-${i}" data-act="w-ex-open" data-i="${i}">
         <div class="row">
           <i class="p-stripe" style="background:${pcol}"></i>
           <span class="ex-num${entry.done ? " done" : ""}">${entry.done ? ic("check", 15, 3) : i + 1}</span>
           <div class="grow">
-            <div class="name">${esc(exName(entry.exerciseId))}</div>
-            <div class="small">${esc(sub)}${entry.prHit ? ` · <span style="color:var(--yellow);font-weight:650">PR</span>` : ""}</div>
+            <div class="name">${esc(exName(exId))}</div>
+            <div class="small">${ss ? `<span class="ss-tag">superset</span> · ` : ""}${esc(sub)}${entry.prHit ? ` · <span style="color:var(--yellow);font-weight:650">PR</span>` : ""}</div>
           </div>
           ${dragHandleHtml(i)}
         </div>
@@ -253,10 +303,10 @@ function renderActiveSession() {
     const pf = last ? (last.sets[setCount] || last.sets[last.sets.length - 1]) : null;
     // návrh progrese a „blízko rekordu" patří živému tréninku, ne opravě
     // uloženého (rekord by se navíc porovnával sám se sebou)
-    const prog = a.editOf ? null : progressionSuggestion(ex, last);
-    // při splněné progresi předvyplň vyšší váhu a spodek rep range
-    let pfReps = prog ? prog.lo : (pf ? pf.reps : "");
-    let pfWeight = prog ? fmtNum(kgOut(prog.next), 1) : (pf ? fmtNum(kgOut(pf.weight), 1) : "");
+    const prog = a.editOf ? null : progressionSuggestion(target, last, kind);
+    // při splněné progresi předvyplň vyšší váhu a spodek rozsahu
+    let pfReps = prog ? prog.lo : (pf ? pf.reps : (target && target.lo) || "");
+    let pfWeight = prog ? fmtNum(kgOut(prog.next), 1) : (pf ? fmtNum(kgOut(pf.weight), 1) : (kind === "bw" ? "0" : ""));
     let pfNote = "";
     const started = setCount > 0;
     /* oprava série: klepnutí na sérii ji načte do polí, tlačítko ji pak přepíše */
@@ -271,41 +321,73 @@ function renderActiveSession() {
     const sets = (entry.sets || []).map((st, j) => `
       <div class="set-row${es === j ? " editing" : ""}" data-act="w-set-edit" data-i="${i}" data-j="${j}">
         <span class="set-num">${j + 1}</span>
-        <span class="grow"><span class="set-val">${fmtNum(st.reps)}<span>×</span>${fmtWeight(st.weight)}</span>${st.note ? ` <span class="small">· ${esc(st.note)}</span>` : ""}</span>
-        ${st.isPR ? `<span class="badge yellow">PR</span>` : ""}
+        <span class="grow"><span class="set-val">${setValHtml(exId, st)}</span>${st.note ? ` <span class="small">· ${esc(st.note)}</span>` : ""}</span>
+        ${st.isPR ? `<span class="badge yellow" title="${esc((st.rec || []).map(t => REC_LABEL[t]).join(", "))}">PR</span>` : ""}
         ${failChipHtml(st, i, j)}
         <button class="iconbtn sm muted" data-act="w-del-set" data-i="${i}" data-j="${j}" aria-label="Smazat sérii">${ic("x", 16, 2.1)}</button>
       </div>`).join("");
+    /* naplánované série, které ještě nejsou zapsané — tlumené řádky s cílem */
+    const ghosts = [];
+    if (target && target.sets && es == null) {
+      const unit = kind === "time" ? "s" : "opak.";
+      const goal = target.lo ? `${target.lo}${target.hi && target.hi !== target.lo ? "–" + target.hi : ""} ${unit}` : "";
+      for (let j = setCount; j < target.sets; j++) {
+        const prev = last && last.sets[j];
+        ghosts.push(`<div class="set-row ghost"><span class="set-num">${j + 1}</span>
+          <span class="grow">${goal}${prev ? `${goal ? " · " : ""}minule ${setShort(exId, prev)}` : ""}</span></div>`);
+      }
+    }
 
-    /* rekord, minulý výkon, návrh progrese a „blízko rekordu" */
+    /* poznámka, rekord, minulý výkon, návrh progrese a „blízko rekordu" */
+    const pr = kind === "weight" ? currentPR(exId) : null;
+    const bestR = kind !== "weight" ? exerciseRecords(exId).best.reps : null;
     const near = a.editOf ? null : nearPRHint(entry, pr);
     const hints = [
-      pr ? `<div class="hint pr">${ic("trophy", 15)}<span>Rekord <b>${fmtWeight(pr.weight)} × ${pr.reps}</b> · e1RM ${fmtWeight(pr.e1rm)}</span></div>` : "",
-      last ? `<div class="hint">${ic("history", 15)}<span>Minule ${relDay(last.date)}: <b>${last.sets.map(st => `${st.reps}×${fmtNum(kgOut(st.weight), 1)}`).join(" · ")}</b> ${weightUnit()}</span></div>` : "",
+      ex && ex.pin ? `<div class="hint pin" data-act="w-pin" data-i="${i}">${ic("pin", 15)}<span>${esc(ex.pin)}</span></div>` : "",
+      pr ? `<div class="hint pr">${ic("trophy", 15)}<span>Rekord <b>${fmtWeight(pr.weight)} × ${pr.reps}</b> · e1RM ${fmtWeight(pr.e1rm)}</span></div>`
+        : bestR ? `<div class="hint pr">${ic("trophy", 15)}<span>Rekord <b>${setShort(exId, bestR)}</b>${kind === "bw" ? " opak." : ""}</span></div>` : "",
+      last ? `<div class="hint">${ic("history", 15)}<span>Minule ${relDay(last.date)}: <b>${setsSummary(exId, last.sets)}</b></span></div>` : "",
       prog ? `<div class="hint prog">${ic("trend", 15)}<span>Progrese — minule vše ≥ ${prog.topReps} opak., zkus <b>${fmtWeight(prog.next)}</b></span></div>` : "",
       near ? `<div class="hint near">${ic("target", 15)}<span>${near}</span></div>` : ""
     ].join("");
 
+    const planBits = [planText(target, exId), target && target.rest ? `pauza ${fmtClock(target.rest)}` : "",
+      linkNext ? "superset s dalším" : linkPrev ? "superset" : ""].filter(Boolean);
+    const doneEnough = target && target.sets && setCount >= target.sets;
+    const sw = WV.sw && WV.sw.i === i;
+    const inputs = kind === "time" ? `
+      <div class="set-input">
+        ${stepperHtml("reps-" + i, pfReps, 5, "Výdrž · s")}
+        <div class="set-field"><span class="set-lbl">Stopky</span>
+          <button class="btn sw-btn${sw ? " on" : ""}" id="sw-${i}" data-act="w-sw" data-i="${i}">${sw
+            ? `${ic("check", 16, 2.6)} ${fmtClock((Date.now() - WV.sw.start) / 1000)}` : `${ic("timer", 17)} Start`}</button></div>
+      </div>` : `
+      <div class="set-input">
+        ${stepperHtml("reps-" + i, pfReps, 1, "Opakování")}
+        ${stepperHtml("weight-" + i, pfWeight, 2.5, (kind === "bw" ? "Zátěž · " : "Váha · ") + weightUnit())}
+      </div>`;
+
     return `
-    <div class="ex-open${entry.prHit ? " pr-flash" : ""}" id="exblock-${i}" data-i="${i}">
+    <div class="ex-open${entry.prHit ? " pr-flash" : ""}${ss}" id="exblock-${i}" data-i="${i}">
       <div class="ex-head" data-act="w-ex-close">
         <div class="grow">
-          <div class="ex-cat"><i class="p-dot" style="background:${pcol}"></i>${esc((ex && ex.category) || "—")} · ${i + 1}. cvik</div>
-          <div class="ex-title">${esc(exName(entry.exerciseId))}</div>
+          <div class="ex-cat"><i class="p-dot" style="background:${pcol}"></i>${esc((ex && ex.category) || "—")} · ${i + 1}. cvik${target && target.sets ? ` · ${progress}` : ""}</div>
+          <div class="ex-title">${esc(exName(exId))}</div>
           ${exNameEn(ex) ? `<div class="name-en">${esc(exNameEn(ex))}</div>` : ""}
+          ${planBits.length ? `<div class="ex-plan">${planBits.join(" · ")}</div>` : ""}
         </div>
         <div class="ex-tools">
           <button class="iconbtn soft" data-act="w-swap-ex" data-i="${i}" aria-label="Vyměnit cvik">${ic("swap", 18)}</button>
-          <button class="iconbtn soft danger" data-act="w-remove-ex" data-i="${i}" aria-label="Odebrat cvik">${ic("trash", 18)}</button>
+          <button class="iconbtn soft" data-act="w-ex-menu" data-i="${i}" aria-label="Další možnosti">${ic("more", 18)}</button>
         </div>
       </div>
-      ${ex && ex.description ? `<details class="ex-desc"><summary>Technika ${ic("chevD", 14, 2.2)}</summary><p>${esc(ex.description)}</p></details>` : ""}
+      <details class="ex-desc"><summary>Technika ${ic("chevD", 14, 2.2)}</summary>
+        ${ex && ex.description ? `<p>${esc(ex.description)}</p>` : ""}
+        <a class="video-link" href="${youtubeUrl(exId)}" target="_blank" rel="noopener">${ic("play", 12)} Video na YouTube</a>
+      </details>
       ${hints ? `<div class="ex-hints">${hints}</div>` : ""}
-      ${sets ? `<div class="sets">${sets}</div>` : ""}
-      <div class="set-input">
-        ${stepperHtml("reps-" + i, pfReps, 1, "Opakování")}
-        ${stepperHtml("weight-" + i, pfWeight, 2.5, "Váha · " + weightUnit())}
-      </div>
+      ${sets || ghosts.length ? `<div class="sets">${sets}${ghosts.join("")}</div>` : ""}
+      ${inputs}
       <details class="note-toggle"${pfNote ? " open" : ""}>
         <summary>${ic("note", 15)} Poznámka k sérii</summary>
         <input class="input" id="note-${i}" type="text" placeholder="např. pomalé negativum" value="${esc(pfNote)}">
@@ -313,7 +395,9 @@ function renderActiveSession() {
       <div class="ex-actions">
         ${es != null ? `
         <button class="btn primary grow" data-act="w-set-save" data-i="${i}">${ic("check", 18, 2.6)} Uložit ${es + 1}. sérii</button>
-        <button class="btn ghost" data-act="w-set-cancel">Zrušit</button>` : `
+        <button class="btn ghost" data-act="w-set-cancel">Zrušit</button>` : doneEnough ? `
+        <button class="btn" data-act="w-add-set" data-i="${i}">${ic("plus", 18, 2.6)} Série navíc</button>
+        <button class="btn primary grow" data-act="w-ex-done" data-i="${i}">${ic("check", 18, 2.6)} ${entry.done ? "Zavřít" : "Hotovo"}</button>` : `
         <button class="btn primary grow" data-act="w-add-set" data-i="${i}">${ic("plus", 18, 2.6)} Přidat sérii</button>
         ${started ? `<button class="btn" data-act="w-ex-done" data-i="${i}">${entry.done ? "Zavřít" : "Hotovo"}</button>` : ""}`}
       </div>
@@ -336,6 +420,66 @@ function renderActiveSession() {
     <div class="mt2">${coreCardHtml(a)}</div>
     <button class="btn primary full mt" data-act="w-finish">${ic("check", 18, 2.6)} ${a.editOf ? "Uložit změny" : "Dokončit trénink"}</button>
     <button class="btn text danger full" data-act="w-cancel">${a.editOf ? "Zahodit úpravy" : "Zrušit trénink"}</button>`;
+}
+
+/* ---- Nabídka cviku (⋯): superset, poznámka, progres, video, odebrání ---- */
+function openExerciseMenu(i) {
+  const a = S.activeSession;
+  const entry = a && a.entries[i];
+  if (!entry) return;
+  const ex = getExercise(entry.exerciseId);
+  const isLast = i === a.entries.length - 1;
+  const item = (icon, label, act, extra = "", cls = "") => `
+    <button class="more-item${cls}" data-act="${act}" data-i="${i}" ${extra}>
+      <span class="mi-ic">${ic(icon, 21)}</span>${label}</button>`;
+  openModal(`${modalTitle(exName(entry.exerciseId))}
+    <div class="more-list">
+      ${isLast ? "" : item("link", entry.link ? "Zrušit superset s dalším cvikem" : "Superset s dalším cvikem", "w-link")}
+      ${item("pin", ex && ex.pin ? "Upravit poznámku ke cviku" : "Připnout poznámku ke cviku", "w-pin")}
+      ${item("trend", "Progres a rekordy cviku", "pg-ex", `data-exid="${entry.exerciseId}"`)}
+      <a class="more-item" href="${youtubeUrl(entry.exerciseId)}" target="_blank" rel="noopener">
+        <span class="mi-ic">${ic("play", 21)}</span>Video na YouTube</a>
+      ${item("trash", "Odebrat z tréninku", "w-remove-ex", "", " danger")}
+    </div>`);
+}
+
+/* Připnutá poznámka ke cviku (nastavení stroje, úchop…) — patří cviku, ne
+   tréninku, takže se ukáže pokaždé. Ukládá se do S.exercises (sync podle id). */
+function openPinModal(exId) {
+  const ex = getExercise(exId);
+  if (!ex) return;
+  openModal(`${modalTitle("Poznámka ke cviku")}
+    <p class="modal-sub">${esc(ex.name)} — ukáže se v každém tréninku</p>
+    <label class="field"><span>Poznámka</span>
+      <input class="input" id="pinInput" placeholder="např. sedačka 4, opěrka 2" value="${esc(ex.pin || "")}"></label>
+    <div class="btn-row">
+      ${ex.pin ? `<button class="btn danger" data-act="pin-save" data-exid="${exId}" data-clear="1">Odepnout</button>` : ""}
+      <button class="btn primary" data-act="pin-save" data-exid="${exId}">Uložit</button>
+    </div>`);
+  document.getElementById("pinInput").focus();
+}
+
+/* ---- Stopky u výdrže: klepnutí spustí, druhé klepnutí zastaví a zapíše sekundy ---- */
+let _swTimer = null;
+function toggleStopwatch(i) {
+  const el = () => document.getElementById("sw-" + i);
+  if (WV.sw && WV.sw.i === i) {
+    const sec = Math.round((Date.now() - WV.sw.start) / 1000);
+    WV.sw = null;
+    clearInterval(_swTimer);
+    const inp = document.getElementById("reps-" + i);
+    if (inp) inp.value = String(sec);
+    if (el()) { el().classList.remove("on"); el().innerHTML = `${ic("timer", 17)} Start`; }
+    return;
+  }
+  WV.sw = { i, start: Date.now() };
+  clearInterval(_swTimer);
+  _swTimer = setInterval(() => {
+    if (!WV.sw) { clearInterval(_swTimer); return; }
+    const b = el();
+    if (b) b.innerHTML = `${ic("check", 16, 2.6)} ${fmtClock((Date.now() - WV.sw.start) / 1000)}`;
+  }, 250);
+  if (el()) { el().classList.add("on"); el().innerHTML = `${ic("check", 16, 2.6)} 0:00`; }
 }
 
 /* ---- Core ano/ne ----
@@ -566,24 +710,15 @@ function catCounterHtml(session) {
     </div>`;
 }
 
-/* Krátký plán z popisu cviku ("3× 8–15 — Kontrolované negativum…" → "3× 8–15") */
-function planShort(ex) {
-  if (!ex || !ex.description) return "";
-  const head = ex.description.split("—")[0].trim();
-  return head.length <= 24 ? head : "";
-}
-
 /* Návrh progrese (double progression): minule všechny série na horní hranici
-   rep range z plánu → zkus vyšší váhu. Range se čte z popisu ("3× 8–12 …"). */
-function progressionSuggestion(ex, last) {
-  if (!ex || !ex.description || !last || !last.sets.length) return null;
-  const m = /×\s*(\d+)\s*[–-]\s*(\d+)/.exec(ex.description);
-  if (!m) return null;
-  const lo = parseInt(m[1], 10), hi = parseInt(m[2], 10);
-  if (!last.sets.every(st => st.reps >= hi)) return null;
+   rozsahu z plánu → zkus vyšší váhu. Rozsah je z plánu v šabloně, jinak
+   z popisu cviku („3× 8–12 …"). U výdrže a cviků bez váhy se nenavrhuje. */
+function progressionSuggestion(target, last, kind) {
+  if (!target || !target.hi || !last || !last.sets.length || kind === "time") return null;
+  if (!last.sets.every(st => st.reps >= target.hi)) return null;
   const maxW = Math.max(...last.sets.map(st => st.weight || 0));
   if (!maxW) return null;
-  return { lo, topReps: hi, next: maxW + 2.5 };
+  return { lo: target.lo || target.hi, topReps: target.hi, next: maxW + 2.5 };
 }
 
 /* „Blízko rekordu" — po zapsané sérii spočítá, co chybí k PR.
@@ -616,34 +751,99 @@ function beginWorkout(templateId) {
     type: "weights",
     templateUsed: tpl ? tpl.id : "custom",
     templateName: tpl ? tpl.name : "Libovolný",
-    entries: tpl ? tpl.exercises.filter(getExercise).map(exId => ({ exerciseId: exId, sets: [] })) : []
+    // cíl (série × rozsah × pauza) a superset z plánu šablony
+    entries: tpl ? tpl.exercises.filter(getExercise).map(exId => {
+      const t = tplPlan(tpl, exId);
+      return Object.assign({ exerciseId: exId, sets: [], target: t || null }, t && t.link ? { link: true } : {});
+    }) : []
   };
   save();
   render({ top: true });
   if (!tpl) openExercisePicker(null);
 }
 
+/* Zopakovat uložený trénink: stejné cviky a supersety, dnešní datum */
+function repeatSession(id) {
+  const s = S.sessions.find(x => x.id === id);
+  if (!s || s.type !== "weights") return;
+  closeModal();
+  App.route = { tab: "workout", page: null };
+  if (S.activeSession) { render({ top: true }); toast("Nejdřív dokonči nebo zruš probíhající trénink", "err"); return; }
+  const tpl = getTemplate(s.templateUsed);
+  WV.date = todayStr();
+  WV.openIdx = null;
+  WV.editSet = null;
+  S.activeSession = {
+    id: uid(), date: WV.date, type: "weights",
+    templateUsed: s.templateUsed || "custom", templateName: s.templateName || null,
+    entries: s.entries.filter(e => getExercise(e.exerciseId)).map(e => {
+      const t = tplPlan(tpl, e.exerciseId) || ((e.sets || []).length ? { sets: e.sets.length, lo: null, hi: null, rest: null } : null);
+      return Object.assign({ exerciseId: e.exerciseId, sets: [], target: t }, e.link ? { link: true } : {});
+    })
+  };
+  save();
+  render({ top: true });
+  toast("Trénink zopakován s dnešním datem", "ok");
+}
+
+/* Po přepočtu (oprava/smazání série) znovu označí rekordy v cviku */
+function refreshEntryRecords(a, entry) {
+  const prior = [];
+  for (const st of entry.sets) {
+    const types = liveRecordTypes(entry.exerciseId, st, prior, a.id);
+    if (types.length) { st.isPR = true; st.rec = types; } else { delete st.isPR; delete st.rec; }
+    prior.push(st);
+  }
+  entry.prHit = entry.sets.some(st => st.isPR);
+}
+
+/* Hodnoty série z polí podle druhu cviku; null = chyba (už ohlášená toastem) */
+function readSetInputs(i, kind) {
+  const reps = parseInt(document.getElementById(`reps-${i}`).value, 10);
+  const wEl = document.getElementById(`weight-${i}`);
+  const wRaw = wEl ? wEl.value.trim() : "";
+  const weight = kind === "time" ? 0 : (wRaw === "" && kind === "bw" ? 0 : kgIn(wRaw));
+  const note = document.getElementById(`note-${i}`).value.trim();
+  if (!reps || reps <= 0) { toast(kind === "time" ? "Zadej délku výdrže" : "Zadej počet opakování", "err"); return null; }
+  if (weight == null || weight < 0) { toast("Zadej váhu", "err"); return null; }
+  return { reps, weight, note: note || null };
+}
+
 function addSet(i) {
   const a = S.activeSession;
-  const reps = parseInt(document.getElementById(`reps-${i}`).value, 10);
-  const weight = kgIn(document.getElementById(`weight-${i}`).value);
-  const note = document.getElementById(`note-${i}`).value.trim();
-  if (!reps || reps <= 0) { toast("Zadej počet opakování", "err"); return; }
-  if (weight == null || weight < 0) { toast("Zadej váhu", "err"); return; }
-
   const entry = a.entries[i];
-  const prevBest = currentPR(entry.exerciseId);
-  const set = { reps, weight, note: note || null };
-  if (est1RM(weight, reps) > (prevBest ? prevBest.e1rm : 0)) {
+  const set = readSetInputs(i, exKind(entry.exerciseId));
+  if (!set) return;
+  if (WV.sw && WV.sw.i === i) { WV.sw = null; clearInterval(_swTimer); }
+
+  const types = liveRecordTypes(entry.exerciseId, set, entry.sets, a.id);
+  if (types.length) {
     set.isPR = true;
+    set.rec = types;
     entry.prHit = true;
-    toast(`Nový osobní rekord — ${exName(entry.exerciseId)}!`, "pr");
+    toast(`Rekord — ${exName(entry.exerciseId)}: ${types.map(t => REC_LABEL[t]).join(", ")}`, "pr");
   }
   entry.sets.push(set);
+  WV.editSet = null;
+  /* superset: bez pauzy na další cvik řady; po posledním pauza a zpět na první */
+  const n = a.entries.length;
+  if (entry.link && i < n - 1) {
+    WV.openIdx = i + 1;
+  } else {
+    // při zpětné úpravě se pauza nespouští — necvičí se, jen opravuje
+    if (!a.editOf) Rest.start(entryRest(a, entry));
+    if (i > 0 && a.entries[i - 1].link) {
+      let s0 = i;
+      while (s0 > 0 && a.entries[s0 - 1].link) s0--;
+      WV.openIdx = s0;
+    }
+  }
   save();
-  // při zpětné úpravě se pauza nespouští — necvičí se, jen opravuje
-  if (!a.editOf) Rest.start(Settings.get().restSeconds);
   render();
+  if (WV.openIdx !== i) {
+    const el = document.getElementById("exblock-" + WV.openIdx);
+    if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
 }
 
 /* Oprava zapsané série — přepíše hodnoty na místě, rekord se přepočítá */
@@ -652,17 +852,11 @@ function saveSetEdit(i) {
   const entry = a && a.entries[i];
   const j = WV.editSet && WV.editSet.i === i ? WV.editSet.j : null;
   if (!entry || j == null || !entry.sets[j]) { WV.editSet = null; render(); return; }
-  const reps = parseInt(document.getElementById(`reps-${i}`).value, 10);
-  const weight = kgIn(document.getElementById(`weight-${i}`).value);
-  const note = document.getElementById(`note-${i}`).value.trim();
-  if (!reps || reps <= 0) { toast("Zadej počet opakování", "err"); return; }
-  if (weight == null || weight < 0) { toast("Zadej váhu", "err"); return; }
-  const prevBest = currentPR(entry.exerciseId);
-  const set = { reps, weight, note: note || null };
+  const set = readSetInputs(i, exKind(entry.exerciseId));
+  if (!set) return;
   if (entry.sets[j].failure) set.failure = true;   // oprava čísel nemění „do selhání"
-  if (est1RM(weight, reps) > (prevBest ? prevBest.e1rm : 0)) set.isPR = true;
   entry.sets[j] = set;
-  entry.prHit = entry.sets.some(st => st.isPR);
+  refreshEntryRecords(a, entry);
   WV.editSet = null;
   save();
   render();
@@ -693,8 +887,8 @@ function beginEditSession(id) {
     core: s.core === true,
     entries: (s.entries || []).map(e => Object.assign(
       { exerciseId: e.exerciseId, sets: (e.sets || []).map(st => Object.assign(
-        { reps: st.reps, weight: st.weight, note: st.note || null }, st.failure ? { failure: true } : {})), done: true },
-      e.exerciseName ? { exerciseName: e.exerciseName } : {}))
+        { reps: st.reps, weight: st.weight, note: st.note || null }, st.failure ? { failure: true } : {})), done: true, target: null },
+      e.exerciseName ? { exerciseName: e.exerciseName } : {}, e.link ? { link: true } : {}))
   };
   WV.openIdx = null;
   WV.editSet = null;
@@ -705,12 +899,16 @@ function beginEditSession(id) {
 
 function finishWorkout() {
   const a = S.activeSession;
+  const hasSets = e => !!(e && (e.sets || []).length);
+  // superset se uloží jen tehdy, když se odcvičil i ten další cvik — jinak by se
+  // po vynechání prázdných cviků spojil s jiným
   const entries = a.entries
-    .filter(e => (e.sets || []).length)
-    .map(e => Object.assign(
+    .map((e, i) => [e, e.link && hasSets(a.entries[i + 1])])
+    .filter(([e]) => hasSets(e))
+    .map(([e, link]) => Object.assign(
       { exerciseId: e.exerciseId, sets: e.sets.map(({ reps, weight, note, failure }) =>
         Object.assign({ reps, weight, note }, failure ? { failure: true } : {})) },
-      e.exerciseName ? { exerciseName: e.exerciseName } : {}));
+      e.exerciseName ? { exerciseName: e.exerciseName } : {}, link ? { link: true } : {}));
   if (!entries.length) {
     toast(a.editOf ? "Trénink nemá žádnou sérii — smazat ho jde v detailu" : "Trénink nemá žádnou zapsanou sérii", "err");
     return;
@@ -734,18 +932,19 @@ function finishWorkout() {
     openSessionDetail(base.id);
     return;
   }
-  const prCount = a.entries.reduce((n, e) => n + (e.sets || []).filter(s => s.isPR).length, 0);
   const sessionId = a.id;
+  // pořadí, supersety a cíle z tréninku — pro „uložit změny do šablony" ve shrnutí
+  WV.lastFinish = { sid: sessionId, order: a.entries.map(e => ({ id: e.exerciseId, link: !!e.link, target: e.target || null })) };
   S.sessions.push({ id: sessionId, date: a.date, type: "weights", templateUsed: a.templateUsed,
     templateName: a.templateName || null, core: a.core === true, entries });
   S.activeSession = null;
   WV.openIdx = null;
   WV.editSet = null;
+  WV.sw = null;
   Rest.stop();
   save();
   render({ top: true });
-  toast(prCount ? `Trénink uložen — ${prCount}× nový PR!` : "Trénink uložen ✓", prCount ? "pr" : "ok");
-  openRatingModal(sessionId);
+  openWorkoutSummary(sessionId);
 }
 
 /* ---- Hodnocení tréninku (kvalita 1–10 + poznámka) ---- */
@@ -858,46 +1057,235 @@ function cardioLabel(entry) {
   return entry && entry.sport ? entry.sport : "Kardio";
 }
 
-/* ---- Osobní rekordy (stránka) ---- */
+/* ---- Rekordy (stránka) ----
+   Čtyři druhy rekordů (data.js → exerciseRecords): odhad 1RM, nejtěžší váha,
+   opakování při dané váze a nejlepší série. U cviků bez váhy nejvíc opakování
+   a nejdelší výdrž. Řazeno podle posledního překonaného rekordu. */
+function exerciseBestHtml(id) {
+  const r = exerciseRecords(id);
+  const kind = exKind(id);
+  if (kind === "weight" && r.best.e1rm) return `${fmtWeight(r.best.e1rm.weight)} × ${r.best.e1rm.reps}`;
+  if (r.best.reps) return `${setShort(id, r.best.reps)}${kind === "bw" ? " opak." : ""}`;
+  return "—";
+}
+
 function renderPRList() {
-  const prs = allPRs();
-  if (!prs.length) return `<div class="card"><div class="empty-note">Zatím žádné rekordy.<br>Zapiš první silový trénink!</div></div>`;
+  const ids = new Set();
+  for (const s of S.sessions) if (s.type === "weights") for (const e of s.entries) if ((e.sets || []).length) ids.add(e.exerciseId);
+  if (!ids.size) return `<div class="card"><div class="empty-note">Zatím žádné rekordy.<br>Zapiš první silový trénink!</div></div>`;
   const t = todayStr();
-  const recent = countPRsInRange(addDays(t, -29), t);
-  const rows = prs.map(({ exerciseId, pr }) => `
-    <div class="list-item" data-act="w-pr-history" data-exid="${exerciseId}">
-      <i class="p-stripe" style="background:${exColor(exerciseId)}"></i>
+  const r30 = countRecordsInRange(addDays(t, -29), t);
+  const r90 = countRecordsInRange(addDays(t, -89), t);
+  const list = [...ids].map(id => {
+    const ev = exerciseRecords(id).events;
+    return { id, last: ev.length ? ev[ev.length - 1] : null, n: ev.length };
+  }).sort((a, b) => ((b.last || {}).date || "").localeCompare((a.last || {}).date || "") || exName(a.id).localeCompare(exName(b.id), "cs"));
+  const rows = list.map(({ id, last, n }) => `
+    <div class="list-item" data-act="w-pr-history" data-exid="${id}">
+      <i class="p-stripe" style="background:${exColor(id)}"></i>
       <div class="grow">
-        <div class="name">${esc(exName(exerciseId))}</div>
-        <div class="li-sub">${relDay(pr.date)} · e1RM ${fmtWeight(pr.e1rm)}</div>
+        <div class="name">${esc(exName(id))}</div>
+        <div class="li-sub">${last ? `${relDay(last.date)} · ${REC_LABEL[last.types[0]]}` : "zatím bez překonaného rekordu"}${n > 1 ? ` · ${n}×` : ""}</div>
       </div>
-      <div class="li-val" style="color:var(--yellow)">${fmtWeight(pr.weight)} × ${pr.reps}</div>
+      <div class="li-val" style="color:var(--yellow)">${exerciseBestHtml(id)}</div>
     </div>`).join("");
   return `
     <div class="card">
       <div class="stats two">
-        ${statHtml(prs.length, plural(prs.length, "cvik s rekordem", "cviky s rekordem", "cviků s rekordem"))}
-        ${statHtml(recent, "nových za 30 dní", "", recent ? "pr" : "")}
+        ${statHtml(r30, "rekordů za 30 dní", "", r30 ? "pr" : "")}
+        ${statHtml(r90, "za 90 dní")}
       </div>
+      <div class="chart-cap" style="margin-top:14px">Rekord = odhad 1RM, nejtěžší váha, víc opakování při stejné nebo vyšší váze, nebo nejlepší série (váha × opakování). Počítá se jeden na cvik a trénink.</div>
     </div>
-    <div class="card rows">${rows}</div>
-    <p class="small" style="margin:4px 4px 0">e1RM = odhad maxima na 1 opakování (Epley). Klepni na cvik pro historii.</p>`;
+    <div class="card rows">${rows}</div>`;
 }
 
+/* Detail rekordů cviku: nejlepší hodnoty, opakování podle váhy a historie */
 function openPRHistory(exerciseId) {
-  const hist = prHistory(exerciseId).slice().reverse();
-  const rows = hist.map((h, idx) => `
+  const id = exerciseId;
+  const r = exerciseRecords(id);
+  const kind = exKind(id);
+  const b = r.best;
+  const tile = (val, lbl, sub) => `<div class="stat"><div class="val">${val}</div><div class="lbl">${lbl}${sub ? `<br><span style="color:var(--text3)">${sub}</span>` : ""}</div></div>`;
+  const tiles = [];
+  if (kind === "weight") {
+    if (b.e1rm) tiles.push(tile(fmtWeight(est1RM(b.e1rm.weight, b.e1rm.reps)), "odhad 1RM", `${fmtWeight(b.e1rm.weight)} × ${b.e1rm.reps}`));
+    if (b.weight) tiles.push(tile(fmtWeight(b.weight.weight), "nejtěžší váha", `× ${b.weight.reps} opak.`));
+    if (b.volume) tiles.push(tile(`${fmtNum(kgOut(b.volume.weight * b.volume.reps))} ${weightUnit()}`, "nejlepší série", `${fmtWeight(b.volume.weight)} × ${b.volume.reps}`));
+    if (b.reps) tiles.push(tile(`${b.reps.reps}`, "nejvíc opakování", b.reps.weight ? `při ${fmtWeight(b.reps.weight)}` : ""));
+  } else {
+    if (b.reps) tiles.push(tile(setShort(id, b.reps), kind === "time" ? "nejdelší výdrž" : "nejvíc opakování",
+      b.reps.weight ? `+${fmtWeight(b.reps.weight)}` : ""));
+    if (kind === "bw" && b.weight) tiles.push(tile(`+${fmtWeight(b.weight.weight)}`, "nejtěžší zátěž", `× ${b.weight.reps} opak.`));
+  }
+  const atRows = kind === "time" ? "" : r.state.at.filter(([w]) => kind === "weight" ? w > 0 : true)
+    .sort((x, y) => y[0] - x[0]).slice(0, 8).map(([w, reps]) => `
+      <div class="set-row"><span class="grow">${w ? fmtWeight(w) : "vlastní váha"}${kind === "bw" && w ? " zátěž" : ""}</span>
+        <span class="set-val">${reps} <span>opak.</span></span></div>`).join("");
+  const evRows = r.events.slice().reverse().slice(0, 15).map(ev => `
     <div class="list-item">
       <div class="grow">
-        <div class="name">${fmtWeight(h.weight)} × ${h.reps}</div>
-        <div class="li-sub">${fmtDate(h.date)}</div>
+        <div class="name">${setValHtml(id, ev)}</div>
+        <div class="li-sub">${fmtDate(ev.date)}</div>
       </div>
-      ${idx === 0 ? `<span class="badge yellow">aktuální</span>` : ""}
-      <span class="li-val small" style="min-width:90px">e1RM ${fmtWeight(h.e1rm)}</span>
+      <span class="small" style="color:var(--yellow);text-align:right;max-width:150px">${ev.types.map(t => REC_LABEL[t]).join(", ")}</span>
     </div>`).join("");
-  openModal(`${modalTitle(exName(exerciseId))}
-    <p class="modal-sub">Historie rekordů</p>
-    ${rows || `<div class="empty-note">Žádná historie</div>`}`);
+  openModal(`${modalTitle(exName(id))}
+    ${exNameEn(id) ? `<p class="modal-sub">${esc(exNameEn(id))}</p>` : ""}
+    ${tiles.length ? `<div class="stat-grid">${tiles.join("")}</div>` : `<div class="empty-note">Zatím žádná data</div>`}
+    ${atRows ? `<div class="h3" style="margin-top:22px">Opakování podle váhy</div><div class="sets" style="margin-top:4px">${atRows}</div>` : ""}
+    <div class="h3" style="margin-top:22px">Překonané rekordy</div>
+    ${evRows || `<div class="empty-note" style="padding:12px">Rekordy se počítají od druhého tréninku cviku.</div>`}
+    <button class="btn ghost full mt2" data-act="pg-ex" data-exid="${id}">${ic("trend", 17)} Graf progresu</button>`);
+}
+
+/* ---- Šablona z uloženého tréninku ----
+   Série = kolik jich v tréninku bylo, rozsah = nejméně–nejvíc opakování,
+   supersety zůstanou. Pauza výchozí. */
+function templateFromSession(s, name) {
+  const plan = {};
+  const ids = [];
+  for (const e of s.entries || []) {
+    if (!getExercise(e.exerciseId) || ids.includes(e.exerciseId)) continue;
+    ids.push(e.exerciseId);
+    const reps = (e.sets || []).map(st => st.reps).filter(Boolean);
+    plan[e.exerciseId] = {
+      sets: (e.sets || []).length || null,
+      lo: reps.length ? Math.min(...reps) : null,
+      hi: reps.length ? Math.max(...reps) : null,
+      rest: null,
+      link: !!e.link
+    };
+  }
+  const t = { id: uid(), name, exercises: ids, plan };
+  S.templates.push(t);
+  return t;
+}
+
+function openSaveTemplateModal(sid) {
+  const s = S.sessions.find(x => x.id === sid);
+  if (!s) return;
+  openModal(`${modalTitle("Uložit jako šablonu")}
+    <p class="modal-sub">${s.entries.length} cviků z tréninku ${fmtShort(s.date)} — série a rozsah opakování podle toho, co jsi odcvičil</p>
+    <label class="field"><span>Název šablony</span>
+      <input class="input" id="newTplName" value="${esc(s.templateUsed === "custom" ? "Trénink " + fmtShort(s.date) : sessionLabel(s) + " (kopie)")}"></label>
+    <button class="btn primary full" data-act="tpl-from-session" data-id="${sid}">Uložit šablonu</button>`);
+  document.getElementById("newTplName").focus();
+}
+
+/* ---- Shrnutí po dokončení tréninku ----
+   Čísla proti minulému tréninku stejné šablony, pokryté partie, padlé
+   rekordy, nabídka uložit změny do šablony (nebo volný trénink jako šablonu)
+   a hodnocení. Délka tréninku záměrně ne — časovač v appce není (v1.26). */
+function openWorkoutSummary(sid) {
+  const s = S.sessions.find(x => x.id === sid);
+  if (!s) return;
+  const custom = !getTemplate(s.templateUsed);
+  const prev = custom ? null : S.sessions
+    .filter(x => x.type === "weights" && x.id !== s.id && x.templateUsed === s.templateUsed
+      && (x.date < s.date || (x.date === s.date && String(x.id) < String(s.id))))
+    .sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id)))[0] || null;
+  const sets = sessionSets(s), vol = sessionVolume(s);
+  const v = fmtVolume(vol);
+  const counts = sessionCatSets(s);
+  const zero = CAT_ORDER.filter(c => !counts[c] && !(c === "Core" && s.core === true));
+  const recs = sessionRecordEvents(s);
+  const recRows = recs.slice(0, 8).map(ev => `
+    <div class="list-item">
+      <i class="p-stripe" style="background:${exColor(ev.exerciseId)}"></i>
+      <div class="grow">
+        <div class="name">${esc(exName(ev.exerciseId))}</div>
+        <div class="li-sub" style="color:var(--yellow)">${ev.types.map(t => REC_LABEL[t]).join(", ")}</div>
+      </div>
+      <span class="li-val">${setShort(ev.exerciseId, ev)}</span>
+    </div>`).join("");
+
+  /* změny proti šabloně: jiné cviky, pořadí nebo supersety → nabídka uložit */
+  let tplCard = "";
+  const lf = WV.lastFinish && WV.lastFinish.sid === sid ? WV.lastFinish : null;
+  const tpl = getTemplate(s.templateUsed);
+  if (tpl && lf) {
+    const order = lf.order.filter(o => getExercise(o.id)).map(o => o.id);
+    const added = order.filter(id => !tpl.exercises.includes(id));
+    const removed = tpl.exercises.filter(id => getExercise(id) && !order.includes(id));
+    const sameSet = !added.length && !removed.length;
+    const reordered = sameSet && order.join("|") !== tpl.exercises.filter(getExercise).join("|");
+    const linkChanged = lf.order.some(o => !!o.link !== !!(tplPlan(tpl, o.id) || {}).link);
+    if (added.length || removed.length || reordered || linkChanged) {
+      const bits = [];
+      if (added.length) bits.push(`přidáno: ${added.map(exName).join(", ")}`);
+      if (removed.length) bits.push(`vyřazeno: ${removed.map(exName).join(", ")}`);
+      if (reordered) bits.push("jiné pořadí");
+      if (linkChanged) bits.push("jiné supersety");
+      tplCard = `
+        <div class="card sum-tpl">
+          <div class="name" style="font-weight:650">Trénink se lišil od šablony ${esc(tpl.name)}</div>
+          <p class="small" style="margin:4px 0 14px">${esc(capFirst(bits.join(" · ")))}</p>
+          <button class="btn full" data-act="w-tpl-update" data-tpl="${tpl.id}">Uložit změny do šablony</button>
+        </div>`;
+    }
+  } else if (custom) {
+    tplCard = `
+      <div class="card sum-tpl">
+        <div class="name" style="font-weight:650">Uložit jako šablonu?</div>
+        <p class="small" style="margin:4px 0 12px">Příště ho spustíš jedním klepnutím.</p>
+        <div class="row" style="gap:8px">
+          <input class="input grow" id="newTplName" placeholder="Název šablony" value="Trénink ${fmtShort(s.date)}">
+          <button class="btn fit" data-act="tpl-from-session" data-id="${sid}" data-inline="1">Uložit</button>
+        </div>
+      </div>`;
+  }
+
+  WV.rateVal = null;
+  const chips = Array.from({ length: 10 }, (_, k) => k + 1).map(n =>
+    `<button class="scale-chip ratechip" data-act="w-rate-chip" data-val="${n}">${n}</button>`).join("");
+  openModal(`${modalTitle("Trénink uložen")}
+    <p class="modal-sub">${esc(sessionLabel(s))} · ${relDay(s.date)}</p>
+    <div class="card">
+      <div class="stats">
+        ${statHtml(s.entries.length, plural(s.entries.length, "cvik", "cviky", "cviků"), prev ? deltaHtml(s.entries.length, prev.entries.length) : "")}
+        ${statHtml(sets, setWordTop(sets), prev ? deltaHtml(sets, sessionSets(prev), true) : "")}
+        ${statHtml(`${v.val}<small>${v.unit}</small>`, "objem", prev ? deltaHtml(vol, sessionVolume(prev), true) : "")}
+      </div>
+      ${prev ? `<div class="chart-cap">Proti minulému tréninku ${esc(sessionLabel(prev))} · ${relDay(prev.date)}</div>` : ""}
+      <hr class="hair">
+      <div class="row between" style="margin-bottom:9px">
+        <span class="cap">Partie</span>
+        <span class="cap"><b style="color:var(--text)">${CAT_ORDER.length - zero.length}</b> ze ${CAT_ORDER.length}</span>
+      </div>
+      ${catPipsHtml(counts, s.core === true)}
+      ${zero.length ? `<div class="small warn-text" style="margin-top:9px">Bez série: ${zero.join(", ")}</div>` : ""}
+    </div>
+    ${recs.length ? `<div class="h3" style="margin-top:20px">${recs.length} ${plural(recs.length, "rekord", "rekordy", "rekordů")}</div>
+      <div class="card rows">${recRows}</div>${recs.length > 8 ? `<p class="small" style="margin:-4px 4px 10px">a ${recs.length - 8} dalších</p>` : ""}` : ""}
+    ${tplCard}
+    <div class="h3" style="margin-top:20px">Jak ti trénink sedl?</div>
+    <div class="scale-row" style="margin-bottom:14px">${chips}</div>
+    <label class="field"><span>Poznámka</span>
+      <input class="input" id="rateNote" placeholder="pocit, únava, co příště jinak…"></label>
+    <div class="btn-row">
+      <button class="btn ghost" data-act="modal-close">Přeskočit</button>
+      <button class="btn primary" data-act="w-rate-save" data-id="${sid}">Uložit hodnocení</button>
+    </div>`);
+}
+
+/* Uložit pořadí, cviky a supersety z dokončeného tréninku do šablony */
+function updateTemplateFromFinish(tplId) {
+  const t = getTemplate(tplId);
+  const lf = WV.lastFinish;
+  if (!t || !lf) return false;
+  const order = [];
+  for (const o of lf.order) if (getExercise(o.id) && !order.some(x => x.id === o.id)) order.push(o);
+  const plan = Object.assign({}, t.plan || {});
+  for (const o of order) {
+    const own = plan[o.id];
+    if (own) own.link = o.link;
+    else if (o.link || o.target) plan[o.id] = Object.assign({ sets: null, lo: null, hi: null, rest: null }, o.target || exDefaultPlan(o.id) || {}, { link: o.link });
+  }
+  for (const id of Object.keys(plan)) if (!order.some(o => o.id === id)) delete plan[id];
+  t.exercises = order.map(o => o.id);
+  t.plan = plan;
+  return true;
 }
 
 /* ---- Detail session (sdílený s kalendářem a detailem dne) ---- */
@@ -920,14 +1308,17 @@ function sessionDetailHtml(s) {
         ${delBtn}
       </div></div>`;
   }
-  const blocks = s.entries.map(e => {
+  const recSet = new Set(sessionRecordEvents(s).flatMap(ev => ev.sets.map(([k, j]) => `${k}|${j}`)));
+  const blocks = s.entries.map((e, k) => {
+    const linked = e.link || (k > 0 && s.entries[k - 1].link);
     const sets = (e.sets || []).map((st, j) =>
       `<div class="set-row"><span class="set-num">${j + 1}</span>
-       <span class="grow"><span class="set-val">${fmtNum(st.reps)}<span>×</span>${fmtWeight(st.weight)}</span>${st.note ? ` <span class="small">· ${esc(st.note)}</span>` : ""}</span>
+       <span class="grow"><span class="set-val">${setValHtml(e.exerciseId, st)}</span>${st.note ? ` <span class="small">· ${esc(st.note)}</span>` : ""}</span>
+       ${recSet.has(`${k}|${j}`) ? `<span class="badge yellow">PR</span>` : ""}
        ${st.failure ? `<span class="fail-chip on static"><i>${ic("check", 9, 3.6)}</i>selhání</span>` : ""}</div>`).join("");
     return `<div class="detail-ex">
       <div class="row" style="gap:10px;margin-bottom:4px"><i class="p-stripe" style="background:${exColor(e.exerciseId)}"></i>
-        <b style="font-size:15.5px">${esc(exName(e.exerciseId))}</b></div>${sets}</div>`;
+        <b style="font-size:15.5px" class="grow">${esc(exName(e.exerciseId))}</b>${linked ? `<span class="ss-tag">superset</span>` : ""}</div>${sets}</div>`;
   }).join("");
   /* core jde doplnit i zpětně — kdo zapomněl odškrtnout v tréninku */
   const coreSets = sessionCatSets(s).Core || 0;
@@ -945,6 +1336,7 @@ function sessionDetailHtml(s) {
     <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:14px">
       <b style="font-size:17px">${esc(sessionLabel(s))}</b>
       ${s.rating ? `<span class="badge">${s.rating}/10</span>` : ""}
+      ${recSet.size ? `<span class="badge yellow">${ic("trophy", 12, 2.2)} ${recSet.size}</span>` : ""}
     </div>
     <div class="card">
       <div class="stats">
@@ -959,6 +1351,10 @@ function sessionDetailHtml(s) {
       <button class="btn grow" data-act="w-edit-session" data-id="${s.id}">${ic("edit", 17)} Upravit</button>
       <button class="btn grow" data-act="w-rate-open" data-id="${s.id}">${ic("star", 17)} ${s.rating ? "Hodnocení" : "Ohodnotit"}</button>
       ${delBtn}
+    </div>
+    <div class="btn-row" style="margin-top:8px">
+      <button class="btn sm ghost" data-act="w-repeat" data-id="${s.id}">${ic("history", 16)} Zopakovat</button>
+      <button class="btn sm ghost" data-act="w-save-tpl" data-id="${s.id}">${ic("list", 16)} Nová šablona</button>
     </div>
     ${coreRow}${blocks}</div>`;
 }

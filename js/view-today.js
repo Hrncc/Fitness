@@ -268,7 +268,7 @@ function weekSummary(from, to) {
     volume: w.reduce((v, s) => v + sessionVolume(s), 0),
     counts,
     core: w.some(s => s.core === true),
-    prs: countPRsInRange(from, to)
+    prs: countRecordsInRange(from, to)
   };
 }
 
@@ -298,6 +298,7 @@ function weekSectionHtml() {
   const vol = fmtVolume(cur.volume);
   const zero = CAT_ORDER.filter(c => !cur.counts[c] && !(c === "Core" && cur.core));
   const hit = CAT_ORDER.length - zero.length;
+  const goal = Number(Settings.get().weeklyGoal) || 0;
   const title = off === 0 ? "Tento týden" : off === -1 ? "Minulý týden" : `Týden od ${fmtShort(mon)}`;
   const nav = `<div class="sec-tools">
     <button class="iconbtn sm soft" data-act="td-week" data-dir="-1" aria-label="Předchozí týden">${ic("chevL", 18)}</button>
@@ -315,7 +316,7 @@ function weekSectionHtml() {
       </div>
       <hr class="hair">
       <div class="stats">
-        ${statHtml(cur.weights, plural(cur.weights, "trénink", "tréninky", "tréninků") + (cur.cardio ? ` + ${cur.cardio}× kardio` : ""), deltaHtml(cur.weights, prev.weights))}
+        ${goal ? goalStatHtml(cur, prev, goal) : statHtml(cur.weights, plural(cur.weights, "trénink", "tréninky", "tréninků") + (cur.cardio ? ` + ${cur.cardio}× kardio` : ""), deltaHtml(cur.weights, prev.weights))}
         ${statHtml(fmtNum(cur.sets), plural(cur.sets, "série", "série", "sérií"), deltaHtml(cur.sets, prev.sets, true))}
         ${statHtml(`${vol.val}<small>${vol.unit}</small>`, "objem", deltaHtml(cur.volume, prev.volume, true))}
       </div>
@@ -330,6 +331,30 @@ function weekSectionHtml() {
         ? `<div class="small warn-text" style="margin-top:9px">Bez série: ${zero.join(", ")}</div>`
         : `<div class="small" style="margin-top:9px">Všech ${CAT_ORDER.length} partií pokryto</div>`) : ""}
     </div>`, { sub: `${fmtShort(mon)} – ${fmtShort(sun)}`, right: nav });
+}
+
+/* Týdenní cíl silových tréninků jako kroužek (Nastavení → weeklyGoal).
+   Není to streak: počítá se jen tenhle týden, volné dny nic nestojí. */
+function goalStatHtml(cur, prev, goal) {
+  const n = cur.weights;
+  const pct = clamp(n / goal, 0, 1);
+  const r = 17, c = 2 * Math.PI * r;
+  const met = n >= goal;
+  return `<div class="stat goal-stat">
+    <div class="goal-ring${met ? " met" : ""}">
+      <svg width="42" height="42" viewBox="0 0 42 42" aria-hidden="true">
+        <circle cx="21" cy="21" r="${r}" fill="none" stroke="var(--s3)" stroke-width="4"/>
+        ${n ? `<circle cx="21" cy="21" r="${r}" fill="none" stroke="var(--green)" stroke-width="4" stroke-linecap="round"
+          stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - pct)).toFixed(1)}" transform="rotate(-90 21 21)"/>` : ""}
+      </svg>
+      ${met ? `<span>${ic("check", 15, 3)}</span>` : ""}
+    </div>
+    <div>
+      <div class="stat-v">${n}<small>/ ${goal}</small></div>
+      <div class="stat-l">cíl týdne${cur.cardio ? ` · +${cur.cardio}× kardio` : ""}</div>
+      ${deltaHtml(n, prev.weights)}
+    </div>
+  </div>`;
 }
 
 /* ---- Rekap minulého týdne — motivace z reálného pokroku, ne ze streaku ----
@@ -374,8 +399,9 @@ function progressTeaserHtml() {
     </div>` : hasW ? `
     <div class="card"><p class="muted" style="margin:0">Síla se ukáže, až nějaký cvik odcvičíš aspoň dvakrát.</p></div>` : "";
 
-  const prs = countPRsInRange(addDays(t, -29), t);
-  const lastPr = allPRs()[0];
+  const recs30 = recordEventsInRange(addDays(t, -29), t).sort((a, b) => b.date.localeCompare(a.date));
+  const prs = recs30.length;
+  const lastPr = recs30[0];
   const avg = movingAvgAt(S.bodyLog, t);
   const avgPrev = movingAvgAt(S.bodyLog, addDays(t, -7));
   const wTrend = avg != null && avgPrev != null ? kgOut(avg) - kgOut(avgPrev) : null;
@@ -387,7 +413,7 @@ function progressTeaserHtml() {
       <button class="tile" data-act="menu" data-page="records">
         <div class="tile-l">Rekordy</div>
         <div class="tile-v">${prs}</div>
-        <div class="tile-s">${lastPr && lastPr.pr.date >= addDays(t, -29) ? esc(exName(lastPr.exerciseId)) : "za 30 dní"}</div>
+        <div class="tile-s">${lastPr ? esc(exName(lastPr.exerciseId)) : "za 30 dní"}</div>
       </button>
       <button class="tile" data-act="go-progress" data-seg="body">
         <div class="tile-l">Váha Ø</div>

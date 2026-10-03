@@ -49,7 +49,7 @@ function periodStats(from, to) {
     cardioMin: c.reduce((m, s) => m + ((s.entries[0] || {}).duration || 0), 0),
     sets: w.reduce((n, s) => n + s.entries.reduce((k, e) => k + (e.sets || []).length, 0), 0),
     volume: w.reduce((v, s) => v + sessionVolume(s), 0),
-    prs: countPRsInRange(from, to),
+    prs: countRecordsInRange(from, to),
     rating: rated.length ? rated.reduce((a, s) => a + s.rating, 0) / rated.length : null
   };
 }
@@ -130,7 +130,7 @@ function strengthRows(days = PG_STRENGTH_DAYS) {
     return {
       id, metric, win, first, last,
       change: first && first.value ? (last.value / first.value - 1) * 100 : 0,
-      recentPR: prHistory(id).some(h => h.date >= prSince && h.date !== (points[0] || {}).date)
+      recentPR: exerciseRecords(id).events.some(ev => ev.date >= prSince)
     };
   })
     .filter(r => r.win.length >= 2)
@@ -393,7 +393,9 @@ function partsWeeksHtml() {
     }
     return { c, core: w.sessions.some(s => s.core === true) };
   });
-  const max = Math.max(1, ...per.flatMap(p => CAT_ORDER.map(c => p.c[c])));
+  // měřítko aspoň do 22 sérií, ať je vidět pásmo 10–20 sérií týdně
+  const max = Math.max(22, ...per.flatMap(p => CAT_ORDER.map(c => p.c[c])));
+  const band = `<span class="cw-band" style="bottom:${(10 / max * 100).toFixed(1)}%;height:${(10 / max * 100).toFixed(1)}%"></span>`;
   const done = per.slice(0, -1);
   const last = partLastTrained();
   const rows = CAT_ORDER.map(cat => {
@@ -414,12 +416,13 @@ function partsWeeksHtml() {
     return `
       <div class="cw-row">
         <span class="cw-name"><i class="p-dot" style="background:${catColor(cat)}"></i>${cat}</span>
-        <div class="cw-bars chart-wrap"${tipAttr(tips)}>${bars}</div>
-        <span class="cw-avg${avg < 1 ? " warn-text" : ""}">${fmtNum(avg, 1)}</span>
+        <div class="cw-bars chart-wrap"${tipAttr(tips)}>${band}${bars}</div>
+        <span class="cw-avg${avg >= 10 ? " in" : avg < 1 ? " warn-text" : ""}">${fmtNum(avg, 1)}</span>
         <span class="cw-last${gap == null || gap > 14 ? " stale" : ""}">${lt ? relDay(lt) : "nikdy"}</span>
       </div>`;
   }).join("");
-  return `<div class="cw-head"><span>partie</span><span>série po týdnech</span><span>Ø</span><span>naposledy</span></div>${rows}`;
+  return `<div class="cw-head"><span>partie</span><span>série po týdnech</span><span>Ø</span><span>naposledy</span></div>${rows}
+    <div class="chart-cap"><i class="cw-band-key"></i> 10–20 sérií týdně na partii — běžné doporučení pro růst svalů. Ø v pásmu volt.</div>`;
 }
 
 /* Sloupec je počet sérií, ne kila — u core a cviků s vlastní vahou je objem
@@ -459,18 +462,21 @@ function partsSummaryHtml() {
       </div>`).join("")}`;
 }
 
-/* ---- Rekordy: poslední padlé ---- */
+/* ---- Rekordy: naposledy překonané (každý cvik jednou, nejnovější) ---- */
 function recordsTeaserHtml() {
-  const prs = allPRs().slice(0, 5);
-  if (!prs.length) return "";
-  const rows = prs.map(({ exerciseId, pr }) => `
-    <div class="list-item" data-act="w-pr-history" data-exid="${exerciseId}">
-      <i class="p-stripe" style="background:${exColor(exerciseId)}"></i>
+  const all = recordEventsInRange("0000-01-01", todayStr())
+    .sort((a, b) => b.date.localeCompare(a.date) || b.j - a.j);
+  const seen = new Set();
+  const latest = all.filter(ev => !seen.has(ev.exerciseId) && seen.add(ev.exerciseId)).slice(0, 5);
+  if (!latest.length) return "";
+  const rows = latest.map(ev => `
+    <div class="list-item" data-act="w-pr-history" data-exid="${ev.exerciseId}">
+      <i class="p-stripe" style="background:${exColor(ev.exerciseId)}"></i>
       <div class="grow">
-        <div class="name">${esc(exName(exerciseId))}</div>
-        <div class="li-sub">${relDay(pr.date)}</div>
+        <div class="name">${esc(exName(ev.exerciseId))}</div>
+        <div class="li-sub">${relDay(ev.date)} · ${ev.types.map(t => REC_LABEL[t]).join(", ")}</div>
       </div>
-      <div class="li-val" style="color:var(--yellow)">${fmtWeight(pr.weight)} × ${pr.reps}</div>
+      <div class="li-val" style="color:var(--yellow)">${setShort(ev.exerciseId, ev)}</div>
     </div>`).join("");
   return sec("Rekordy", `<div class="card rows">${rows}</div>`,
     { sub: "naposledy překonané", right: secLink("Vše", "menu", `data-page="records"`) });
