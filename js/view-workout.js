@@ -273,13 +273,13 @@ function coreCardHtml(a) {
 
 /* ---- Mini check „do selhání" u série ----
    Objeví se na každé zapsané sérii mezi váhou a křížkem: klepnutí přepne
-   ano/ne. Vypnutý je tlumený obrys s prázdným kroužkem, zapnutý volt štítek
-   s fajfkou. Ukládá se k sérii (set.failure), jen když je zapnutý. */
+   ano/ne. Vypnutý je jen tenký kroužek s drobným popiskem, zapnutý plný
+   volt kroužek s fajfkou. Ukládá se k sérii (set.failure), jen když je zapnutý. */
 function failChipHtml(st, i, j) {
   const on = st.failure === true;
   return `<button class="fail-chip${on ? " on" : ""}" data-act="w-set-fail" data-i="${i}" data-j="${j}"
     aria-pressed="${on}" aria-label="Série do selhání: ${on ? "ano" : "ne"}">
-    <i>${on ? ic("check", 11, 3.4) : ""}</i>selhání</button>`;
+    <i>${on ? ic("check", 9, 3.6) : ""}</i>selhání</button>`;
 }
 
 function setWordTop(n) { return n === 1 ? "série" : n >= 2 && n <= 4 ? "série" : "sérií"; }
@@ -858,7 +858,7 @@ function sessionDetailHtml(s) {
     const sets = (e.sets || []).map((st, j) =>
       `<div class="set-row"><span class="set-num">${j + 1}</span>
        <span class="grow"><span class="set-val">${fmtNum(st.reps)}<span>×</span>${fmtWeight(st.weight)}</span>${st.note ? ` <span class="small">· ${esc(st.note)}</span>` : ""}</span>
-       ${st.failure ? `<span class="fail-chip on static"><i>${ic("check", 11, 3.4)}</i>selhání</span>` : ""}</div>`).join("");
+       ${st.failure ? `<span class="fail-chip on static"><i>${ic("check", 9, 3.6)}</i>selhání</span>` : ""}</div>`).join("");
     return `<div class="card2 mt">
       <div class="row"><i class="p-stripe" style="background:${exColor(e.exerciseId)}"></i>
         <b style="font-size:14.5px">${esc(exName(e.exerciseId))}</b></div>${sets}</div>`;
