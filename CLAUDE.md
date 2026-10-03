@@ -244,7 +244,10 @@ Dole **Dnes · Trénink · Pokrok · Více**. Stránky se otevírají nad aktuá
 ze které přišly. Stránky: `food`, `history`, `records`, `checkin`, `exlib`,
 `templates`, `foodlib`, `export`, `settings`, `about` (mapa `PAGES` v `app.js`).
 Bývalá karta Týden (tři podzáložky) je rozpuštěná: týden je na Dnes, analytika
-v Pokroku, kalendář v Historii, strava v Pokrok → Strava.
+v Pokroku, kalendář na kartě Trénink a v Historii, strava v Pokrok → Strava.
+**Kalendář musí být vidět** — ve v2.0–2.1 byl jen v Historii za odkazem
+a Martin ho postrádal (v2.1.1 ho vrátila na Trénink a do Více jako „Kalendář
+a historie").
 
 ### Dnes (`view-today.js`)
 
@@ -281,7 +284,10 @@ Shora dolů od nejbližšího k nejširšímu:
   `sessionPRCount()`) s odkazem na Historii, dole Rekordy / Templates / Library.
   Den zápisu je **pilulka s datem v titulku** (`w-date`, `w-date-today`) — trénink
   se tak zapíše i zpětně; vybraný den ukáže své zapsané tréninky.
-- **Historie** (stránka `history`): kalendář měsíce (`SV.calY/calM`, proužky partií,
+  Mezi Jiným tréninkem a Posledními tréninky je **Kalendář** měsíce
+  (`monthCalendarCardHtml()` — stejná karta jako v Historii, sdílí `SV.calY/calM`),
+  „Měsíc ›" vede na Historii.
+- **Historie** (stránka `history`, i z Více → Kalendář a historie): kalendář měsíce (`SV.calY/calM`, proužky partií,
   tečka = kalorie v cíli) + čísla měsíce + tréninky měsíce. Klepnutí na den →
   `openDaySummary()` se zápisem do toho dne.
 - **Rekordy** (stránka `records`): počty za 30 / 90 dní, cviky podle posledního

@@ -1,7 +1,7 @@
 /* ===== Více: sheet s nabídkou a stránky z něj ===== */
 "use strict";
 
-const APP_VERSION = "2.1";
+const APP_VERSION = "2.1.1";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -20,6 +20,7 @@ const MV = {
 function openMoreSheet() {
   const items = [
     ["food", "Jídlo", "menu", "page", "food"],
+    ["calendar", "Kalendář a historie", "menu", "page", "history"],
     ["body", "Postava a check-in", "go-progress", "seg", "body"],
     ["book", "Exercise Library", "menu", "page", "exlib"],
     ["list", "Workout Templates", "menu", "page", "templates"],

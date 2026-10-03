@@ -118,6 +118,10 @@ function renderWorkoutStart() {
       </div>
     </div>`));
 
+  /* kalendář — ve v2.0 schovaný jen v Historii, Martin ho tu postrádal */
+  out.push(sec("Kalendář", monthCalendarCardHtml(),
+    { right: secLink("Měsíc", "menu", `data-page="history"`) }));
+
   /* poslední tréninky */
   const recent = S.sessions.filter(s => !(daySessions.includes(s)))
     .sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id))).slice(0, 5);
@@ -176,16 +180,11 @@ function sessionPRCount(s) {
   return sessionRecordEvents(s).length;
 }
 
-/* ---- Historie: kalendář a tréninky měsíce ---- */
-function renderHistory() {
-  const y = SV.calY, m = SV.calM;
-  const from = dateStr(new Date(y, m, 1)), to = dateStr(new Date(y, m + 1, 0));
-  const list = S.sessions.filter(s => s.date >= from && s.date <= to)
-    .sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id)));
-  const w = list.filter(s => s.type === "weights");
-  const vol = fmtVolume(w.reduce((v, s) => v + sessionVolume(s), 0));
-  const sets = w.reduce((n, s) => n + sessionSets(s), 0);
-  const cal = calendarHtml(y, m, ds => {
+/* ---- Kalendář měsíce: proužky partií, kardio, tečka = kalorie v cíli ----
+   Stejná karta je na kartě Trénink i na stránce Historie (sdílí SV.calY/calM).
+   Klepnutí na den → openDaySummary() se zápisem do toho dne. */
+function monthCalendarCardHtml() {
+  const cal = calendarHtml(SV.calY, SV.calM, ds => {
     const bars = dayCatColors(ds);
     const f = calorieGoalMet(ds);
     if (!bars.length && !f) return null;
@@ -198,7 +197,20 @@ function renderHistory() {
         <span><i class="dot" style="background:var(--p-cardio)"></i>kardio</span>
         <span><i class="dot" style="background:var(--mac1)"></i>kalorie v cíli</span>
       </div>
-    </div>
+    </div>`;
+}
+
+/* ---- Historie: kalendář a tréninky měsíce ---- */
+function renderHistory() {
+  const y = SV.calY, m = SV.calM;
+  const from = dateStr(new Date(y, m, 1)), to = dateStr(new Date(y, m + 1, 0));
+  const list = S.sessions.filter(s => s.date >= from && s.date <= to)
+    .sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id)));
+  const w = list.filter(s => s.type === "weights");
+  const vol = fmtVolume(w.reduce((v, s) => v + sessionVolume(s), 0));
+  const sets = w.reduce((n, s) => n + sessionSets(s), 0);
+  return `
+    ${monthCalendarCardHtml()}
     ${sec(capFirst(CZ_MONTHS[m]), list.length ? `
       <div class="card">
         <div class="stats">
