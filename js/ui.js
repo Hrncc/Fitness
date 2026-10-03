@@ -1,5 +1,11 @@
-/* ===== UI komponenty: modal, toast, kalendář, progress bary, SVG grafy ===== */
+/* ===== UI komponenty: ikony, sekce, toast, sheet, výběr cviku, kalendář,
+   SVG grafy a zamčený timer ===== */
 "use strict";
+
+const CZ_DAYS_FULL = ["neděle", "pondělí", "úterý", "středa", "čtvrtek", "pátek", "sobota"];
+const CZ_MONTHS_GEN = ["ledna", "února", "března", "dubna", "května", "června",
+  "července", "srpna", "září", "října", "listopadu", "prosince"];
+const CZ_MONTHS_SHORT = ["led", "úno", "bře", "dub", "kvě", "čvn", "čvc", "srp", "zář", "říj", "lis", "pro"];
 
 /* ---- Ikony (inline SVG, bez knihoven) ----
    Tahy 24×24 v barvě textu. ic("x") místo znaků ✕ ✎ ⇄ — znaky se na každém
@@ -12,7 +18,9 @@ const ICONS = {
   chevL: '<path d="m15 18-6-6 6-6"/>',
   chevR: '<path d="m9 18 6-6-6-6"/>',
   chevD: '<path d="m6 9 6 6 6-6"/>',
+  chevU: '<path d="m18 15-6-6-6 6"/>',
   arrowR: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  arrowUp: '<path d="M12 19V5M6 11l6-6 6 6"/>',
   edit: '<path d="M12 20h8"/><path d="M16.4 3.6a2 2 0 0 1 2.9 2.9L7.5 18.3 3.5 19.5l1.2-4Z"/>',
   swap: '<path d="M7 4 3 8l4 4"/><path d="M3 8h14"/><path d="m17 20 4-4-4-4"/><path d="M21 16H7"/>',
   trash: '<path d="M4 6.5h16"/><path d="M9 6.5V4.5h6v2"/><path d="M18.5 6.5 17.6 19a2 2 0 0 1-2 1.8H8.4a2 2 0 0 1-2-1.8L5.5 6.5"/>',
@@ -41,17 +49,77 @@ const ICONS = {
   chart: '<path d="M4 20V11M10 20V5M16 20v-6M21 20H3"/>',
   trend: '<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
   body: '<circle cx="12" cy="4.8" r="2.3"/><path d="M5 9h14"/><path d="M12 9v6.5M12 15.5 8.8 21M12 15.5l3.2 5.5"/>',
-  cloud: '<path d="M7 18.5a4.5 4.5 0 0 1-.5-9 6 6 0 0 1 11.3 1.6A3.8 3.8 0 0 1 17.5 18.5Z"/>'
+  cloud: '<path d="M7 18.5a4.5 4.5 0 0 1-.5-9 6 6 0 0 1 11.3 1.6A3.8 3.8 0 0 1 17.5 18.5Z"/>',
+  history: '<path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4.5V9H8"/><path d="M12 8v4.5l3 1.8"/>',
+  note: '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17Z"/>',
+  download: '<path d="M12 3v12"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M5 19.5h14"/>',
+  upload: '<path d="M12 15V3"/><path d="m7.5 7.5 4.5-4.5 4.5 4.5"/><path d="M5 19.5h14"/>'
 };
-function ic(name, size = 20, sw = 2) {
+function ic(name, size = 20, sw = 1.9) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
     stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ""}</svg>`;
 }
 
-/* Hlavička karty: ikona v dlaždici + titulek + volitelný obsah vpravo */
+/* ---- Sekce: nadpis nad obsahem (místo karet s ikonou v hlavičce) ---- */
+function secHead(title, { sub = "", right = "" } = {}) {
+  return `<div class="sec-h"><div class="grow"><h2>${title}</h2>${sub ? `<span class="sec-sub">${sub}</span>` : ""}</div>${right}</div>`;
+}
+function sec(title, body, opts = {}) {
+  return `<section class="sec${opts.cls ? " " + opts.cls : ""}">${title ? secHead(title, opts) : ""}${body}</section>`;
+}
+/* Odkaz vpravo v nadpisu sekce („Vše ›") */
+function secLink(label, act, attrs = "") {
+  return `<button class="sec-link" data-act="${act}" ${attrs}>${label}${ic("chevR", 16, 2.2)}</button>`;
+}
+/* Starší hlavička karty — zbyla kvůli kompatibilitě, ikonu už nekreslí */
 function cardHead(icon, title, right = "") {
-  return `<div class="card-head"><span class="card-ic">${ic(icon, 18)}</span>
-    <span class="h2 grow">${title}</span>${right}</div>`;
+  return `<div class="row between" style="margin-bottom:14px"><span class="h2" style="margin:0">${title}</span>${right}</div>`;
+}
+
+/* Segmentový přepínač: items = [[klíč, popisek]], act = data-act,
+   key = jméno data atributu, do kterého jde klíč */
+function segHtml(items, cur, act, key = "v", cls = "") {
+  return `<div class="seg${cls ? " " + cls : ""}" role="tablist">${items.map(([k, l]) =>
+    `<button class="seg-btn${k === cur ? " on" : ""}" data-act="${act}" data-${key}="${k}" role="tab"
+      aria-selected="${k === cur}">${l}</button>`).join("")}</div>`;
+}
+
+/* Číslo s popiskem a volitelnou změnou (stat tile) */
+function statHtml(value, label, delta = "", cls = "") {
+  return `<div class="stat"><div class="stat-v${cls ? " " + cls : ""}">${value}</div>
+    <div class="stat-l">${label}</div>${delta}</div>`;
+}
+
+/* České tvary: 1 trénink, 2–4 tréninky, 5+ tréninků */
+function plural(n, one, few, many) {
+  const a = Math.abs(n);
+  return a === 1 ? one : a >= 2 && a <= 4 && Number.isInteger(a) ? few : many;
+}
+
+/* Krátké datum „3. 10." a relativní den („dnes", „včera", „před 3 dny") */
+function fmtShort(ds) {
+  const d = parseDate(ds);
+  return `${d.getDate()}. ${d.getMonth() + 1}.`;
+}
+function relDay(ds) {
+  const n = daysBetween(ds, todayStr());
+  if (n === 0) return "dnes";
+  if (n === 1) return "včera";
+  if (n > 1 && n < 7) return `před ${n} dny`;
+  return fmtShort(ds);
+}
+
+/* Číslo s pevným počtem desetinných míst („79,0") — u stepperu, ať číslo neskáče */
+function fmtFixed(n, dec = 1) {
+  if (n == null || isNaN(n)) return "–";
+  return Number(n).toLocaleString("cs-CZ", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+
+/* Objem v zobrazené jednotce; od 10 000 v tunách (t / k lb) */
+function fmtVolume(kg, from = 10000) {
+  const v = kgOut(kg) || 0;
+  const lb = weightUnit() === "lb";
+  return v >= from ? { val: fmtNum(v / 1000, 1), unit: lb ? "k lb" : "t" } : { val: fmtNum(v), unit: weightUnit() };
 }
 
 /* Normalizace pro hledání: bez diakritiky a velikosti písmen („drep" najde „Dřep") */
@@ -166,7 +234,7 @@ const Dock = {
           </span>
         </button>
         ${rs > 0 ? `<button class="dock-btn go" data-act="rest-start" aria-label="Spustit pauzu">
-          ${ic("timer", 17)}${fmtClock(rs)}</button>` : ""}`;
+          ${ic("timer", 17, 2.1)}${fmtClock(rs)}</button>` : ""}`;
     }
     const c = 2 * Math.PI * this.RING_R;
     // počáteční stav kroužku rovnou podle zbývajícího času — render() dock
@@ -181,7 +249,7 @@ const Dock = {
               stroke-width="3" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"
               style="transition:stroke-dashoffset .3s linear"/>` : ""}
           </svg>
-          ${ic(mode === "over" ? "check" : "timer", 17)}
+          ${ic(mode === "over" ? "check" : "timer", 17, 2.1)}
         </span>
         <span class="dock-txt">
           <span class="dock-k">${mode === "over" ? "Pauza skončila — jedeš" : "Pauza"}</span>
@@ -191,7 +259,7 @@ const Dock = {
       ${mode === "rest" ? `
         <button class="dock-btn" data-act="rest-minus">−30</button>
         <button class="dock-btn" data-act="rest-plus">+30</button>` : ""}
-      <button class="dock-btn icon" data-act="rest-stop" aria-label="Zavřít pauzu">${ic("x", 18)}</button>`;
+      <button class="dock-btn icon" data-act="rest-stop" aria-label="Zavřít pauzu">${ic("x", 18, 2.1)}</button>`;
   },
 
   tick() {
@@ -223,7 +291,7 @@ const Dock = {
 function workoutSetsLabel(a) {
   if (!a) return "";
   const n = (a.entries || []).reduce((k, e) => k + (e.sets || []).length, 0);
-  return `${n} ${n === 1 ? "série" : n >= 2 && n <= 4 ? "série" : "sérií"}`;
+  return `${n} ${plural(n, "série", "série", "sérií")}`;
 }
 
 /* ---- Modal (bottom sheet) ---- */
@@ -243,7 +311,7 @@ function closeModal() {
 }
 function modalTitle(text) {
   return `<div class="modal-title"><span>${esc(text)}</span>
-    <button class="iconbtn" data-act="modal-close" aria-label="Zavřít">${ic("x", 18, 2.4)}</button></div>`;
+    <button class="iconbtn" data-act="modal-close" aria-label="Zavřít">${ic("x", 18, 2.3)}</button></div>`;
 }
 /* stín pod lepkavou hlavičkou sheetu, jakmile se pod ní začne scrollovat */
 document.getElementById("modal").addEventListener("scroll", e => {
@@ -305,8 +373,8 @@ function pickerListHtml() {
             <div class="name">${esc(e.name)}</div>
             ${exNameEn(e) ? `<div class="name-en">${esc(exNameEn(e))}</div>` : ""}
           </div>
-          ${used ? `<span class="badge neutral">${esc(used)}</span>`
-            : e.isCustom ? `<span class="badge neutral">vlastní</span>` : ""}
+          ${used ? `<span class="badge">${esc(used)}</span>`
+            : e.isCustom ? `<span class="badge">vlastní</span>` : ""}
         </div>`;
       }).join("");
     if (!items) return "";
@@ -317,7 +385,7 @@ function pickerListHtml() {
   // v jedné partii nic — nabídni hledání napříč všemi
   if (PK.cat !== "all" && q && S.exercises.some(e => exMatches(e, q))) {
     return `<div class="empty-note">V partii ${esc(PK.cat)} nic takového není.
-      <br><button class="btn sm tonal" data-act="pk-cat" data-cat="all">Hledat ve všech partiích</button></div>`;
+      <br><button class="btn sm" data-act="pk-cat" data-cat="all">Hledat ve všech partiích</button></div>`;
   }
   return `<div class="empty-note">Nic nenalezeno</div>`;
 }
@@ -331,7 +399,7 @@ function refreshPicker(chips = false) {
   }
 }
 
-/* ---- Navigace po dnech (Trénink, Jídlo) ----
+/* ---- Navigace po dnech (Jídlo) ----
    Uprostřed je neviditelné pole type=date přes celou plochu — klepnutí
    otevře systémový výběr data. */
 function dayNavHtml(day, act, changeAct, todayAct) {
@@ -349,16 +417,16 @@ function dayNavHtml(day, act, changeAct, todayAct) {
       </div>
       <button class="iconbtn soft" data-act="${act}" data-dir="1" aria-label="Další den">${ic("chevR")}</button>
     </div>
-    ${day === today ? "" : `<button class="btn sm tonal full" data-act="${todayAct}">Zpět na dnešek</button>`}`;
+    ${day === today ? "" : `<button class="btn sm ghost full" data-act="${todayAct}">Zpět na dnešek</button>`}`;
 }
 
 /* Jednoduché potvrzení */
 function confirmModal(text, actName, dataAttrs = "", label = "Smazat") {
   openModal(`${modalTitle("Potvrzení")}
     <p style="margin:0 0 18px">${esc(text)}</p>
-    <div class="row">
-      <button class="btn ghost grow" data-act="modal-close">Zrušit</button>
-      <button class="btn danger grow" data-act="${actName}" ${dataAttrs}>${esc(label)}</button>
+    <div class="btn-row">
+      <button class="btn ghost" data-act="modal-close">Zrušit</button>
+      <button class="btn danger" data-act="${actName}" ${dataAttrs}>${esc(label)}</button>
     </div>`);
 }
 
@@ -373,10 +441,10 @@ function barHtml(value, target, color, mini = false) {
 
 /* ---- Kalendář ----
    decorate(dateStr) → { cls, mark, bars, corner } nebo null
-     cls    — třída buňky ('hit' | 'miss' | 'trained' | '')
-     mark   — drobný obsah pod číslem (tečky, ✓)
+     cls    — třída buňky ('trained' | '')
+     mark   — drobný obsah pod číslem
      bars   — pole barev: proužky identity (partie odcvičené ten den)
-     corner — tečka v pravém horním rohu (splněný cíl) */
+     corner — tečka v rohu (splněný kalorický cíl) */
 function calendarHtml(year, month, decorate, clickAct) {
   const first = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -395,7 +463,7 @@ function calendarHtml(year, month, decorate, clickAct) {
           return `<i class="${cls}" style="background:${color}"></i>`;
         }).join("")}</div>`
       : "";
-    cells += `<div class="cal-day ${info.cls}${ds === today ? " today" : ""}"
+    cells += `<div class="cal-day ${info.cls || ""}${ds === today ? " today" : ""}"
       data-act="${clickAct}" data-date="${ds}">
       ${info.corner ? `<i class="cal-goal"></i>` : ""}
       <span>${d}</span>${info.mark ? `<span class="mark">${info.mark}</span>` : ""}${bars}
@@ -412,11 +480,10 @@ function calendarHtml(year, month, decorate, clickAct) {
 
 /* ---- Pokrytí partií v jednom řádku ----
    Sedm segmentů v pořadí podle těla; nepokrytá partie je ztlumená.
-   Kompaktní protějšek counteru z aktivního tréninku.
    core = core odškrtnutý ručně (bez zapsaných sérií) se počítá jako pokrytý. */
 function catPipsHtml(counts, core = false) {
   return `<div class="cat-pips">${CAT_ORDER.map(c =>
-    `<i style="background:${catColor(c)}${counts[c] || (core && c === "Core") ? "" : ";opacity:.2"}"></i>`).join("")}</div>`;
+    `<i class="${counts[c] || (core && c === "Core") ? "" : "off"}" style="background:${catColor(c)}" title="${c}"></i>`).join("")}</div>`;
 }
 
 /* ---- Vlastní rozsah datumů „od–do" ----
@@ -424,10 +491,10 @@ function catPipsHtml(counts, core = false) {
    Stejné datum v obou polích = jeden den. */
 function dateRangeRow(prefix, from, to) {
   return `
-    <div class="row mt" style="gap:8px;margin-bottom:12px">
-      <label class="field grow" style="margin:0"><span>Od</span>
+    <div class="input-row" style="margin:2px 0 14px">
+      <label class="field" style="margin:0"><span>Od</span>
         <input class="input" type="date" data-change="${prefix}-from" value="${from}"></label>
-      <label class="field grow" style="margin:0"><span>Do</span>
+      <label class="field" style="margin:0"><span>Do</span>
         <input class="input" type="date" data-change="${prefix}-to" value="${to}"></label>
     </div>`;
 }
@@ -438,6 +505,7 @@ function dateRangeRow(prefix, from, to) {
    hodnoty nesou texty v barvě textu, ne v barvě série. Každý graf nese
    v data-tip body pro dotykový readout (ChartTip) — tah prstem ukáže hodnotu. */
 const CH_W = 330;
+let _gradSeq = 0;
 
 /* „Hezké" dělení osy: 0 / 10 / 20 … — nejvýš 4 linky */
 function niceTicks(max, count = 3) {
@@ -456,120 +524,143 @@ function tipAttr(points) {
 }
 
 /* Sloupcový graf: data = [{label, value, tip?}]; hl = index zvýrazněného
-   sloupce (ostatní ztlumené — „emphasis"). Popisky na ose X jen u každého
-   n-tého sloupce, hodnota jen u zvýrazněného a u maxima. */
-function columnChart(data, { height = 150, hl = data.length - 1, unit = "" } = {}) {
+   sloupce (ostatní ztlumené). Popisky na ose X jen u každého n-tého
+   sloupce, hodnota jen u zvýrazněného a u maxima. */
+function columnChart(data, { height = 150, hl = data.length - 1, unit = "", fmt = null } = {}) {
   if (!data.length || data.every(d => !d.value)) return `<div class="empty-note">Zatím žádná data</div>`;
-  const W = CH_W, H = height, padL = 26, padR = 4, padT = 18, padB = 20;
+  const f = fmt || (v => fmtNum(v));
+  const W = CH_W, H = height, padL = 28, padR = 2, padT = 18, padB = 22;
   const max = Math.max(...data.map(d => d.value));
   const ticks = niceTicks(max);
   const top = ticks[ticks.length - 1] || 1;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const band = plotW / data.length;
-  const bw = Math.min(band * 0.6, 24);
+  const bw = Math.min(band * 0.58, 22);
   const y = v => padT + plotH * (1 - v / top);
   const every = data.length > 8 ? 3 : 1;
   const maxI = data.findIndex(d => d.value === max);
   let grid = "", bars = "", labels = "";
   for (const t of ticks) {
-    grid += `<line x1="${padL}" x2="${W - padR}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" stroke="var(--line2)" stroke-width="1"/>
-      <text x="${padL - 6}" y="${(y(t) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text3)">${fmtNum(t)}</text>`;
+    grid += `<line x1="${padL}" x2="${W - padR}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" stroke="var(--hair)" stroke-width="1"/>
+      <text x="${padL - 7}" y="${(y(t) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text3)">${f(t)}</text>`;
   }
   const tips = [];
   data.forEach((d, i) => {
     const cx = padL + band * (i + 0.5);
     const x = cx - bw / 2;
     const h = Math.max(0, y(0) - y(d.value));
-    const r = Math.min(4, h);
+    const r = Math.min(4, h, bw / 2);
     const yt = y(d.value);
     if (h > 0) {
       bars += `<path d="M${x.toFixed(1)},${y(0).toFixed(1)}V${(yt + r).toFixed(1)}Q${x.toFixed(1)},${yt.toFixed(1)} ${(x + r).toFixed(1)},${yt.toFixed(1)}H${(x + bw - r).toFixed(1)}Q${(x + bw).toFixed(1)},${yt.toFixed(1)} ${(x + bw).toFixed(1)},${(yt + r).toFixed(1)}V${y(0).toFixed(1)}Z"
-        fill="var(--chart)" opacity="${i === hl ? 1 : 0.4}"/>`;
+        fill="var(--chart)" opacity="${i === hl ? 1 : 0.3}"/>`;
     }
     if (d.value && (i === hl || i === maxI)) {
-      bars += `<text x="${cx.toFixed(1)}" y="${(yt - 5).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--text${i === hl ? "" : "2"})">${fmtNum(d.value)}</text>`;
+      bars += `<text x="${cx.toFixed(1)}" y="${(yt - 6).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="650" fill="var(--text${i === hl ? "" : "2"})">${f(d.value)}</text>`;
     }
     if ((data.length - 1 - i) % every === 0) {
       labels += `<text x="${cx.toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="10" fill="var(--text3)">${esc(d.label)}</text>`;
     }
-    tips.push([+(cx / W).toFixed(4), +(yt / H).toFixed(4), d.tip || d.label, `${fmtNum(d.value)}${unit}`]);
+    tips.push([+(cx / W).toFixed(4), +(yt / H).toFixed(4), d.tip || d.label, `${f(d.value)}${unit}`]);
   });
   return `<div class="chart-wrap"${tipAttr(tips)}><svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${grid}${bars}${labels}</svg></div>`;
 }
 
 /* Spojnicový graf: series = [{date, value}], volitelná cílová linka.
-   raw = druhá sada bodů (stejné indexy jako series) vykreslená jako tlumené tečky —
-   používá se pro denní hodnoty váhy pod klouzavým průměrem.
-   dec = počet desetinných míst v popiscích, unit = jednotka v readoutu. */
-function lineChart(series, { color = "chart", height = 150, goal = null, raw = null, dec = 1, unit = "" } = {}) {
+   raw = druhá sada bodů (stejné indexy jako series) vykreslená jako tlumené
+   tečky — denní hodnoty váhy pod klouzavým průměrem.
+   dec = počet desetinných míst, unit = jednotka v readoutu,
+   fmt = vlastní formát hodnoty (např. „+12 %"), axis = false skryje osu Y. */
+function lineChart(series, { color = "chart", height = 150, goal = null, raw = null, dec = 1, unit = "", fmt = null, axis = true, zero = false } = {}) {
   const idx = series.map((p, i) => p.value != null ? i : -1).filter(i => i >= 0);
   const pts = idx.map(i => series[i]);
   if (pts.length < 2) return `<div class="empty-note">Potřebuji alespoň 2 záznamy pro graf</div>`;
-  const W = CH_W, H = height, padL = 34, padR = 10, padT = 16, padB = 20;
+  const F = fmt || (v => fmtNum(v, dec));
+  const W = CH_W, H = height, padL = axis ? 34 : 4, padR = 10, padT = 18, padB = 22;
   const vals = pts.map(p => p.value)
     .concat(goal ? [goal] : [])
+    .concat(zero ? [0] : [])
     .concat(raw ? raw.filter(p => p && p.value != null).map(p => p.value) : []);
   let min = Math.min(...vals), max = Math.max(...vals);
   const span = max - min || Math.abs(max) * 0.1 || 1;
-  min -= span * 0.15; max += span * 0.15;
+  min -= span * 0.15; max += span * 0.18;
   const n = series.length;
   const x = i => padL + (n > 1 ? i / (n - 1) : 0.5) * (W - padL - padR);
   const y = v => padT + (1 - (v - min) / (max - min)) * (H - padT - padB);
 
   /* vlasové linky mřížky na „hezkých" hodnotách uvnitř rozsahu */
-  const raw3 = (max - min) / 3;
-  const mag = Math.pow(10, Math.floor(Math.log10(raw3)));
-  const step = [1, 2, 2.5, 5, 10].map(k => k * mag).find(st => st >= raw3) || 10 * mag;
   let grid = "";
-  for (let v = Math.ceil(min / step) * step; v <= max; v += step) {
-    grid += `<line x1="${padL}" x2="${W - padR}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--line2)" stroke-width="1"/>
-      <text x="${padL - 6}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text3)">${fmtNum(v, step < 1 ? 1 : 0)}</text>`;
+  if (axis) {
+    const raw3 = (max - min) / 3;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw3)));
+    const step = [1, 2, 2.5, 5, 10].map(k => k * mag).find(st => st >= raw3) || 10 * mag;
+    for (let v = Math.ceil(min / step) * step; v <= max; v += step) {
+      grid += `<line x1="${padL}" x2="${W - padR}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--hair)" stroke-width="1"/>
+        <text x="${padL - 7}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text3)">${fmtNum(v, step < 1 ? 1 : 0)}</text>`;
+    }
+  }
+  if (zero && min < 0 && max > 0) {
+    grid += `<line x1="${padL}" x2="${W - padR}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}" stroke="var(--hair2)" stroke-width="1"/>`;
   }
   const path = idx.map((i, k) => `${k ? "L" : "M"}${x(i).toFixed(1)},${y(series[i].value).toFixed(1)}`).join("");
   const area = `${path}L${x(idx[idx.length - 1]).toFixed(1)},${(H - padB).toFixed(1)}L${x(idx[0]).toFixed(1)},${(H - padB).toFixed(1)}Z`;
+  const gid = "lg" + (++_gradSeq);
   let extra = "";
   if (goal) {
     extra += `<line x1="${padL}" y1="${y(goal).toFixed(1)}" x2="${W - padR}" y2="${y(goal).toFixed(1)}"
-      stroke="var(--green)" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.8"/>
-      <text x="${W - padR}" y="${(y(goal) - 5).toFixed(1)}" text-anchor="end" font-size="10.5" fill="var(--green)">cíl ${fmtNum(goal)}</text>`;
+      stroke="var(--green)" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.8"/>
+      <text x="${W - padR}" y="${(y(goal) - 6).toFixed(1)}" text-anchor="end" font-size="10.5" fill="var(--text2)">cíl ${fmtNum(goal)}</text>`;
   }
   let rawDots = "";
   if (raw) {
     rawDots = raw.map((p, i) => !p || p.value == null ? "" :
-      `<circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="2.2" fill="var(--text3)" opacity="0.8"/>`).join("");
+      `<circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="2" fill="var(--text3)"/>`).join("");
   }
   const li = idx[idx.length - 1];
   const last = series[li];
   const lx = x(li), ly = y(last.value);
-  const firstLbl = pts[0].date ? fmtDate(pts[0].date) : "";
-  const lastLbl = last.date ? fmtDate(last.date) : "";
+  const firstLbl = pts[0].date ? fmtShort(pts[0].date) : "";
+  const lastLbl = last.date ? fmtShort(last.date) : "";
   const tips = idx.map(i => [+(x(i) / W).toFixed(4), +(y(series[i].value) / H).toFixed(4),
-    series[i].date ? fmtDate(series[i].date) : "", `${fmtNum(series[i].value, dec)}${unit}`]);
+    series[i].date ? fmtDate(series[i].date) : "", `${F(series[i].value)}${unit}`]);
   return `<div class="chart-wrap"${tipAttr(tips)}><svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="var(--${color})" stop-opacity=".16"/>
+      <stop offset="1" stop-color="var(--${color})" stop-opacity="0"/>
+    </linearGradient></defs>
     ${grid}${extra}
-    <path d="${area}" fill="var(--${color})" opacity="0.08"/>
+    <path d="${area}" fill="url(#${gid})"/>
     ${rawDots}
     <path d="${path}" fill="none" stroke="var(--${color})" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-    <circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="4" fill="var(--${color})" stroke="var(--bg1)" stroke-width="2"/>
-    <text x="${Math.min(lx, W - padR - 2).toFixed(1)}" y="${(ly - 9).toFixed(1)}" text-anchor="end" font-size="11" font-weight="700" fill="var(--text)">${fmtNum(last.value, dec)}</text>
+    <circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="4.5" fill="var(--${color})" stroke="var(--s1)" stroke-width="2"/>
+    <text x="${Math.min(lx, W - padR - 2).toFixed(1)}" y="${(ly - 11).toFixed(1)}" text-anchor="end" font-size="11.5" font-weight="700" fill="var(--text)">${F(last.value)}</text>
     <text x="${padL}" y="${H - 5}" font-size="10" fill="var(--text3)">${firstLbl}</text>
     <text x="${W - padR}" y="${H - 5}" text-anchor="end" font-size="10" fill="var(--text3)">${lastLbl}</text>
   </svg></div>`;
 }
 
-/* Sparkline do řádku seznamu — jen tvar trendu, poslední bod zvýrazněný
-   (volt, když je výš než první = zlepšení). */
-function sparklineHtml(values, w = 64, h = 26) {
+/* Sparkline do řádku — jen tvar trendu, poslední bod zvýrazněný
+   (volt, když je výš než první = zlepšení; down = true obrátí smysl). */
+function sparklineHtml(values, w = 64, h = 26, { area = false, down = false } = {}) {
   if (values.length < 2) return `<span class="spark" style="width:${w}px"></span>`;
   const min = Math.min(...values), max = Math.max(...values);
   const x = i => 3 + i / (values.length - 1) * (w - 6);
   const y = v => max === min ? h / 2 : 4 + (1 - (v - min) / (max - min)) * (h - 8);
   const d = values.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
-  const up = values[values.length - 1] > values[0];
+  const lastV = values[values.length - 1];
+  const good = down ? lastV < values[0] : lastV > values[0];
+  let fill = "";
+  if (area) {
+    const gid = "sg" + (++_gradSeq);
+    fill = `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="var(--chart)" stop-opacity=".14"/><stop offset="1" stop-color="var(--chart)" stop-opacity="0"/></linearGradient></defs>
+      <path d="${d}L${x(values.length - 1).toFixed(1)},${h}L${x(0).toFixed(1)},${h}Z" fill="url(#${gid})"/>`;
+  }
   return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">
-    <path d="${d}" fill="none" stroke="var(--chart)" stroke-opacity=".55" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-    <circle cx="${x(values.length - 1).toFixed(1)}" cy="${y(values[values.length - 1]).toFixed(1)}" r="3.5"
-      fill="var(--${up ? "green" : "text2"})"/>
+    ${fill}
+    <path d="${d}" fill="none" stroke="var(--chart)" stroke-opacity=".55" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${x(values.length - 1).toFixed(1)}" cy="${y(lastV).toFixed(1)}" r="3.2"
+      fill="var(--${good ? "green" : "text2"})"/>
   </svg>`;
 }
 
@@ -630,23 +721,22 @@ document.addEventListener("pointerout", e => {
 /* ---- Zdrojový badge potraviny ---- */
 function sourceBadge(source) {
   return {
-    openfoodfacts: `<span class="badge neutral">OFF</span>`,
-    usda: `<span class="badge neutral">USDA</span>`,
-    custom: `<span class="badge neutral">vlastní</span>`
+    openfoodfacts: `<span class="badge">OFF</span>`,
+    usda: `<span class="badge">USDA</span>`,
+    custom: `<span class="badge">vlastní</span>`
   }[source] || "";
 }
 
-/* ---- Kalorický prstenec (SVG) ---- */
-function ringHtml(value, target, size = 150, centerHtml = "") {
+/* ---- Prstenec (SVG) — kalorie, dodržování ---- */
+function ringHtml(value, target, size = 150, centerHtml = "", sw = 10) {
   const pct = target > 0 ? clamp(value / target, 0, 1) : 0;
   const over = target > 0 && value > target * 1.05;
-  const sw = 12;
   const r = (size - sw) / 2;
   const c = 2 * Math.PI * r;
   return `
   <div class="ring-wrap" style="width:${size}px;height:${size}px">
     <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="var(--bg3)" stroke-width="${sw}"/>
+      <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="var(--s3)" stroke-width="${sw}"/>
       <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none"
         stroke="var(--${over ? "red" : "green"})" stroke-width="${sw}" stroke-linecap="round"
         stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - pct)).toFixed(1)}"
@@ -656,28 +746,17 @@ function ringHtml(value, target, size = 150, centerHtml = "") {
   </div>`;
 }
 
-/* ---- Makro mini bar s labelem a hodnotami ----
-   stack=true: label / bar / hodnota pod sebou (úzké sloupce vedle sebe) */
-function macroBar(label, val, target, color, stack = false) {
-  if (stack) {
-    return `
-      <div class="grow">
-        <div class="h3" style="margin-bottom:5px">${label}</div>
-        ${barHtml(val, target, color, true)}
-        <div class="small" style="font-weight:700;margin-top:5px;white-space:nowrap">${fmtNum(val)}<span style="color:var(--text3)">/${fmtNum(target)}g</span></div>
-      </div>`;
-  }
+/* ---- Makro: popisek, tenký pruh a hodnota pod sebou ---- */
+function macroBar(label, val, target, color) {
   return `
     <div class="grow">
-      <div class="row between" style="margin-bottom:4px">
-        <span class="h3" style="margin:0">${label}</span>
-        <span class="small" style="font-weight:700;white-space:nowrap">${fmtNum(val)}<span style="color:var(--text3)">/${fmtNum(target)}g</span></span>
-      </div>
+      <div class="macro-l">${label}</div>
       ${barHtml(val, target, color, true)}
+      <div class="macro-v">${fmtNum(val)}<span> / ${fmtNum(target)} g</span></div>
     </div>`;
 }
 
-/* ---- Badge typu jídla ---- */
+/* ---- Jídla dne ---- */
 const MEAL_TYPES = [
   { id: "breakfast", name: "Snídaně" },
   { id: "snack", name: "Svačina" },

@@ -18,7 +18,7 @@ function renderFood() {
   return renderFoodLog();
 }
 
-/* ---- Denní log — sekce podle jídel dne, s navigací po dnech zpětně ---- */
+/* ---- Denní log — souhrn dne a jídla, s navigací po dnech zpětně ---- */
 function renderFoodLog() {
   const day = FV.date;
   const today = todayStr();
@@ -26,60 +26,44 @@ function renderFoodLog() {
   const nut = dayNutrition(day);
   const g = S.goal;
   const over = nut.calories > g.dailyCalories * 1.05;
-
-  const dayNav = dayNavHtml(day, "f-day-nav", "f-date", "f-day-today");
+  const left = g.dailyCalories - nut.calories;
 
   const summary = `
     <div class="card">
-      ${cardHead("food", isToday ? "Dnešní příjem" : `Příjem · ${fmtDate(day)}`)}
-      <div class="row between" style="align-items:baseline;margin-bottom:10px">
-        <span class="big-num"${over ? ` style="color:var(--red)"` : ""}>${fmtNum(nut.calories)}</span>
-        <span class="muted">z ${fmtNum(g.dailyCalories)} kcal</span>
+      <div class="kcal-head">
+        <div class="hero-fig"${over ? ` style="color:var(--red)"` : ""}>${fmtNum(nut.calories)}<small>kcal</small></div>
+        <div class="cap" style="text-align:right">${over ? `${fmtNum(-left)} nad cíl` : `zbývá ${fmtNum(left)}`}<br>cíl ${fmtNum(g.dailyCalories)}</div>
       </div>
       ${barHtml(nut.calories, g.dailyCalories, "green")}
-      <div class="row mt" style="gap:12px;align-items:flex-start">
-        ${macroBar("Bílk.", nut.protein, g.proteinGrams, "mac1", true)}
-        ${macroBar("Sach.", nut.carbs, g.carbsGrams, "mac2", true)}
-        ${macroBar("Tuky", nut.fat, g.fatGrams, "mac3", true)}
+      <div class="macros">
+        ${macroBar("Bílkoviny", nut.protein, g.proteinGrams, "mac1")}
+        ${macroBar("Sacharidy", nut.carbs, g.carbsGrams, "mac2")}
+        ${macroBar("Tuky", nut.fat, g.fatGrams, "mac3")}
       </div>
     </div>`;
 
   const entries = foodLogOn(day);
   const entryRow = e => `
-    <div class="list-item">
+    <div class="list-item" data-act="f-entry-edit" data-id="${e.id}">
       <div class="grow">
         <div class="name">${esc(foodEntryName(e))}</div>
-        <div class="small">${fmtNum(e.amountGrams)} g · B ${fmtNum(e.protein)} · S ${fmtNum(e.carbs)} · T ${fmtNum(e.fat)}</div>
+        <div class="li-sub">${fmtNum(e.amountGrams)} g · B ${fmtNum(e.protein)} · S ${fmtNum(e.carbs)} · T ${fmtNum(e.fat)}</div>
       </div>
-      <b class="num" style="white-space:nowrap">${fmtNum(e.calories)}</b>
-      <button class="iconbtn sm soft" data-act="f-entry-edit" data-id="${e.id}" aria-label="Upravit">${ic("edit", 16)}</button>
-      <button class="iconbtn sm danger" data-act="f-entry-del" data-id="${e.id}" aria-label="Smazat">${ic("trash", 16)}</button>
+      <span class="li-val">${fmtNum(e.calories)}</span>
+      <button class="iconbtn sm muted" data-act="f-entry-del" data-id="${e.id}" aria-label="Smazat">${ic("x", 16, 2.1)}</button>
     </div>`;
 
-  const mealCards = MEAL_TYPES.map(m => {
-    const items = entries.filter(e => e.mealType === m.id);
-    const kcal = items.reduce((s, e) => s + e.calories, 0);
-    return `
-      <div class="card">
-        <div class="row between">
-          <span class="h2" style="margin:0">${m.name}</span>
-          ${items.length ? `<b class="num">${fmtNum(kcal)} kcal</b>` : `<span class="small">—</span>`}
-        </div>
-        ${items.length ? `<div class="mt">${items.map(entryRow).join("")}</div>` : ""}
-      </div>`;
-  }).join("");
+  const groups = MEAL_TYPES.map(m => ({ name: m.name, items: entries.filter(e => e.mealType === m.id) }))
+    .concat([{ name: "Nezařazeno", items: entries.filter(e => !e.mealType) }])
+    .filter(gr => gr.items.length);
+  const meals = groups.map(gr => `
+    <div class="meal-h"><b>${gr.name}</b><span>${fmtNum(gr.items.reduce((s, e) => s + e.calories, 0))} kcal</span></div>
+    <div class="card rows">${gr.items.map(entryRow).join("")}</div>`).join("");
 
-  const unassigned = entries.filter(e => !e.mealType);
-  const unassignedCard = unassigned.length ? `
-    <div class="card">
-      <div class="h2">Nezařazeno</div>
-      ${unassigned.map(entryRow).join("")}
-    </div>` : "";
-
-  return dayNav
-    + `<button class="btn primary full" style="margin-bottom:8px" data-act="f-add">${ic("plus", 18, 2.4)} Přidat jídlo${isToday ? "" : ` · ${fmtDate(day)}`}</button>
-       <button class="btn sm ghost full" style="margin-bottom:14px" data-act="f-copy-open">${ic("copy", 16)} Zkopírovat jídla z jiného dne</button>`
-    + summary + mealCards + unassignedCard;
+  return dayNavHtml(day, "f-day-nav", "f-date", "f-day-today") + summary
+    + `<button class="btn primary full mt" data-act="f-add">${ic("plus", 18, 2.4)} Přidat jídlo${isToday ? "" : ` · ${fmtShort(day)}`}</button>
+       <button class="btn text full" data-act="f-copy-open">${ic("copy", 16)} Zkopírovat jídla z jiného dne</button>`
+    + (meals || `<div class="empty-note">${isToday ? "Dnes zatím nic zapsaného." : "V tento den nic zapsaného."}</div>`);
 }
 
 /* ---- Kopírování jídel z jiného dne ---- */
@@ -121,13 +105,8 @@ function openAddFood(tab = "search") {
   FV.pending = null; FV.editId = null; FV.scanFile = null; FV.mealChoice = null; FV.scanGrams = null;
   const body = { search: foodSearchHtml, photo: foodPhotoHtml, fav: foodFavHtml, manual: foodManualHtml }[tab]();
   openModal(`${modalTitle("Přidat jídlo")}
-    <div class="subtabs" style="margin-bottom:12px">
-      <button class="subtab${tab === "search" ? " on" : ""}" data-act="f-modal-tab" data-tab="search">Hledat</button>
-      <button class="subtab${tab === "photo" ? " on" : ""}" data-act="f-modal-tab" data-tab="photo">Foto</button>
-      <button class="subtab${tab === "fav" ? " on" : ""}" data-act="f-modal-tab" data-tab="fav">Oblíbené</button>
-      <button class="subtab${tab === "manual" ? " on" : ""}" data-act="f-modal-tab" data-tab="manual">Ručně</button>
-    </div>
-    <div id="foodModalBody">${body}</div>`);
+    ${segHtml([["search", "Hledat"], ["photo", "Foto"], ["fav", "Oblíbené"], ["manual", "Ručně"]], tab, "f-modal-tab", "tab")}
+    <div id="foodModalBody" style="margin-top:16px">${body}</div>`);
   if (tab === "search") wireFoodSearch();
   if (tab === "photo") wirePhotoInput();
 }
@@ -135,12 +114,12 @@ function openAddFood(tab = "search") {
 function foodSearchHtml() {
   const barcode = "BarcodeDetector" in window ? `
     <input type="file" id="barcodeInput" accept="image/*" capture="environment" style="display:none">
-    <button class="btn sm ghost full" style="margin-bottom:10px" data-act="f-barcode">${ic("camera", 16)} Vyfotit čárový kód</button>` : "";
+    <button class="btn sm ghost full" style="margin-bottom:12px" data-act="f-barcode">${ic("camera", 16)} Vyfotit čárový kód</button>` : "";
   return `
-    <label class="search" style="margin-bottom:10px">${ic("search", 19)}
+    <label class="search" style="margin-bottom:12px">${ic("search", 19)}
       <input class="input" id="foodSearch" type="search" placeholder="Hledat potravinu (min. 3 znaky)…" autocomplete="off" enterkeyhint="search"></label>
     ${barcode}
-    <div class="small" style="margin:0 2px 8px">Zdroje: Open Food Facts (české → světové) + USDA (základní potraviny)</div>
+    <div class="small" style="margin:0 4px 8px">Open Food Facts (české → světové) + USDA</div>
     <div id="foodResults"></div>`;
 }
 
@@ -257,7 +236,7 @@ function foodManualHtml(pre = null) {
 function foodPhotoHtml() {
   return `
     <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none">
-    <button class="btn dashed full" data-act="f-photo-pick" style="min-height:58px">${ic("camera", 19)} Vyfotit / vybrat etiketu</button>
+    <button class="btn ghost full" data-act="f-photo-pick" style="min-height:58px">${ic("camera", 19)} Vyfotit / vybrat etiketu</button>
     <div id="photoPreviewWrap" class="mt" style="display:none">
       <img id="photoPreview" alt="Náhled fotky"
         style="width:100%;max-height:260px;object-fit:contain;border-radius:16px;background:var(--bg2)">
@@ -294,7 +273,7 @@ async function runLabelScan(mealMode = false) {
     // přepnutí na ruční formulář s předvyplněnými hodnotami ke kontrole
     document.getElementById("foodModalBody").innerHTML = `
       <div class="card2" style="margin-bottom:12px">
-        <span class="badge ${mealMode ? "yellow" : "green"}">${mealMode ? "Odhad z fotky — orientační" : "Přečteno z fotky"}</span>
+        <span class="badge${mealMode ? " yellow" : ""}">${mealMode ? "Odhad z fotky — orientační" : "Přečteno z fotky"}</span>
         ${r.note ? `<div class="small mt">${esc(r.note)}</div>` : ""}
         ${mealMode && FV.scanGrams ? `<div class="small mt">Odhad porce: ~${fmtNum(FV.scanGrams)} g (předvyplní se v dalším kroku)</div>` : ""}
         <div class="small mt">Zkontroluj hodnoty, případně je uprav, a pokračuj.</div>
@@ -333,9 +312,9 @@ function openAmountStep(item, existing, unit) {
     `<button class="chip mealchip${FV.mealChoice === m.id ? " on" : ""}"
       data-act="f-meal-chip" data-meal="${m.id || ""}">${m.name}</button>`).join("");
   openModal(`${modalTitle(existing ? "Upravit záznam" : item.name)}
-    <div class="card2" style="margin-bottom:12px">
-      <div class="row between"><span class="muted">Na 100 g</span>${sourceBadge(item.source)}</div>
-      <div class="mt" style="font-size:14px"><b>${fmtNum(item.caloriesPer100g)} kcal</b> ·
+    <div class="card2" style="margin-bottom:14px">
+      <div class="row between"><span class="cap">Na 100 g</span>${sourceBadge(item.source)}</div>
+      <div style="font-size:14.5px;margin-top:8px"><b>${fmtNum(item.caloriesPer100g)} kcal</b> ·
         B ${fmtNum(item.proteinPer100g, 1)} g · S ${fmtNum(item.carbsPer100g, 1)} g · T ${fmtNum(item.fatPer100g, 1)} g</div>
       ${item.servingSize && !hasSrv ? `<div class="small mt">Porce dle výrobce: ${esc(item.servingSize)}</div>` : ""}
     </div>
@@ -344,9 +323,8 @@ function openAmountStep(item, existing, unit) {
         <input class="input" id="amtG" type="text" inputmode="decimal" value="${defVal}"></label>
       ${unitSelect}
     </div>
-    <label class="field" style="margin-bottom:4px"><span>Jídlo dne</span></label>
     <div class="chips">${mealChips}</div>
-    <div class="card2" id="amtPreview" style="margin-bottom:14px"></div>
+    <div class="card2" id="amtPreview" style="margin-bottom:16px"></div>
     <button class="btn primary full" data-act="f-amount-save">${existing ? "Uložit změny" : "Přidat do dne"}</button>`);
   const upd = () => {
     const v = parseDec(document.getElementById("amtG").value) || 0;
@@ -419,25 +397,29 @@ function editFoodEntry(id) {
   openAmountStep(item, e);
 }
 
-/* ---- Denní přehled stravy (pro sjednocený kalendář v Souhrnu) ---- */
+/* ---- Denní přehled stravy (detail dne z kalendáře / týdne) ---- */
 function foodDayHtml(ds) {
   const entries = foodLogOn(ds);
-  if (!entries.length) return `<div class="empty-note" style="padding:14px">Žádný záznam stravy</div>`;
+  const r = effectiveDayRating(ds);
+  if (!entries.length) {
+    if (r) {
+      const lbl = (FOOD_RATINGS.find(x => x[0] === r.foodRating) || [])[1] || "—";
+      return `<div class="card2">Rychlý zápis: <b>${lbl}</b> · bílkoviny ${r.proteinOk ? "✓" : "✗"}</div>`;
+    }
+    return `<div class="empty-note" style="padding:12px">Žádný záznam stravy</div>`;
+  }
   const n = dayNutrition(ds);
   const rows = entries.map(e => `
     <div class="list-item">
       <div class="grow">
         <div class="name">${esc(foodEntryName(e))}</div>
-        <div class="small">${mealName(e.mealType)} · ${fmtNum(e.amountGrams)} g</div>
+        <div class="li-sub">${mealName(e.mealType)} · ${fmtNum(e.amountGrams)} g</div>
       </div>
-      <b>${fmtNum(e.calories)} kcal</b>
+      <span class="li-val">${fmtNum(e.calories)} kcal</span>
     </div>`).join("");
   return `
-    <div class="card2" style="margin-bottom:10px">
-      <b>${fmtNum(n.calories)} kcal</b> ·
-      <span style="color:var(--mac1)">B ${fmtNum(n.protein)} g</span> ·
-      <span style="color:var(--mac2)">S ${fmtNum(n.carbs)} g</span> ·
-      <span style="color:var(--mac3)">T ${fmtNum(n.fat)} g</span>
-      ${calorieGoalMet(ds) ? ` <span class="badge green">cíl splněn</span>` : ""}
+    <div class="card2" style="margin-bottom:6px">
+      <b>${fmtNum(n.calories)} kcal</b> · B ${fmtNum(n.protein)} g · S ${fmtNum(n.carbs)} g · T ${fmtNum(n.fat)} g
+      ${calorieGoalMet(ds) ? ` <span class="badge green">v cíli</span>` : ""}
     </div>${rows}`;
 }

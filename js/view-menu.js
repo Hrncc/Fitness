@@ -1,7 +1,7 @@
-/* ===== Obrazovky z hamburger menu ===== */
+/* ===== Více: sheet s nabídkou a stránky z něj ===== */
 "use strict";
 
-const APP_VERSION = "1.27.1";
+const APP_VERSION = "2.0";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -15,22 +15,22 @@ const MV = {
   rcPickId: null    // vybraná potravina při přidávání do receptu
 };
 
-/* ================= Více (sheet místo bočního šuplíku) ================= */
+/* ================= Více — sheet se seznamem ================= */
 function openMoreSheet() {
-  const tiles = [
-    ["food", "Jídlo", "nav", "tab", "food", true],
+  const items = [
+    ["food", "Jídlo", "menu", "page", "food"],
+    ["body", "Postava a check-in", "go-progress", "seg", "body"],
     ["book", "Exercise Library", "menu", "page", "exlib"],
     ["list", "Workout Templates", "menu", "page", "templates"],
     ["star", "Food Library", "menu", "page", "foodlib"],
-    ["body", "Postava", "menu", "page", "body"],
     ["share", "Export & Backup", "menu", "page", "export"],
     ["sliders", "Nastavení", "menu", "page", "settings"],
     ["info", "O aplikaci", "menu", "page", "about"]
-  ].map(([icon, label, act, key, val, accent]) => `
-    <button class="more-tile${accent ? " accent" : ""}" data-act="${act}" data-${key}="${val}">
-      <span class="card-ic">${ic(icon, 20)}</span>${esc(label)}</button>`).join("");
+  ].map(([icon, label, act, key, val]) => `
+    <button class="more-item" data-act="${act}" data-${key}="${val}">
+      <span class="mi-ic">${ic(icon, 21)}</span>${esc(label)}<span class="mi-chev">${ic("chevR", 18)}</span></button>`).join("");
   openModal(`${modalTitle("Více")}
-    <div class="more-grid">${tiles}</div>
+    <div class="more-list">${items}</div>
     <div class="small more-foot">Fitness Log ${APP_VERSION}</div>`);
 }
 
@@ -50,8 +50,8 @@ function renderExLib() {
           autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search"></label>
       <div class="chips scroll">${chips}</div>
     </div>
-    <div class="card" id="elList">${elListHtml()}</div>
-    <button class="btn dashed full" data-act="el-add">${ic("plus", 18, 2.4)} Přidat vlastní cvik</button>`;
+    <div class="card rows" id="elList">${elListHtml()}</div>
+    <button class="btn ghost full mt" data-act="el-add">${ic("plus", 18, 2.2)} Přidat vlastní cvik</button>`;
 }
 
 function elListHtml() {
@@ -67,9 +67,9 @@ function elListHtml() {
           <div class="name">${esc(e.name)}</div>
           ${exNameEn(e)
             ? `<div class="name-en">${esc(exNameEn(e))}</div>`
-            : `<div class="small" style="color:${catColor(e.category)}">${esc(e.category)}</div>`}
+            : `<div class="li-sub">${esc(e.category)}</div>`}
         </div>
-        ${e.isCustom ? `<span class="badge neutral">vlastní</span>` : ""}
+        ${e.isCustom ? `<span class="badge">vlastní</span>` : ""}
       </div>`).join("");
   return list || `<div class="empty-note">Nic nenalezeno</div>`;
 }
@@ -80,18 +80,17 @@ function openExerciseDetail(id) {
   const pr = currentPR(id);
   const en = exNameEn(e);
   openModal(`${modalTitle(e.name)}
-    ${en ? `<div class="name-en" style="margin:-10px 0 12px">${esc(en)}</div>` : ""}
-    <div class="row" style="margin-bottom:10px">
-      <span class="badge cat-badge" style="color:${catColor(e.category)}">
-        <i class="p-dot" style="background:${catColor(e.category)}"></i>${esc(e.category)}</span>
-      ${e.isCustom ? `<span class="badge neutral">vlastní</span>` : ""}
-      ${pr ? `<span class="badge yellow">PR ${fmtWeight(pr.weight)} × ${pr.reps}</span>` : ""}
+    ${en ? `<p class="modal-sub">${esc(en)}</p>` : ""}
+    <div class="row" style="margin-bottom:14px;gap:8px;flex-wrap:wrap">
+      <span class="badge cat-badge"><i class="p-dot" style="background:${catColor(e.category)}"></i>${esc(e.category)}</span>
+      ${e.isCustom ? `<span class="badge">vlastní</span>` : ""}
+      ${pr ? `<span class="badge yellow">${ic("trophy", 12, 2.2)} ${fmtWeight(pr.weight)} × ${pr.reps}</span>` : ""}
     </div>
-    <p class="muted" style="margin:0 0 16px">${esc(e.description || "Bez popisu")}</p>
-    ${pr ? `<button class="btn ghost full" style="margin-bottom:8px" data-act="w-pr-history" data-exid="${id}">${ic("trophy", 17)} Historie rekordů</button>` : ""}
-    <div class="row" style="gap:8px">
-      <button class="btn grow" data-act="el-edit" data-id="${id}">${ic("edit", 17)} Upravit</button>
-      <button class="btn danger grow" data-act="el-del" data-id="${id}">${ic("trash", 17)} Smazat</button>
+    <p class="muted" style="margin:0 0 20px;line-height:1.55">${esc(e.description || "Bez popisu")}</p>
+    ${pr ? `<button class="btn ghost full" style="margin-bottom:8px" data-act="pg-ex" data-exid="${id}">${ic("trend", 17)} Progres cviku</button>` : ""}
+    <div class="btn-row">
+      <button class="btn" data-act="el-edit" data-id="${id}">${ic("edit", 17)} Upravit</button>
+      <button class="btn danger" data-act="el-del" data-id="${id}">${ic("trash", 17)} Smazat</button>
     </div>`);
 }
 
@@ -124,24 +123,23 @@ function saveExercise(id) {
 
 /* ================= Workout Templates ================= */
 function renderTemplates() {
-  const exWord = n => n === 1 ? "cvik" : n < 5 ? "cviky" : "cviků";
   const cards = S.templates.map(t => {
     const count = t.exercises.length;
+    const counts = {};
+    for (const id of t.exercises) { const c = exCategory(id); if (c) counts[c] = (counts[c] || 0) + 1; }
 
-    /* --- sbalená šablona: jen název a počet cviků --- */
+    /* --- sbalená šablona: název, počet cviků, pokrytí partií --- */
     if (MV.tplOpen !== t.id) {
       return `
-      <div class="card ex-collapsed" data-act="tpl-open" data-tpl="${t.id}">
+      <div class="card" data-act="tpl-open" data-tpl="${t.id}" style="cursor:pointer">
         <div class="row">
           <div class="grow">
-            <div class="name" style="font-weight:700;font-size:16px">${esc(t.name)}</div>
-            <div class="small">${count ? `${count} ${exWord(count)}` : "prázdná šablona"}</div>
-            ${count ? `<div class="tpl-cats">${CAT_ORDER
-              .filter(c => t.exercises.some(id => exCategory(id) === c))
-              .map(c => `<i class="p-dot" style="background:${catColor(c)}"></i>`).join("")}</div>` : ""}
+            <div class="name" style="font-weight:700;font-size:17px;letter-spacing:-.02em">${esc(t.name)}</div>
+            <div class="li-sub">${count ? `${count} ${plural(count, "cvik", "cviky", "cviků")}` : "prázdná šablona"}</div>
           </div>
-          <span class="ex-chevron">${ic("chevR", 20)}</span>
+          <span class="chev">${ic("chevR", 20)}</span>
         </div>
+        ${count ? `<div style="margin-top:12px">${catPipsHtml(counts)}</div>` : ""}
       </div>`;
     }
 
@@ -153,27 +151,27 @@ function renderTemplates() {
           <div class="name">${esc(exName(exId))}</div>
           ${exNameEn(exId) ? `<div class="name-en">${esc(exNameEn(exId))}</div>` : ""}
         </div>
-        <button class="iconbtn sm soft" data-act="tpl-move" data-tpl="${t.id}" data-i="${i}" data-dir="-1" ${i === 0 ? "disabled" : ""} aria-label="Nahoru"><span style="transform:rotate(180deg);display:flex">${ic("chevD", 16, 2.4)}</span></button>
-        <button class="iconbtn sm soft" data-act="tpl-move" data-tpl="${t.id}" data-i="${i}" data-dir="1" ${i === count - 1 ? "disabled" : ""} aria-label="Dolů">${ic("chevD", 16, 2.4)}</button>
-        <button class="iconbtn sm danger" data-act="tpl-rm" data-tpl="${t.id}" data-i="${i}" aria-label="Odebrat">${ic("x", 16)}</button>
+        <button class="iconbtn sm soft" data-act="tpl-move" data-tpl="${t.id}" data-i="${i}" data-dir="-1" ${i === 0 ? "disabled" : ""} aria-label="Nahoru">${ic("chevU", 16, 2.3)}</button>
+        <button class="iconbtn sm soft" data-act="tpl-move" data-tpl="${t.id}" data-i="${i}" data-dir="1" ${i === count - 1 ? "disabled" : ""} aria-label="Dolů">${ic("chevD", 16, 2.3)}</button>
+        <button class="iconbtn sm muted" data-act="tpl-rm" data-tpl="${t.id}" data-i="${i}" aria-label="Odebrat">${ic("x", 16, 2.1)}</button>
       </div>`).join("");
     return `
-      <div class="card ex-open" id="tplblock-${t.id}">
-        <div class="row between" data-act="tpl-open" data-tpl="${t.id}" style="cursor:pointer;margin-bottom:4px">
-          <span class="h2" style="margin:0">${esc(t.name)}</span>
-          <div class="row" style="gap:6px">
-            <button class="iconbtn sm soft" data-act="tpl-rename" data-tpl="${t.id}" aria-label="Přejmenovat">${ic("edit", 16)}</button>
-            <button class="iconbtn sm soft danger" data-act="tpl-del" data-tpl="${t.id}" aria-label="Smazat šablonu">${ic("trash", 16)}</button>
-            <span class="ex-chevron" style="transform:rotate(180deg)">${ic("chevD", 20)}</span>
+      <div class="card" id="tplblock-${t.id}">
+        <div class="row between" style="margin-bottom:6px">
+          <div class="grow" data-act="tpl-open" data-tpl="${t.id}" style="cursor:pointer">
+            <div class="name" style="font-weight:700;font-size:17px;letter-spacing:-.02em">${esc(t.name)}</div>
+            <div class="li-sub">${count} ${plural(count, "cvik", "cviky", "cviků")} · klepni pro sbalení</div>
           </div>
+          <button class="iconbtn sm soft" data-act="tpl-rename" data-tpl="${t.id}" aria-label="Přejmenovat">${ic("edit", 16)}</button>
+          <button class="iconbtn sm soft danger" data-act="tpl-del" data-tpl="${t.id}" aria-label="Smazat šablonu">${ic("trash", 16)}</button>
         </div>
         ${rows || `<div class="empty-note">Šablona je prázdná</div>`}
-        <button class="btn dashed full mt" data-act="tpl-add" data-tpl="${t.id}">${ic("plus", 18, 2.4)} Přidat cvik</button>
+        <button class="btn ghost full mt" data-act="tpl-add" data-tpl="${t.id}">${ic("plus", 18, 2.2)} Přidat cvik</button>
       </div>`;
   }).join("");
-  return `<p class="muted" style="margin:-8px 4px 14px">Trvalá správa šablon. Klepni na šablonu pro seznam cviků. Jednorázové změny dělej přímo v tréninku.</p>`
+  return `<p class="muted" style="margin:-6px 2px 18px">Trvalá správa šablon. Jednorázové změny dělej přímo v tréninku.</p>`
     + cards
-    + `<button class="btn dashed full" data-act="tpl-new">${ic("plus", 18, 2.4)} Nová šablona</button>`;
+    + `<button class="btn ghost full mt" data-act="tpl-new">${ic("plus", 18, 2.2)} Nová šablona</button>`;
 }
 
 function openTemplateNameModal(id) {
@@ -207,35 +205,28 @@ function renderFoodLib() {
         <div class="small">${r.items.length} položek · ${fmtNum(perPortion)} kcal / porce (${r.portions || 1} porcí)</div>
       </div>
       <button class="iconbtn sm soft" data-act="rl-edit" data-id="${r.id}" aria-label="Upravit">${ic("edit", 16)}</button>
-      <button class="iconbtn sm danger" data-act="rl-del" data-id="${r.id}" aria-label="Smazat">${ic("trash", 16)}</button>
+      <button class="iconbtn sm muted" data-act="rl-del" data-id="${r.id}" aria-label="Smazat">${ic("x", 16, 2.1)}</button>
     </div>`;
   }).join("");
-  const recipesCard = `
-    <div class="card">
-      <div class="row between">
-        <span class="h2" style="margin:0">Recepty</span>
-        <button class="btn sm tonal" data-act="rl-new">${ic("plus", 16, 2.4)} Nový</button>
-      </div>
-      ${recipeRows ? `<div class="mt">${recipeRows}</div>`
-        : `<div class="empty-note" style="padding:14px">Složená jídla z více potravin — jednou vytvoříš, pak zapisuješ po porcích.</div>`}
-    </div>`;
+  const recipesCard = sec("Recepty", recipeRows ? `<div class="card rows">${recipeRows}</div>`
+      : `<div class="card"><p class="muted" style="margin:0">Složená jídla z více potravin — jednou vytvoříš, pak zapisuješ po porcích.</p></div>`,
+    { right: `<button class="btn sm" data-act="rl-new">${ic("plus", 16, 2.4)} Nový</button>` });
 
   const foods = [...S.foods].sort((a, b) =>
     (b.isFavorite - a.isFavorite) || a.name.localeCompare(b.name, "cs"));
-  if (!foods.length) return recipesCard + `<div class="card"><div class="empty-note">Knihovna je prázdná.<br>Položky se ukládají automaticky při zápisu jídla.</div></div>`;
+  if (!foods.length) return recipesCard + sec("Potraviny", `<div class="card"><div class="empty-note">Knihovna je prázdná.<br>Položky se ukládají automaticky při zápisu jídla.</div></div>`);
   const rows = foods.map(f => `
     <div class="list-item">
-      <button class="iconbtn sm" style="color:${f.isFavorite ? "var(--green)" : "var(--text3)"}" data-act="fl-star" data-id="${f.id}" aria-label="Oblíbené">${ic(f.isFavorite ? "starFill" : "star", 19)}</button>
+      <button class="iconbtn sm" style="color:${f.isFavorite ? "var(--text)" : "var(--text3)"}" data-act="fl-star" data-id="${f.id}" aria-label="Oblíbené">${ic(f.isFavorite ? "starFill" : "star", 19)}</button>
       <div class="grow">
         <div class="name">${esc(f.name)}</div>
         <div class="small">${fmtNum(f.caloriesPer100g)} kcal · B ${fmtNum(f.proteinPer100g, 1)} · S ${fmtNum(f.carbsPer100g, 1)} · T ${fmtNum(f.fatPer100g, 1)} /100 g</div>
       </div>
       ${sourceBadge(f.source)}
       <button class="iconbtn sm soft" data-act="fl-edit" data-id="${f.id}" aria-label="Upravit">${ic("edit", 16)}</button>
-      <button class="iconbtn sm danger" data-act="fl-del" data-id="${f.id}" aria-label="Smazat">${ic("trash", 16)}</button>
+      <button class="iconbtn sm muted" data-act="fl-del" data-id="${f.id}" aria-label="Smazat">${ic("x", 16, 2.1)}</button>
     </div>`).join("");
-  return recipesCard + `<div class="card"><div class="h2">Knihovna potravin</div>${rows}
-    <p class="small mt">Hvězdička = oblíbené (rychlý výběr při zápisu jídla)</p></div>`;
+  return recipesCard + sec("Potraviny", `<div class="card rows">${rows}</div>`, { sub: "hvězdička = oblíbené pro rychlý zápis" });
 }
 
 /* ---- Builder receptu (kroky: formulář → výběr potraviny → gramy) ---- */
@@ -262,7 +253,7 @@ function renderRecipeModal() {
         <div class="name">${esc(f ? f.name : "(smazaná potravina)")}</div>
         <div class="small">${fmtNum(it.grams)} g</div>
       </div>
-      <button class="iconbtn sm danger" data-act="rc-item-rm" data-i="${i}" aria-label="Odebrat">${ic("x", 16)}</button>
+      <button class="iconbtn sm muted" data-act="rc-item-rm" data-i="${i}" aria-label="Odebrat">${ic("x", 16, 2.1)}</button>
     </div>`;
   }).join("");
   const t = recipeTotals(r);
@@ -273,7 +264,7 @@ function renderRecipeModal() {
       <input class="input" id="rcPortions" type="number" inputmode="numeric" min="1" value="${r.portions || 1}"></label>
     <div class="h3" style="margin-top:4px">Položky</div>
     ${rows || `<div class="empty-note" style="padding:12px">Zatím žádné položky</div>`}
-    <button class="btn dashed full mt" data-act="rc-add-item">${ic("plus", 18, 2.4)} Přidat položku</button>
+    <button class="btn ghost full mt" data-act="rc-add-item">${ic("plus", 18, 2.2)} Přidat položku</button>
     ${t.grams ? `<div class="card2 mt"><b>Celkem:</b> ${fmtNum(t.grams)} g · ${fmtNum(t.kcal)} kcal ·
       B ${fmtNum(t.protein, 1)} · S ${fmtNum(t.carbs, 1)} · T ${fmtNum(t.fat, 1)} g
       ${r.portions > 1 ? `<div class="small mt">1 porce ≈ ${fmtNum(t.grams / r.portions)} g · ${fmtNum(t.kcal / r.portions)} kcal</div>` : ""}</div>` : ""}
@@ -386,7 +377,7 @@ function syncBadgeHtml() {
   return {
     off: `<span class="badge">nenastaveno</span>`,
     ok: `<span class="badge green">${ic("check", 12, 3)} synchronizováno</span>`,
-    pending: `<span class="badge neutral">probíhá…</span>`,
+    pending: `<span class="badge">probíhá…</span>`,
     error: `<span class="badge red">chyba${Sync.lastError ? ": " + esc(Sync.lastError) : ""}</span>`
   }[Sync.status];
 }
@@ -395,49 +386,48 @@ function renderExport() {
   const st = Settings.get();
   const chips = REPORT_RANGES.concat([{ id: "custom", label: "Vlastní" }]).map(r =>
     `<button class="chip rngchip${MV.reportRange === r.id ? " on" : ""}" data-act="rep-range" data-range="${r.id}">${r.label}</button>`).join("");
-  return `
+  return sec("Cloud sync", `
     <div class="card">
-      ${cardHead("cloud", "Cloud sync", `<span id="syncBadge">${syncBadgeHtml()}</span>`)}
-      <p class="muted" style="margin:-4px 0 12px">Automatická záloha do Google Sheetu po každé změně + slévání mezi zařízeními.
+      <p class="muted" style="margin:0 0 16px">Automatická záloha do Google Sheetu po každé změně a slévání mezi zařízeními.
         Apps Script navíc drží 7 denních záloh.</p>
       <label class="field"><span>Apps Script Web App URL</span>
         <input class="input" id="setGas" data-change="set-gas" placeholder="https://script.google.com/macros/s/…/exec"
           value="${esc(st.gasWebAppUrl)}" autocomplete="off" autocorrect="off" spellcheck="false"></label>
-      <p class="small" style="margin:-4px 0 12px">URL funguje jako přístupový klíč — ukládá se jen v tomto zařízení, nikam se nesdílí. Návod na nasazení skriptu je v souboru README.</p>
-      <div class="row" style="gap:8px">
-        <button class="btn grow" data-act="set-sync-now">${ic("share", 17)} Uložit</button>
-        <button class="btn grow" data-act="set-sync-load"><span style="display:flex;transform:rotate(180deg)">${ic("share", 17)}</span> Načíst</button>
+      <p class="small" style="margin:-6px 2px 16px">URL funguje jako přístupový klíč — ukládá se jen v tomto zařízení. Návod je v README.</p>
+      <div class="btn-row">
+        <button class="btn" data-act="set-sync-now">${ic("upload", 17)} Uložit</button>
+        <button class="btn" data-act="set-sync-load">${ic("download", 17)} Načíst</button>
       </div>
-    </div>
+    </div>`, { right: `<span id="syncBadge">${syncBadgeHtml()}</span>` })
+  + sec("Záloha do souboru", `
     <div class="card">
-      ${cardHead("share", "Záloha do souboru")}
-      <p class="muted" style="margin:0 0 14px">Záloha nad rámec automatického cloud syncu. JSON lze později importovat, Markdown je čitelný souhrn.
-      Fotky součástí nejsou — stahují se jednotlivě v Postavě (detail fotky).</p>
+      <p class="muted" style="margin:0 0 16px">JSON je kompletní záloha pro pozdější import, Markdown čitelný souhrn.
+        Fotky součástí nejsou — stahují se jednotlivě v Postavě.</p>
       <button class="btn primary full" data-act="exp-share">${ic("share", 18, 2.2)} Export &amp; Share</button>
-      <div class="row mt" style="gap:8px">
-        <button class="btn grow" data-act="exp-json">Stáhnout JSON</button>
-        <button class="btn grow" data-act="exp-md">Stáhnout Markdown</button>
+      <div class="btn-row mt">
+        <button class="btn" data-act="exp-json">JSON</button>
+        <button class="btn" data-act="exp-md">Markdown</button>
       </div>
-      <p class="small mt" style="margin-bottom:0">JSON je vždy kompletní záloha. Markdown i report níž jdou omezit na rozsah zvolený v reportu.</p>
-    </div>
+      <p class="small" style="margin:12px 2px 0">Markdown i report níž jdou omezit na rozsah zvolený v reportu.</p>
+    </div>`)
+  + sec("Report pro Clauda", `
     <div class="card">
-      ${cardHead("alert", "Import zálohy")}
-      <p class="muted" style="margin:0 0 12px">Nahraje JSON zálohu a <b>přepíše aktuální data</b>.</p>
-      <input type="file" id="impFile" accept=".json,application/json" class="input">
-      <button class="btn danger full mt" data-act="exp-import">Importovat</button>
-    </div>
-    <div class="card">
-      ${cardHead("copy", "Report pro Clauda / trenéra")}
-      <p class="muted" style="margin:0 0 10px">Čitelný přehled tréninků, progrese, váhy a stravy — zkopíruj a vlož do chatu.
-      Neobsahuje sync URL ani API klíče.</p>
+      <p class="muted" style="margin:0 0 14px">Čitelný přehled tréninků, progrese, váhy a stravy — zkopíruj a vlož do chatu.
+        Neobsahuje sync URL ani API klíče.</p>
       <div class="chips">${chips}</div>
       ${MV.reportRange === "custom" ? dateRangeRow("rep", MV.repFrom, MV.repTo) : ""}
-      <div class="row" style="gap:8px">
-        <button class="btn primary grow" data-act="rep-copy">${ic("copy", 17, 2.2)} Zkopírovat</button>
-        <button class="btn grow" data-act="rep-share">Sdílet</button>
+      <div class="btn-row">
+        <button class="btn primary" data-act="rep-copy">${ic("copy", 17, 2.2)} Zkopírovat</button>
+        <button class="btn" data-act="rep-share">Sdílet</button>
       </div>
-      <button class="btn ghost sm full mt" data-act="rep-preview">Zobrazit náhled</button>
-    </div>`;
+      <button class="btn text full" data-act="rep-preview">Zobrazit náhled</button>
+    </div>`)
+  + sec("Import zálohy", `
+    <div class="card">
+      <p class="muted" style="margin:0 0 14px">Nahraje JSON zálohu a <b style="color:var(--text)">přepíše aktuální data</b>.</p>
+      <input type="file" id="impFile" accept=".json,application/json" class="input">
+      <button class="btn danger full mt" data-act="exp-import">Importovat</button>
+    </div>`);
 }
 
 /* Vybraný rozsah pro report i markdown export */
@@ -583,44 +573,46 @@ function importBackup() {
 function renderSettings() {
   const st = Settings.get();
   const g = S.goal;
-  return `
+  return sec("Denní nutriční cíl", `
     <div class="card">
-      <div class="h2">Denní nutriční cíl</div>
       <div class="input-row">
-        <label class="field"><span>Kalorie (kcal)</span><input class="input" id="setKcal" type="number" value="${g.dailyCalories}"></label>
-        <label class="field"><span>Bílkoviny (g)</span><input class="input" id="setProt" type="number" value="${g.proteinGrams}"></label>
+        <label class="field"><span>Kalorie (kcal)</span><input class="input" id="setKcal" type="number" inputmode="numeric" value="${g.dailyCalories}"></label>
+        <label class="field"><span>Bílkoviny (g)</span><input class="input" id="setProt" type="number" inputmode="numeric" value="${g.proteinGrams}"></label>
       </div>
       <div class="input-row">
-        <label class="field"><span>Sacharidy (g)</span><input class="input" id="setCarb" type="number" value="${g.carbsGrams}"></label>
-        <label class="field"><span>Tuky (g)</span><input class="input" id="setFat" type="number" value="${g.fatGrams}"></label>
+        <label class="field" style="margin:0"><span>Sacharidy (g)</span><input class="input" id="setCarb" type="number" inputmode="numeric" value="${g.carbsGrams}"></label>
+        <label class="field" style="margin:0"><span>Tuky (g)</span><input class="input" id="setFat" type="number" inputmode="numeric" value="${g.fatGrams}"></label>
       </div>
-    </div>
+    </div>`)
+  + sec("Trénink a jednotky", `
     <div class="card">
-      <div class="h2">Ostatní</div>
-      <label class="field"><span>Jednotka váhy</span>
+      <label class="field"><span>Pauza mezi sériemi (s, 0 = vypnuto)</span>
+        <input class="input" id="setRest" type="number" inputmode="numeric" value="${st.restSeconds ?? 120}"></label>
+      <label class="field" style="margin:0"><span>Jednotka váhy</span>
         <select class="input" id="setUnit">
           <option value="kg"${st.weightUnit === "kg" ? " selected" : ""}>kilogramy (kg)</option>
           <option value="lb"${st.weightUnit === "lb" ? " selected" : ""}>libry (lb)</option>
         </select></label>
-      <label class="field"><span>USDA FoodData Central API klíč</span>
-        <input class="input" id="setUsda" placeholder="prázdné = DEMO_KEY (30 dotazů/hod)" value="${esc(st.usdaApiKey)}"></label>
-      <p class="small" style="margin:0 0 12px">Klíč zdarma: fdc.nal.usda.gov/api-key-signup.html</p>
-      <label class="field"><span>Claude API klíč (čtení etiket z fotky)</span>
-        <input class="input" id="setAnthropic" type="password" placeholder="sk-ant-…" value="${esc(st.anthropicApiKey)}"></label>
-      <p class="small" style="margin:0 0 12px">Klíč vytvoříš na console.anthropic.com. Ukládá se jen v tomto zařízení a posílá se pouze na api.anthropic.com.</p>
-      <label class="field"><span>Pauza mezi sériemi (s, 0 = vypnuto)</span>
-        <input class="input" id="setRest" type="number" inputmode="numeric" value="${st.restSeconds ?? 120}"></label>
-    </div>
+    </div>`)
+  + sec("API klíče", `
     <div class="card">
-      <div class="h2">Přenos nastavení na jiné zařízení</div>
-      <p class="muted" style="margin:0 0 12px">QR kód přenese sync URL (Export &amp; Backup), API klíče a jednotky — na novém zařízení je nemusíš opisovat.</p>
-      <div class="row" style="gap:8px">
-        <button class="btn grow" data-act="set-qr-show">Zobrazit QR</button>
-        <button class="btn grow" data-act="set-qr-scan">Načíst z QR</button>
+      <label class="field"><span>USDA FoodData Central</span>
+        <input class="input" id="setUsda" placeholder="prázdné = DEMO_KEY (30 dotazů/hod)" value="${esc(st.usdaApiKey)}"></label>
+      <p class="small" style="margin:-6px 2px 14px">Klíč zdarma: fdc.nal.usda.gov/api-key-signup.html</p>
+      <label class="field"><span>Claude API (čtení etiket z fotky)</span>
+        <input class="input" id="setAnthropic" type="password" placeholder="sk-ant-…" value="${esc(st.anthropicApiKey)}"></label>
+      <p class="small" style="margin:-6px 2px 0">Klíč z console.anthropic.com. Ukládá se jen v tomto zařízení a posílá se pouze na api.anthropic.com.</p>
+    </div>`)
+  + sec("Přenos na jiné zařízení", `
+    <div class="card">
+      <p class="muted" style="margin:0 0 14px">QR kód přenese sync URL, API klíče a jednotky — na novém zařízení je nemusíš opisovat.</p>
+      <div class="btn-row">
+        <button class="btn" data-act="set-qr-show">Zobrazit QR</button>
+        <button class="btn" data-act="set-qr-scan">Načíst z QR</button>
       </div>
       <input type="file" id="qrScanInput" accept="image/*" capture="environment" style="display:none">
-    </div>
-    <button class="btn primary full" data-act="set-save">Uložit nastavení</button>`;
+    </div>`)
+  + `<button class="btn primary full mt2" data-act="set-save">Uložit nastavení</button>`;
 }
 
 function saveSettings() {
@@ -657,7 +649,7 @@ function openPhotoSaveModal(file) {
   if (PV.modalUrl) URL.revokeObjectURL(PV.modalUrl);
   PV.modalUrl = URL.createObjectURL(file);
   openModal(`${modalTitle("Přidat fotku")}
-    <img src="${PV.modalUrl}" alt="Náhled" style="width:100%;max-height:300px;object-fit:contain;border-radius:16px;background:var(--bg2)">
+    <img src="${PV.modalUrl}" alt="Náhled" style="width:100%;max-height:300px;object-fit:contain;border-radius:18px;background:var(--s2)">
     <label class="field mt"><span>Datum</span>
       <input class="input" id="phDate" type="date" value="${todayStr()}"></label>
     <label class="field"><span>Poznámka</span>
@@ -687,11 +679,11 @@ function openPhotoDetail(id) {
   if (PV.modalUrl) URL.revokeObjectURL(PV.modalUrl);
   PV.modalUrl = URL.createObjectURL(p.blob);
   openModal(`${modalTitle(fmtDate(p.date))}
-    <img src="${PV.modalUrl}" alt="Fotka ${fmtDate(p.date)}" style="width:100%;max-height:60vh;object-fit:contain;border-radius:16px;background:var(--bg2)">
+    <img src="${PV.modalUrl}" alt="Fotka ${fmtDate(p.date)}" style="width:100%;max-height:60vh;object-fit:contain;border-radius:18px;background:var(--s2)">
     ${p.note ? `<p class="muted mt">${esc(p.note)}</p>` : ""}
-    <div class="row mt" style="gap:8px">
-      <button class="btn grow" data-act="ph-download" data-id="${id}">Stáhnout</button>
-      <button class="btn danger grow" data-act="ph-del" data-id="${id}">Smazat</button>
+    <div class="btn-row mt">
+      <button class="btn" data-act="ph-download" data-id="${id}">${ic("download", 17)} Stáhnout</button>
+      <button class="btn danger" data-act="ph-del" data-id="${id}">Smazat</button>
     </div>`);
 }
 
@@ -727,7 +719,7 @@ function openQrExport() {
     w: st.weightUnit, r: st.restSeconds
   });
   openModal(`${modalTitle("Nastavení jako QR")}
-    <div class="center" style="background:#fff;border-radius:16px;padding:8px">
+    <div class="center" style="background:#fff;border-radius:18px;padding:10px">
       <canvas id="qrCanvas" style="max-width:100%;height:auto;display:block;margin:0 auto"></canvas>
     </div>
     <p class="small mt">Kód obsahuje sync URL a API klíče — nikomu ho neukazuj a neposílej.
@@ -765,14 +757,14 @@ async function importQrFile(file) {
 /* ================= O aplikaci ================= */
 function renderAbout() {
   return `
-    <div class="card center">
-      <div style="font-size:28px;font-weight:850;letter-spacing:-.03em;margin-top:6px">Fitness<span style="color:var(--green)">Log</span></div>
-      <p class="muted">Verze ${APP_VERSION}</p>
-      <p class="muted" style="text-align:left">
-        Osobní deník silových a kardio tréninků a stravy.
+    <div class="card">
+      <div class="about-logo">Fitness<span style="color:var(--green)">Log</span></div>
+      <p class="muted" style="margin:0 0 16px">Verze ${APP_VERSION}</p>
+      <p class="muted" style="margin:0 0 12px;line-height:1.55">
+        Osobní deník silových a kardio tréninků, postavy a stravy.
         Data se ukládají lokálně v prohlížeči a volitelně synchronizují do Google Sheets.
       </p>
-      <p class="small" style="text-align:left">
+      <p class="small" style="margin:0;line-height:1.55">
         Databáze potravin: Open Food Facts (ODbL) a USDA FoodData Central (public domain).
         Odhad 1RM: Epleyho vzorec. Aplikace funguje offline (PWA).
       </p>

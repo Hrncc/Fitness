@@ -1,28 +1,29 @@
 /* ===== Router, delegace akcí, inicializace ===== */
 "use strict";
 
+/* Navigace v2: čtyři karty dole (Dnes · Trénink · Pokrok · Více) a stránky,
+   které se otevírají „nad" aktuální kartou se šipkou zpět (page). */
 const App = {
   route: { tab: "today", page: null }
 };
 
 const TITLES = {
-  today: "Dnes", workout: "Trénink", food: "Jídlo", summary: "Týden",
+  today: "Dnes", workout: "Trénink", progress: "Pokrok",
+  food: "Jídlo", history: "Historie", records: "Rekordy", checkin: "Check-in",
   exlib: "Exercise Library", templates: "Workout Templates", foodlib: "Food Library",
-  body: "Postava",
   export: "Export & Backup", settings: "Nastavení", about: "O aplikaci"
 };
 
 /* Velký titulek stránky (iOS large title) — nad obsahem každé obrazovky.
    Malá verze v top baru se objeví, až velký odjede nahoru. Obrazovka může
-   dodat vlastní titulek, podtitulek (HTML), tlačítko vpravo a obsah pod. */
+   dodat nadtitulek, podtitulek (HTML), tlačítka vpravo a obsah pod. */
 function pageHead(key) {
-  if (key === "today") {
-    const now = new Date();
-    return { title: "Dnes", sub: `${CZ_DAYS_FULL[now.getDay()]} · ${now.getDate()}. ${CZ_MONTHS_GEN[now.getMonth()]}` };
-  }
+  if (key === "today") return todayHead();
   if (key === "workout") return workoutHead();
-  if (key === "summary") return summaryHead();
-  if (key === "body") return { title: "Postava", sub: "Check-in, obvody a fotky postupu" };
+  if (key === "progress") return progressHead();
+  if (key === "checkin") return { title: CV.editId ? "Upravit check-in" : "Nový check-in" };
+  if (key === "records") return { title: "Rekordy", sub: "Osobní maxima podle odhadu 1RM" };
+  if (key === "history") return { title: "Historie", sub: "Tréninky po měsících" };
   return { title: TITLES[key] || "Fitness Log" };
 }
 
@@ -30,13 +31,24 @@ function pageHeadHtml(h) {
   return `
     <header class="page-head">
       <div class="grow">
+        ${h.eyebrow ? `<div class="eyebrow">${h.eyebrow}</div>` : ""}
         <h1>${esc(h.title)}</h1>
-        ${h.sub ? `<p>${h.sub}</p>` : ""}
+        ${h.sub ? `<p class="sub">${h.sub}</p>` : ""}
         ${h.below || ""}
       </div>
-      ${h.right || ""}
+      ${h.right ? `<div class="head-right">${h.right}</div>` : ""}
     </header>`;
 }
+
+const PAGES = {
+  food: () => renderFood(), history: () => renderHistory(), records: () => renderPRList(),
+  checkin: () => renderCheckinForm(),
+  exlib: () => renderExLib(), templates: () => renderTemplates(), foodlib: () => renderFoodLib(),
+  export: () => renderExport(), settings: () => renderSettings(), about: () => renderAbout()
+};
+const TABS = {
+  today: () => renderToday(), workout: () => renderWorkout(), progress: () => renderProgress()
+};
 
 /* Nahoru se skočí jen při přechodu na jinou obrazovku (nebo s {top: true}).
    Dřív se scrollovalo po každém překreslení — přidání série v tréninku
@@ -51,16 +63,10 @@ function render(opts = {}) {
   document.getElementById("topbar").classList.toggle("has-back", !!page);
 
   const view = document.getElementById("view");
-  view.innerHTML = pageHeadHtml(head) + (page ? {
-    exlib: renderExLib, templates: renderTemplates, foodlib: renderFoodLib,
-    body: renderBody,
-    export: renderExport, settings: renderSettings, about: renderAbout
-  }[page]() : {
-    today: renderToday, workout: renderWorkout, food: renderFood, summary: renderSummary
-  }[tab]());
+  view.innerHTML = pageHeadHtml(head) + (page ? PAGES[page]() : TABS[tab]());
 
   document.querySelectorAll(".navbtn").forEach(b =>
-    b.classList.toggle("on", !page && !!b.dataset.tab && b.dataset.tab === tab));
+    b.classList.toggle("on", !!b.dataset.tab && b.dataset.tab === tab));
 
   wireViewInputs();
   Dock.sync();
@@ -75,11 +81,23 @@ function render(opts = {}) {
   updateTopbar();
 }
 
+/* Přechody */
+function goTab(tab, opts = {}) {
+  App.route = { tab, page: null };
+  closeModal();
+  render({ top: true, ...opts });
+}
+function goPage(page) {
+  App.route = { tab: App.route.tab, page };
+  closeModal();
+  render({ top: true });
+}
+
 /* Top bar zesklovatí a ukáže malý titulek, jakmile velký odjede.
    Lepkavý panel s hledáním (Exercise Library) dostane sklo, až se přilepí. */
 function updateTopbar() {
   const bar = document.getElementById("topbar");
-  bar.classList.toggle("scrolled", window.scrollY > 34);
+  bar.classList.toggle("scrolled", window.scrollY > 38);
   const sticky = document.querySelector(".sticky-bar");
   if (sticky) sticky.classList.toggle("stuck", sticky.getBoundingClientRect().top <= bar.offsetHeight + 1);
 }
@@ -130,12 +148,31 @@ function withUndo(msg, fn) {
   toast(msg, "", { label: "Vrátit", act: "app-undo" });
 }
 
+/* Trénink k jinému dni (kalendář, detail dne) — šablona se spustí rovnou
+   s datem daného dne */
+function startWorkoutOn(date, tpl) {
+  WV.date = date;
+  App.route = { tab: "workout", page: null };
+  closeModal();
+  if (S.activeSession) {
+    render({ top: true });
+    toast("Nejdřív dokonči nebo zruš probíhající trénink", "err");
+    return;
+  }
+  beginWorkout(tpl === "custom" ? null : tpl);
+  render({ top: true });
+}
+
 /* ===== Akce (event delegation přes data-act) ===== */
 const ACTIONS = {
   /* navigace */
-  "nav": d => { App.route = { tab: d.tab, page: null }; closeModal(); render({ top: true }); },
-  "menu": d => { App.route.page = d.page; closeModal(); render({ top: true }); },
-  "page-back": () => { App.route.page = null; render({ top: true }); },
+  "nav": d => goTab(d.tab),
+  "menu": d => goPage(d.page),
+  "page-back": () => {
+    if (App.route.page === "checkin") { CV.form = null; CV.editId = null; clearCheckinPhoto(); }
+    App.route.page = null;
+    render({ top: true });
+  },
   "more-open": () => openMoreSheet(),
   "modal-close": () => closeModal(),
   "app-undo": () => {
@@ -147,8 +184,10 @@ const ACTIONS = {
     toast("Obnoveno ✓", "ok");
   },
   "app-reload": () => location.reload(),
+  /* Pokrok s vybraným segmentem (z Dnes) */
+  "go-progress": d => { if (d.seg) PG.seg = d.seg; goTab("progress"); },
 
-  /* sjednocený kalendář (Souhrn) */
+  /* kalendář (Historie) */
   "cal-nav": d => {
     let m = SV.calM + Number(d.dir), y = SV.calY;
     if (m < 0) { m = 11; y--; }
@@ -159,30 +198,14 @@ const ACTIONS = {
   "sum-cal-day": d => openDaySummary(d.date),
   "sum-add-food": d => {
     FV.date = d.date;
-    App.route = { tab: "food", page: null };
-    closeModal();
-    render();
+    goPage("food");
     openAddFood("search");
   },
   /* zápis tréninku přímo ze dne v kalendáři */
-  "sum-add-workout": d => {
-    WV.date = d.date;
-    WV.sub = "log";
-    App.route = { tab: "workout", page: null };
-    closeModal();
-    if (S.activeSession) {
-      render();
-      toast("Nejdřív dokonči nebo zruš probíhající trénink", "err");
-      return;
-    }
-    beginWorkout(d.tpl === "custom" ? null : d.tpl);
-  },
+  "sum-add-workout": d => startWorkoutOn(d.date, d.tpl),
   "sum-add-cardio": d => {
     WV.date = d.date;
-    WV.sub = "log";
-    App.route = { tab: "workout", page: null };
-    closeModal();
-    render();
+    goTab("workout");
     openCardioModal();
   },
 
@@ -190,7 +213,9 @@ const ACTIONS = {
   "bw-open": d => openBodyWeightModal(d.date || null),
   "bw-save": d => saveBodyWeight(d.date || null),
 
-  /* ---- Dnes: denní seznam ---- */
+  /* ---- Dnes ---- */
+  "td-open": d => { TV.open = todayOpenKey() === d.k ? "none" : d.k; render(); },
+  "td-week": d => { TV.weekOff = Math.min(0, TV.weekOff + Number(d.dir)); render(); },
   "t-w-step": d => {
     TV.wDraft = Math.round((TV.wDraft + Number(d.d)) * 10) / 10;
     if (TV.wDraft < 20) TV.wDraft = 20;
@@ -203,34 +228,37 @@ const ACTIONS = {
     logBodyWeight(kg, day);
     TV.wDraft = null;
     TV.wDate = null;
+    if (TV.open === "weight") TV.open = null;
     save(); render();
     toast(day === todayStr() ? "Váha zapsána ✓" : `Váha zapsána k ${fmtDate(day)} ✓`, "ok");
   },
+  "t-w-date-reset": () => { TV.wDate = null; TV.wDraft = null; render(); },
   "t-food-rating": d => {
     logDayRating(todayStr(), d.v, undefined);
     save(); render();
   },
   "t-food-protein": d => {
     logDayRating(todayStr(), undefined, d.v === "1");
+    // po obou odpovědích se položka sbalí
+    const r = dayRating(todayStr());
+    if (r && r.foodRating && r.proteinOk != null && TV.open === "food") TV.open = null;
     save(); render();
   },
-  "t-food-reset": () => {
+  "t-food-reset": () => withUndo("Zápis jídla smazán", () => {
     S.dayLog = (S.dayLog || []).filter(x => x.date !== todayStr());
-    save(); render();
-    toast("Zápis jídla smazán", "");
-  },
+    TV.open = "food";
+  }),
   "t-begin-next": d => {
     WV.date = todayStr();
-    WV.sub = "log";
     App.route = { tab: "workout", page: null };
-    if (S.activeSession) { render(); toast("Nejdřív dokonči nebo zruš probíhající trénink", "err"); return; }
+    if (S.activeSession) { render({ top: true }); toast("Nejdřív dokonči nebo zruš probíhající trénink", "err"); return; }
     beginWorkout(d.template);
+    render({ top: true });
   },
+  "recap-dismiss": d => { Settings.set({ recapDismissed: d.week }); render(); },
 
   /* ---- Trénink ---- */
-  "w-sub": d => { WV.sub = d.sub; render({ top: true }); },
-  "w-day-nav": d => { WV.date = addDays(WV.date, Number(d.dir)); render(); },
-  "w-day-today": () => { WV.date = todayStr(); render(); },
+  "w-date-today": () => { WV.date = todayStr(); render(); },
   "w-begin": d => beginWorkout(d.template === "custom" ? null : d.template),
   "w-cardio": () => openCardioModal(),
   "w-cardio-edit": d => openCardioModal(d.id),
@@ -315,11 +343,19 @@ const ACTIONS = {
     if (el && WV.openIdx === i) el.scrollIntoView({ block: "center", behavior: "smooth" });
   },
   "w-ex-close": () => { WV.openIdx = null; WV.editSet = null; render(); },
+  /* Hotovo: cvik se sbalí a otevře se další neodcvičený (nejdřív za ním,
+     pak od začátku) — v posilovně o klepnutí méně u každého cviku */
   "w-ex-done": d => {
+    const i = Number(d.i);
+    const list = S.activeSession.entries;
     WV.editSet = null;
-    S.activeSession.entries[Number(d.i)].done = true;
-    WV.openIdx = null;   // po dokončení se cvik sbalí
+    list[i].done = true;
+    const order = list.map((_, k) => k).filter(k => k > i).concat(list.map((_, k) => k).filter(k => k < i));
+    const next = order.find(k => !list[k].done);
+    WV.openIdx = next == null ? null : next;
     save(); render();
+    const el = next == null ? null : document.getElementById("exblock-" + next);
+    if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
   },
   "w-add-ex": () => openExercisePicker(null),
   /* filtr partie ve výběru cviku */
@@ -365,10 +401,8 @@ const ACTIONS = {
   "rest-start": () => Rest.start(Settings.get().restSeconds || 120),
   "dock-open": () => {
     closeModal();
-    WV.sub = "log";
     if (App.route.tab === "workout" && !App.route.page) { render(); return; }
-    App.route = { tab: "workout", page: null };
-    render({ top: true });
+    goTab("workout");
   },
   "rest-plus": () => Rest.adjust(30),
   "rest-minus": () => Rest.adjust(-30),
@@ -418,11 +452,13 @@ const ACTIONS = {
     markDeleted(d.id);
   }),
 
-  /* ---- Souhrn ---- */
-  "s-sub": d => { SV.sub = d.sub; render(); },
   /* ---- Pokrok ---- */
+  "pg-seg": d => { PG.seg = d.seg; render(); },
   "pg-ex": d => openExerciseProgress(d.exid),
   "pg-all": () => { PG.allEx = !PG.allEx; render(); },
+  "pg-metric": d => { PG.metric = d.m; render(); },
+  "pg-parts": d => { PG.parts = d.v; render(); },
+  "pg-wrange": d => { PG.wRange = d.r; render(); },
   "s-cat-range": d => { SV.catRange = d.range; render(); },
 
   /* ---- Exercise Library ---- */
@@ -521,7 +557,6 @@ const ACTIONS = {
   "rc-back": () => renderRecipeModal(),
   "rc-save": () => saveRecipe(),
 
-  /* ---- Export / Nastavení ---- */
   /* ---- Fotky postupu ---- */
   "ph-add": () => document.getElementById("photoAddInput").click(),
   "ph-save": () => savePhoto(),
@@ -532,7 +567,11 @@ const ACTIONS = {
   /* ---- Týdenní check-in ---- */
   "ci-new": () => openCheckinForm(null),
   "ci-edit": d => openCheckinForm(d.id),
-  "ci-cancel": () => { CV.form = null; CV.editId = null; clearCheckinPhoto(); render(); },
+  "ci-cancel": () => {
+    CV.form = null; CV.editId = null; clearCheckinPhoto();
+    if (App.route.page === "checkin") App.route.page = null;
+    render({ top: true });
+  },
   "ci-photo": () => document.getElementById("ciPhotoInput").click(),
   "ci-trend": d => { CV.trendKey = d.key; render(); },
   "ci-scale": d => {
@@ -548,18 +587,17 @@ const ACTIONS = {
     S.checkins = S.checkins.filter(c => c.id !== d.id);
     markDeleted(d.id);
     CV.form = null; CV.editId = null;
+    if (App.route.page === "checkin") App.route.page = null;
   }),
 
-  /* ---- Týdenní rekap ---- */
-  "recap-dismiss": d => { Settings.set({ recapDismissed: d.week }); render(); },
-
+  /* ---- Export / Nastavení ---- */
   "set-qr-show": () => openQrExport(),
   "set-qr-scan": () => document.getElementById("qrScanInput").click(),
   /* ---- Report pro Clauda ---- */
   "rep-range": d => { MV.reportRange = d.range; render(); },
   "rep-copy": () => copyReport(),
   "rep-share": () => shareReport(),
-  "rep-preview": () => showReportModal(buildCoachReport(MV.reportRange)),
+  "rep-preview": () => showReportModal(buildCoachReport(reportRangeArg())),
 
   "exp-share": () => exportShare(),
   "exp-json": () => downloadFile(`fitness-log-${todayStr()}.json`, JSON.stringify(S, null, 2), "application/json"),
@@ -607,11 +645,12 @@ document.addEventListener("change", e => {
   if (t.dataset.change === "f-date") {
     if (t.value) { FV.date = t.value; render(); }
   }
-  /* datum zápisu váhy na kartě Dnes; u dne, který už váhu má, se předvyplní */
+  /* datum zápisu váhy na Dnes; u dne, který už váhu má, se předvyplní */
   if (t.dataset.change === "t-w-date" && t.value) {
     TV.wDate = t.value < todayStr() ? t.value : null;
     const w = TV.wDate ? bodyWeightOn(TV.wDate) : null;
     if (w != null) TV.wDraft = Math.round(kgOut(w) * 10) / 10;
+    TV.open = "weight";
     render();
   }
   /* datum upravovaného uloženého tréninku */
@@ -619,6 +658,7 @@ document.addEventListener("change", e => {
     S.activeSession.date = t.value;
     save(); render();
   }
+  /* den, do kterého se zapisuje trénink (Trénink → pilulka s datem) */
   if (t.dataset.change === "w-date") {
     if (t.value) { WV.date = t.value; render(); }
   }

@@ -1,7 +1,8 @@
-/* ===== Týden → Pokrok: jak se ti vede v tréninku =====
-   Tréninková analytika na jednom místě — od nejdůležitější odpovědi dolů:
-   srovnání posledních 30 dní, síla po cvicích, série po týdnech,
-   pravidelnost a partie po týdnech. Pod tím karta Partie s rozsahem.
+/* ===== Pokrok — jak se ti vede (Trénink · Tělo · Strava) =====
+   Trénink odpovídá od nejdůležitějšího dolů: roste síla? (index síly a cviky),
+   kolik toho dělám (30 dní vs předchozích 30, týdny), jak pravidelně,
+   které partie zaostávají a jaké padly rekordy.
+   Tělo je ve view-checkin.js, Strava ve view-summary.js.
    Barvy: data = --chart (bílá/šedá), volt = zlepšení a odcvičený den,
    zlatá = rekordy, partie jen jako tečka, proužek nebo vlastní malá řada
    (small multiples — sedm partií v jednom skládaném sloupci by od sebe
@@ -9,19 +10,31 @@
 "use strict";
 
 const PG = {
-  allEx: false          // rozbalený seznam cviků v kartě Síla
+  seg: "training",      // training | body | food
+  allEx: false,         // rozbalený seznam cviků v sekci Síla
+  metric: "sets",       // týdenní graf: sets | volume
+  parts: "weeks",       // partie: weeks (po týdnech) | sum (souhrn s rozsahem)
+  wRange: "90"          // graf váhy: 30 | 90 | all
 };
 const PG_WEEKS = 12;    // série po týdnech a partie po týdnech
 const PG_HEAT_WEEKS = 16;
 const PG_STRENGTH_DAYS = 90;
-const CZ_MONTHS_SHORT = ["led", "úno", "bře", "dub", "kvě", "čvn", "čvc", "srp", "zář", "říj", "lis", "pro"];
+
+function progressHead() {
+  return {
+    title: "Pokrok",
+    below: `<div style="margin-top:16px">${segHtml([["training", "Trénink"], ["body", "Tělo"], ["food", "Strava"]], PG.seg, "pg-seg", "seg")}</div>`
+  };
+}
 
 function renderProgress() {
+  if (PG.seg === "body") return renderBody();
+  if (PG.seg === "food") return foodProgressHtml();
   if (!S.sessions.some(s => s.type === "weights")) {
     return `<div class="card"><div class="empty-note">Zatím žádný silový trénink.<br>
       Po prvních trénincích tu uvidíš, jak se ti daří.</div></div>`;
   }
-  return progressKpiHtml() + strengthHtml() + weeklySetsHtml() + consistencyHtml() + catWeeksHtml();
+  return strengthHtml() + progressKpiHtml() + weeklyHtml() + consistencyHtml() + partsHtml() + recordsTeaserHtml();
 }
 
 /* ---- Souhrn období ---- */
@@ -46,7 +59,7 @@ function periodStats(from, to) {
    červená patří chybám. */
 function deltaHtml(cur, prev, pct = false) {
   if (pct) {
-    if (!prev) return cur ? `<span class="delta up">${ic("trend", 13, 2.4)} nové</span>` : `<span class="delta">—</span>`;
+    if (!prev) return cur ? `<span class="delta up">${ic("arrowUp", 12, 2.6)} nové</span>` : `<span class="delta">—</span>`;
     const p = Math.round((cur / prev - 1) * 100);
     if (!p) return `<span class="delta">±0 %</span>`;
     return `<span class="delta ${p > 0 ? "up" : "down"}">${p > 0 ? "↑" : "↓"} ${Math.abs(p)} %</span>`;
@@ -56,37 +69,23 @@ function deltaHtml(cur, prev, pct = false) {
   return `<span class="delta ${d > 0 ? "up" : "down"}">${d > 0 ? "↑" : "↓"} ${Math.abs(d)}</span>`;
 }
 
-/* Objem v zobrazené jednotce; nad 100 000 v tisících (t / k lb) */
-function fmtVolume(kg) {
-  const v = kgOut(kg);
-  const lb = weightUnit() === "lb";
-  return v >= 100000 ? { val: fmtNum(v / 1000, 1), unit: lb ? "k lb" : "t" } : { val: fmtNum(v), unit: weightUnit() };
-}
-
 function progressKpiHtml() {
   const t = todayStr();
   const cur = periodStats(addDays(t, -29), t);
   const prev = periodStats(addDays(t, -59), addDays(t, -30));
   const vol = fmtVolume(cur.volume);
-  const tile = (val, lbl, delta, cls = "") => `
-    <div class="stat kpi">
-      <div class="val${cls}">${val}</div>
-      <div class="lbl">${lbl}</div>
-      ${delta}
-    </div>`;
   const extra = [`kardio ${cur.cardio}× · ${fmtNum(cur.cardioMin)} min`];
   if (cur.rating != null) extra.push(`Ø hodnocení ${fmtNum(cur.rating, 1)}/10`);
-  return `
+  return sec("Posledních 30 dní", `
     <div class="card">
-      ${cardHead("chart", "Posledních 30 dní", `<span class="small">vs předchozích 30</span>`)}
-      <div class="stat-grid">
-        ${tile(cur.weights, "silových tréninků", deltaHtml(cur.weights, prev.weights))}
-        ${tile(fmtNum(cur.sets), "sérií", deltaHtml(cur.sets, prev.sets, true))}
-        ${tile(vol.val, `objem (${vol.unit})`, deltaHtml(cur.volume, prev.volume, true))}
-        ${tile(cur.prs, "nových rekordů", deltaHtml(cur.prs, prev.prs), " pr")}
+      <div class="stats four">
+        ${statHtml(cur.weights, plural(cur.weights, "silový trénink", "silové tréninky", "silových tréninků"), deltaHtml(cur.weights, prev.weights))}
+        ${statHtml(fmtNum(cur.sets), setWordTop(cur.sets), deltaHtml(cur.sets, prev.sets, true))}
+        ${statHtml(`${vol.val}<small>${vol.unit}</small>`, "objem", deltaHtml(cur.volume, prev.volume, true))}
+        ${statHtml(cur.prs, plural(cur.prs, "nový rekord", "nové rekordy", "nových rekordů"), deltaHtml(cur.prs, prev.prs), cur.prs ? "pr" : "")}
       </div>
-      <p class="small mt" style="margin-bottom:0">${extra.join(" · ")}</p>
-    </div>`;
+      <div class="chart-cap" style="margin-top:16px">${extra.join(" · ")}</div>
+    </div>`, { sub: "proti předchozím 30 dnům" });
 }
 
 /* ---- Síla po cvicích ----
@@ -116,8 +115,8 @@ function fmtMetric(metric, v) {
   return metric === "e1rm" ? fmtWeight(v) : `${fmtNum(v)} opak.`;
 }
 
-function strengthRows() {
-  const since = addDays(todayStr(), -(PG_STRENGTH_DAYS - 1));
+function strengthRows(days = PG_STRENGTH_DAYS) {
+  const since = addDays(todayStr(), -(days - 1));
   const ids = new Set();
   for (const s of S.sessions) {
     if (s.type !== "weights" || s.date < since) continue;
@@ -138,15 +137,45 @@ function strengthRows() {
     .sort((a, b) => b.win.length - a.win.length || b.last.date.localeCompare(a.last.date));
 }
 
-function strengthHtml() {
-  const rows = strengthRows();
-  if (!rows.length) {
-    return `<div class="card">
-      ${cardHead("trend", "Síla")}
-      <p class="muted" style="margin:0">Progres se ukáže, až cvik odcvičíš aspoň dvakrát za poslední 3 měsíce.</p>
-    </div>`;
+function median(arr) {
+  const s = arr.slice().sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+/* ---- Index síly ----
+   Jedno číslo za všechny cviky: každý cvik se vztáhne ke svému prvnímu
+   tréninku v okně (= 100 %) a bere se medián — jeden cvik s lehkým
+   rozjezdem tak celek nepřebije. Týdenní body ukazují, jak medián rostl. */
+function strengthIndex(days = PG_STRENGTH_DAYS) {
+  const rows = strengthRows(days);
+  if (!rows.length) return null;
+  const t = todayStr();
+  const series = [];
+  for (let wk = mondayOf(addDays(t, -(days - 1))); wk <= t; wk = addDays(wk, 7)) {
+    const end = addDays(wk, 6) < t ? addDays(wk, 6) : t;
+    const ratios = [];
+    for (const r of rows) {
+      const pts = r.win.filter(p => p.date <= end);
+      if (pts.length) ratios.push(pts[pts.length - 1].value / r.win[0].value);
+    }
+    if (ratios.length) series.push({ date: end, value: Math.round((median(ratios) - 1) * 1000) / 10 });
   }
-  const better = rows.filter(r => r.last.value > r.first.value).length;
+  return {
+    series,
+    change: (median(rows.map(r => r.last.value / r.first.value)) - 1) * 100,
+    improved: rows.filter(r => r.last.value > r.first.value).length,
+    total: rows.length,
+    rows
+  };
+}
+
+function strengthHtml() {
+  const idx = strengthIndex();
+  if (!idx) {
+    return sec("Síla", `<div class="card"><p class="muted" style="margin:0">Progres se ukáže, až cvik odcvičíš aspoň dvakrát za poslední 3 měsíce.</p></div>`);
+  }
+  const rows = idx.rows;
   const shown = PG.allEx ? rows : rows.slice(0, 6);
   const list = shown.map(r => {
     const ch = Math.round(r.change);
@@ -157,21 +186,28 @@ function strengthHtml() {
         <i class="p-stripe" style="background:${exColor(r.id)}"></i>
         <div class="grow">
           <div class="name">${esc(exName(r.id))}</div>
-          <div class="small">${r.win.length}× · ${r.metric === "e1rm" ? "e1RM" : "opakování"}${r.recentPR
-            ? ` · <span style="color:var(--yellow);font-weight:700">rekord</span>` : ""}</div>
+          <div class="li-sub">${r.win.length}× · ${r.metric === "e1rm" ? "e1RM" : "opakování"}${r.recentPR
+            ? ` · <span style="color:var(--yellow);font-weight:650">rekord</span>` : ""}</div>
         </div>
-        ${sparklineHtml(r.win.map(p => p.value))}
+        ${sparklineHtml(r.win.map(p => p.value), 56, 26)}
         <div class="str-val"><b>${fmtMetric(r.metric, r.last.value)}</b>${delta}</div>
       </div>`;
   }).join("");
-  return `
+  return sec("Síla", `
     <div class="card">
-      ${cardHead("trend", "Síla", `<span class="badge ${better * 2 >= rows.length ? "green" : "neutral"}">${ic("trend", 13, 2.4)} ${better} z ${rows.length}</span>`)}
-      <p class="small" style="margin:-6px 0 4px">Zlepšení za 3 měsíce: první vs poslední trénink cviku. Klepni na cvik pro graf.</p>
+      <div class="idx-head">
+        <div>
+          <div class="cap">Index síly · medián všech cviků</div>
+          <div class="hero-fig" style="margin-top:6px">${fmtSigned(idx.change)}<small>%</small></div>
+        </div>
+        <span class="badge${idx.improved * 2 >= idx.total ? " green" : ""}">${ic("arrowUp", 12, 2.6)} ${idx.improved} z ${idx.total}</span>
+      </div>
+      ${lineChart(idx.series, { height: 140, zero: true, fmt: v => fmtSigned(v) + " %" })}
+      <hr class="hair">
       ${list}
       ${rows.length > 6 ? `<button class="btn sm ghost full mt" data-act="pg-all">${PG.allEx
-        ? "Méně" : `Zobrazit všech ${rows.length}`}</button>` : ""}
-    </div>`;
+        ? "Méně" : `Všech ${rows.length} cviků`}</button>` : ""}
+    </div>`, { sub: `posledních ${PG_STRENGTH_DAYS} dní · první vs poslední trénink` });
 }
 
 function openExerciseProgress(id) {
@@ -181,33 +217,35 @@ function openExerciseProgress(id) {
   const best = points.reduce((a, b) => b.value > a.value ? b : a);
   const ch = first.value ? Math.round((last.value / first.value - 1) * 100) : 0;
   const out = v => metric === "e1rm" ? Math.round(kgOut(v) * 10) / 10 : v;
-  const u = metric === "e1rm" ? ` · ${weightUnit()}` : " · opak.";
+  const u = metric === "e1rm" ? weightUnit() : "opak.";
   const en = exNameEn(id);
   const rows = points.slice().reverse().slice(0, 12).map(p => `
     <div class="set-row">
       <span class="grow small" style="color:var(--text2)">${fmtDate(p.date)}</span>
       <span class="set-val">${metric === "e1rm"
         ? `${fmtNum(p.set.reps)}<span>×</span>${fmtWeight(p.set.weight)}` : `${fmtNum(p.set.reps)} opak.`}</span>
-      <span class="small" style="min-width:72px;text-align:right">${metric === "e1rm" ? fmtWeight(p.value) : ""}</span>
+      <span class="small" style="min-width:76px;text-align:right">${metric === "e1rm" ? fmtWeight(p.value) : ""}</span>
     </div>`).join("");
   openModal(`${modalTitle(exName(id))}
-    ${en ? `<div class="name-en" style="margin:-10px 0 14px">${esc(en)}</div>` : ""}
-    <div class="stat-grid three">
-      <div class="stat"><div class="val">${fmtNum(out(last.value), 1)}</div><div class="lbl">teď${u}</div></div>
-      <div class="stat"><div class="val">${fmtNum(out(best.value), 1)}</div><div class="lbl">nejlépe${u}</div></div>
-      <div class="stat"><div class="val" style="color:var(--${ch > 0 ? "green" : "text"})">${ch > 0 ? "+" : ""}${ch} %</div><div class="lbl">od začátku</div></div>
+    ${en ? `<p class="modal-sub">${esc(en)}</p>` : ""}
+    <div class="card">
+      <div class="stats">
+        ${statHtml(`${fmtNum(out(last.value), 1)}<small>${u}</small>`, "teď")}
+        ${statHtml(`${fmtNum(out(best.value), 1)}<small>${u}</small>`, "nejlépe")}
+        ${statHtml(`${fmtSigned(ch)}<small>%</small>`, "od začátku")}
+      </div>
     </div>
-    <div class="small mt">${metric === "e1rm" ? `e1RM v ${weightUnit()} — odhad maxima na 1 opakování z nejlepší série tréninku`
-      : "Nejvíc opakování v tréninku"} · tah prstem po grafu ukáže hodnotu</div>
-    <div class="mt">${points.length >= 2
-      ? lineChart(points.map(p => ({ date: p.date, value: out(p.value) })), { unit: metric === "e1rm" ? " " + weightUnit() : " opak.", dec: metric === "e1rm" ? 1 : 0 })
-      : `<div class="empty-note">Zatím jen jeden trénink</div>`}</div>
-    <div class="h3" style="margin-top:16px">Nejlepší série v trénincích</div>
-    <div class="sets" style="margin-top:6px">${rows}</div>
-    ${currentPR(id) ? `<button class="btn ghost full mt" data-act="w-pr-history" data-exid="${id}">${ic("trophy", 17)} Historie rekordů</button>` : ""}`);
+    ${points.length >= 2
+      ? lineChart(points.map(p => ({ date: p.date, value: out(p.value) })), { unit: " " + u, dec: metric === "e1rm" ? 1 : 0 })
+      : `<div class="empty-note">Zatím jen jeden trénink</div>`}
+    <div class="chart-cap">${metric === "e1rm" ? "e1RM — odhad maxima na 1 opakování z nejlepší série tréninku"
+      : "Nejvíc opakování v tréninku"}</div>
+    <div class="h3" style="margin-top:22px">Nejlepší série v trénincích</div>
+    <div class="sets" style="margin-top:4px">${rows}</div>
+    ${currentPR(id) ? `<button class="btn ghost full mt2" data-act="w-pr-history" data-exid="${id}">${ic("trophy", 17)} Historie rekordů</button>` : ""}`);
 }
 
-/* ---- Série po týdnech ---- */
+/* ---- Týdny ---- */
 function weekBuckets(n) {
   const mon0 = mondayOf(todayStr());
   const firstW = S.sessions.filter(s => s.type === "weights").map(s => s.date).sort()[0];
@@ -218,30 +256,37 @@ function weekBuckets(n) {
     out.push({
       from, to, sessions: ws,
       before: !firstW || to < firstW,        // týden před prvním tréninkem vůbec
-      sets: ws.reduce((k, s) => k + s.entries.reduce((m, e) => m + (e.sets || []).length, 0), 0)
+      sets: ws.reduce((k, s) => k + s.entries.reduce((m, e) => m + (e.sets || []).length, 0), 0),
+      volume: ws.reduce((v, s) => v + sessionVolume(s), 0)
     });
   }
   return out;
 }
 
-function weeklySetsHtml() {
+function weeklyHtml() {
   const weeks = weekBuckets(PG_WEEKS).filter(w => !w.before);
   const done = weeks.slice(0, -1);           // poslední týden ještě běží
-  const avg = done.length ? done.reduce((a, w) => a + w.sets, 0) / done.length : null;
+  const vol = PG.metric === "volume";
+  const val = w => vol ? Math.round(kgOut(w.volume)) : w.sets;
+  const avg = done.length ? done.reduce((a, w) => a + val(w), 0) / done.length : null;
+  const big = vol && Math.max(...weeks.map(val)) >= 10000;
+  const fmt = v => big ? fmtNum(v / 1000, v >= 100000 ? 0 : 1) : fmtNum(v);
+  const unit = vol ? (big ? (weightUnit() === "lb" ? " k lb" : " t") : " " + weightUnit()) : " sérií";
   const data = weeks.map(w => {
     const d = parseDate(w.from);
+    const n = w.sessions.length;
     return {
       label: `${d.getDate()}.${d.getMonth() + 1}.`,
-      value: w.sets,
-      tip: `týden od ${d.getDate()}. ${d.getMonth() + 1}. · ${w.sessions.length} ${w.sessions.length === 1 ? "trénink" : w.sessions.length >= 2 && w.sessions.length <= 4 ? "tréninky" : "tréninků"}`
+      value: val(w),
+      tip: `týden od ${d.getDate()}. ${d.getMonth() + 1}. · ${n} ${plural(n, "trénink", "tréninky", "tréninků")}`
     };
   });
-  return `
+  return sec("Týden po týdnu", `
     <div class="card">
-      ${cardHead("chart", "Série za týden", avg != null ? `<span class="small">Ø <b style="color:var(--text)">${fmtNum(avg, 0)}</b> / týden</span>` : "")}
-      ${columnChart(data, { unit: " sérií" })}
-      <p class="small" style="margin:8px 0 0">Světlý sloupec je tento týden (ještě běží). Tah prstem po grafu ukáže týden.</p>
-    </div>`;
+      ${segHtml([["sets", "Série"], ["volume", "Objem"]], PG.metric, "pg-metric", "m", "sm")}
+      <div class="mt2">${columnChart(data, { unit, fmt })}</div>
+      <div class="chart-cap">${avg != null ? `Ø ${fmt(avg)}${unit} za uzavřený týden · ` : ""}světlý sloupec je tento týden</div>
+    </div>`, { sub: `posledních ${PG_WEEKS} týdnů` });
 }
 
 /* ---- Pravidelnost: 16 týdnů jako mřížka dní ----
@@ -288,9 +333,8 @@ function consistencyHtml() {
   for (let i = 1; i < trainDates.length; i++) gap = Math.max(gap, daysBetween(trainDates[i - 1], trainDates[i]) - 1);
   if (trainDates.length) gap = Math.max(gap, daysBetween(trainDates[trainDates.length - 1], today));
 
-  return `
+  return sec("Pravidelnost", `
     <div class="card">
-      ${cardHead("calendar", "Pravidelnost", `<span class="small">${PG_HEAT_WEEKS} týdnů</span>`)}
       <div class="hm">
         <div class="hm-months">${months.join("")}</div>
         <div class="hm-body">
@@ -298,23 +342,47 @@ function consistencyHtml() {
           <div class="hm-grid">${cells}</div>
         </div>
       </div>
-      <div class="hm-legend small">
+      <div class="hm-legend">
         <span>méně</span><i class="hm-c"></i><i class="hm-c l1"></i><i class="hm-c l2"></i><i class="hm-c l3"></i><span>více sérií</span>
         <span class="hm-sep"></span><i class="hm-c"><b></b></i><span>kardio</span>
       </div>
-      <div class="wk-kv mt" style="grid-template-columns:1fr 1fr 1fr">
-        <div><span>silové tréninky</span><b>${wCount}</b></div>
-        <div><span>Ø za týden</span><b>${fmtNum(wCount / weeksActive, 1)}</b></div>
-        <div><span>nejdelší pauza</span><b>${gap} ${gap === 1 ? "den" : gap >= 2 && gap <= 4 ? "dny" : "dní"}</b></div>
+      <hr class="hair">
+      <div class="stats">
+        ${statHtml(wCount, plural(wCount, "silový trénink", "silové tréninky", "silových tréninků"))}
+        ${statHtml(fmtNum(wCount / weeksActive, 1), "Ø za týden")}
+        ${statHtml(`${gap}<small>${plural(gap, "den", "dny", "dní")}</small>`, "nejdelší pauza")}
       </div>
-    </div>`;
+    </div>`, { sub: `${PG_HEAT_WEEKS} týdnů` });
 }
 
-/* ---- Partie po týdnech (small multiples) ----
-   Každá partie má vlastní řádek se sloupečky za týden; měřítko je společné,
-   takže nižší řádek = partie, na kterou se dostává méně. Core odškrtnutý
-   přepínačem bez sérií je tečka na základně. */
-function catWeeksHtml() {
+/* ---- Partie ----
+   Po týdnech (small multiples): každá partie má vlastní řádek se sloupečky
+   za týden; měřítko je společné, takže nižší řádek = partie, na kterou se
+   dostává méně. Core odškrtnutý bez sérií je tečka na základně.
+   „Naposledy" je vždy z celé historie, zlatě přes 14 dní.
+   Souhrn: série a objem za zvolený rozsah. */
+function partLastTrained() {
+  const last = {};
+  for (const s of S.sessions) {
+    if (s.type !== "weights") continue;
+    const hit = new Set();
+    if (s.core === true) hit.add("Core");
+    for (const e of s.entries) if ((e.sets || []).length) { const c = exCategory(e.exerciseId); if (c) hit.add(c); }
+    for (const c of hit) if (!last[c] || s.date > last[c]) last[c] = s.date;
+  }
+  return last;
+}
+
+function partsHtml() {
+  const body = PG.parts === "sum" ? partsSummaryHtml() : partsWeeksHtml();
+  return sec("Partie", `
+    <div class="card">
+      ${segHtml([["weeks", "Po týdnech"], ["sum", "Souhrn"]], PG.parts, "pg-parts", "v", "sm")}
+      <div class="mt2">${body}</div>
+    </div>`, { sub: "které partie dostávají málo" });
+}
+
+function partsWeeksHtml() {
   const weeks = weekBuckets(PG_WEEKS).filter(w => !w.before);
   const per = weeks.map(w => {
     const c = {};
@@ -327,34 +395,83 @@ function catWeeksHtml() {
   });
   const max = Math.max(1, ...per.flatMap(p => CAT_ORDER.map(c => p.c[c])));
   const done = per.slice(0, -1);
+  const last = partLastTrained();
   const rows = CAT_ORDER.map(cat => {
     const avg = done.length ? done.reduce((a, p) => a + p.c[cat], 0) / done.length : per[0].c[cat];
     const bars = per.map((p, i) => {
       const v = p.c[cat];
-      const d = parseDate(weeks[i].from);
-      const lbl = `${cat} · týden od ${d.getDate()}. ${d.getMonth() + 1}.`;
-      if (!v && cat === "Core" && p.core) return `<i class="tick" title="${lbl} · core ✓"></i>`;
-      return v ? `<i style="height:${Math.max(10, v / max * 100).toFixed(0)}%;background:${catColor(cat)}" title="${lbl} · ${v} sérií"></i>`
-        : `<i class="z" title="${lbl} · 0"></i>`;
+      if (!v && cat === "Core" && p.core) return `<i class="tick"></i>`;
+      return v ? `<i style="height:${Math.max(10, v / max * 100).toFixed(0)}%;background:${catColor(cat)}"></i>` : `<i class="z"></i>`;
     }).join("");
     const tips = per.map((p, i) => {
       const d = parseDate(weeks[i].from);
       const v = p.c[cat];
       return [+((i + 0.5) / per.length).toFixed(4), 0, `${cat} · týden od ${d.getDate()}. ${d.getMonth() + 1}.`,
-        !v && cat === "Core" && p.core ? "core ✓" : `${v} sérií`];
+        !v && cat === "Core" && p.core ? "core ✓" : `${v} ${plural(v, "série", "série", "sérií")}`];
     });
+    const lt = last[cat];
+    const gap = lt ? daysBetween(lt, todayStr()) : null;
     return `
       <div class="cw-row">
         <span class="cw-name"><i class="p-dot" style="background:${catColor(cat)}"></i>${cat}</span>
         <div class="cw-bars chart-wrap"${tipAttr(tips)}>${bars}</div>
-        <span class="cw-avg${avg < 1 ? " low" : ""}">${fmtNum(avg, 1)}</span>
+        <span class="cw-avg${avg < 1 ? " warn-text" : ""}">${fmtNum(avg, 1)}</span>
+        <span class="cw-last${gap == null || gap > 14 ? " stale" : ""}">${lt ? relDay(lt) : "nikdy"}</span>
       </div>`;
   }).join("");
+  return `<div class="cw-head"><span>partie</span><span>série po týdnech</span><span>Ø</span><span>naposledy</span></div>${rows}`;
+}
+
+/* Sloupec je počet sérií, ne kila — u core a cviků s vlastní vahou je objem
+   nulový, takže by taková partie vypadala jako netrénovaná. */
+function partsSummaryHtml() {
+  const catStats = {};
+  for (const c of CAT_ORDER) catStats[c] = { sets: 0, volume: 0 };
+  const custom = SV.catRange === "custom";
+  const from = custom ? SV.catFrom
+    : { week: addDays(todayStr(), -6), month: addDays(todayStr(), -29), all: "" }[SV.catRange];
+  const to = custom ? SV.catTo : todayStr();
+  for (const s of S.sessions) {
+    if (s.type !== "weights" || s.date < from || s.date > to) continue;
+    for (const e of s.entries) {
+      const cat = exCategory(e.exerciseId) || "Ostatní";
+      if (!catStats[cat]) catStats[cat] = { sets: 0, volume: 0 };
+      for (const set of e.sets || []) {
+        catStats[cat].sets++;
+        catStats[cat].volume += (set.reps || 0) * (set.weight || 0);
+      }
+    }
+  }
+  const rows = Object.entries(catStats).sort((a, b) => b[1].sets - a[1].sets || b[1].volume - a[1].volume);
+  const maxSets = Math.max(...rows.map(([, v]) => v.sets), 1);
+  const chips = [["week", "Týden"], ["month", "Měsíc"], ["all", "Vše"], ["custom", "Vlastní"]].map(([k, lbl]) =>
+    `<button class="chip${SV.catRange === k ? " on" : ""}" data-act="s-cat-range" data-range="${k}">${lbl}</button>`).join("");
   return `
-    <div class="card">
-      ${cardHead("target", "Partie po týdnech", `<span class="small">série · Ø/týd</span>`)}
-      ${rows}
-      <p class="small" style="margin:10px 0 0">Stejné měřítko ve všech řádcích — nižší sloupečky = partie, na kterou se dostává méně.
-        Tečka u Core = odškrtnutý bez sérií.</p>
-    </div>`;
+    <div class="chips">${chips}</div>
+    ${custom ? dateRangeRow("cat", from, to) : ""}
+    ${rows.map(([cat, v]) => `
+      <div style="margin-top:12px">
+        <div class="row between" style="margin-bottom:6px">
+          <span class="cw-name" style="color:var(--${v.sets ? "text" : "text3"})"><i class="p-dot" style="background:${catColor(cat)}${v.sets ? "" : ";opacity:.4"}"></i>${esc(cat)}</span>
+          <span class="small">${v.sets} ${setWordTop(v.sets)}${v.volume ? ` · ${fmtNum(kgOut(v.volume))} ${weightUnit()}` : ""}</span>
+        </div>
+        <div class="bar mini"><div style="width:${(v.sets / maxSets * 100).toFixed(1)}%;background:${catColor(cat)}"></div></div>
+      </div>`).join("")}`;
+}
+
+/* ---- Rekordy: poslední padlé ---- */
+function recordsTeaserHtml() {
+  const prs = allPRs().slice(0, 5);
+  if (!prs.length) return "";
+  const rows = prs.map(({ exerciseId, pr }) => `
+    <div class="list-item" data-act="w-pr-history" data-exid="${exerciseId}">
+      <i class="p-stripe" style="background:${exColor(exerciseId)}"></i>
+      <div class="grow">
+        <div class="name">${esc(exName(exerciseId))}</div>
+        <div class="li-sub">${relDay(pr.date)}</div>
+      </div>
+      <div class="li-val" style="color:var(--yellow)">${fmtWeight(pr.weight)} × ${pr.reps}</div>
+    </div>`).join("");
+  return sec("Rekordy", `<div class="card rows">${rows}</div>`,
+    { sub: "naposledy překonané", right: secLink("Vše", "menu", `data-page="records"`) });
 }

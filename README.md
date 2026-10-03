@@ -25,7 +25,7 @@ js/data.js            datový model, localStorage, PR logika
 js/sync.js            cloud sync (Google Apps Script)
 js/foodapi.js         Open Food Facts + USDA FoodData Central
 js/ui.js              komponenty (modal, toast, kalendář, SVG grafy)
-js/view-*.js          obrazovky (Dnes, Trénink, Jídlo, Souhrn, menu)
+js/view-*.js          obrazovky (Dnes, Trénink, Pokrok, Jídlo, Více)
 js/app.js             router, akce, inicializace
 apps-script/Code.gs   backend pro cloud sync (vkládá se do Google Sheets)
 icons/                ikony PWA
@@ -40,7 +40,7 @@ Podrobný návod krok za krokem: **[SETUP_SYNC.md](SETUP_SYNC.md)**. Ve zkratce:
 3. **Nasadit → Nové nasazení → Webová aplikace**: Spustit jako **Já**, přístup **Kdokoli**.
 4. Zkopíruj URL webové aplikace (`…/exec`) a vlož ji v appce do **Více → Export & Backup → Cloud sync**.
 
-Data se ukládají při každé změně a načítají při startu. Změny z více zařízení se **slévají podle záznamů** (nic se nepřepíše), smazané položky hlídají tombstony. Skript navíc drží **denní zálohy** za posledních 7 dní (skryté listy `SNAP_…`). Indikátor stavu je tečka v horní liště: 🟢 ok, 🟡 probíhá, 🔴 offline/chyba.
+Data se ukládají při každé změně a načítají při startu. Změny z více zařízení se **slévají podle záznamů** (nic se nepřepíše), smazané položky hlídají tombstony. Skript navíc drží **denní zálohy** za posledních 7 dní (skryté listy `SNAP_…`). Indikátor stavu je tečka v horní liště: volt = ok, šedá blikající = probíhá, červená = offline/chyba.
 
 > ⚠️ Exec URL funguje jako přístupový klíč — ukládá se jen lokálně v zařízení, nikam ji nesdílej a nedávej do veřejného repozitáře.
 
