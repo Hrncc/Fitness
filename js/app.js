@@ -199,10 +199,12 @@ const ACTIONS = {
   "t-w-save": () => {
     const kg = kgIn(String(TV.wDraft));
     if (kg == null || kg <= 0) { toast("Zadej platnou váhu", "err"); return; }
-    logBodyWeight(kg, todayStr());
+    const day = TV.wDate && TV.wDate < todayStr() ? TV.wDate : todayStr();
+    logBodyWeight(kg, day);
     TV.wDraft = null;
+    TV.wDate = null;
     save(); render();
-    toast("Váha zapsána ✓", "ok");
+    toast(day === todayStr() ? "Váha zapsána ✓" : `Váha zapsána k ${fmtDate(day)} ✓`, "ok");
   },
   "t-food-rating": d => {
     logDayRating(todayStr(), d.v, undefined);
@@ -263,6 +265,20 @@ const ACTIONS = {
     render();
   },
   "w-set-save": d => saveSetEdit(Number(d.i)),
+  /* mini check „do selhání" u série */
+  "w-set-fail": d => {
+    const e = S.activeSession && S.activeSession.entries[Number(d.i)];
+    const st = e && e.sets[Number(d.j)];
+    if (!st) return;
+    // rozepsaná série v polích nesmí překreslením zmizet
+    const keep = ["reps", "weight", "note"].map(f => (document.getElementById(`${f}-${d.i}`) || {}).value);
+    if (st.failure) delete st.failure; else st.failure = true;
+    save(); render();
+    ["reps", "weight", "note"].forEach((f, k) => {
+      const el = document.getElementById(`${f}-${d.i}`);
+      if (el && keep[k] != null) el.value = keep[k];
+    });
+  },
   "w-set-cancel": () => { WV.editSet = null; render(); },
   /* zpětná úprava uloženého tréninku (detail tréninku) */
   "w-edit-session": d => beginEditSession(d.id),
@@ -590,6 +606,13 @@ document.addEventListener("change", e => {
   if (!t) return;
   if (t.dataset.change === "f-date") {
     if (t.value) { FV.date = t.value; render(); }
+  }
+  /* datum zápisu váhy na kartě Dnes; u dne, který už váhu má, se předvyplní */
+  if (t.dataset.change === "t-w-date" && t.value) {
+    TV.wDate = t.value < todayStr() ? t.value : null;
+    const w = TV.wDate ? bodyWeightOn(TV.wDate) : null;
+    if (w != null) TV.wDraft = Math.round(kgOut(w) * 10) / 10;
+    render();
   }
   /* datum upravovaného uloženého tréninku */
   if (t.dataset.change === "w-edit-date" && t.value && S.activeSession) {

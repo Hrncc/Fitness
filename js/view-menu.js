@@ -1,7 +1,7 @@
 /* ===== Obrazovky z hamburger menu ===== */
 "use strict";
 
-const APP_VERSION = "1.26";
+const APP_VERSION = "1.27";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -516,7 +516,7 @@ function buildMarkdown(rangeId) {
     } else {
       lines.push(`### ${fmtDate(s.date)} — ${templateLabel(s.templateUsed)}`);
       for (const e of s.entries) {
-        const sets = (e.sets || []).map(st => `${st.reps}×${fmtWeight(st.weight, false)}`).join(", ");
+        const sets = (e.sets || []).map(st => `${st.reps}×${fmtWeight(st.weight, false)}${st.failure ? " (do selhání)" : ""}`).join(", ");
         lines.push(`- ${exName(e.exerciseId)}: ${sets} ${weightUnit()}`);
       }
     }

@@ -76,8 +76,12 @@ v detailu tréninku). Zaškrtnutý core se počítá jako pokrytá partie v coun
 `lastSessionGaps()`, `dayCatColors()`, `catPipsHtml(counts, core)` i v Týdnu;
 počty sérií zůstávají jen skutečné série. (Starší aktivní session můžou nést
 `startedAt` z v1.23–1.25 — nic ho už nečte.)
-U silových `entries[] = {exerciseId, sets: [{reps, weight, note}]}` — váhy vždy
-interně v **kg**, na výstup přes `kgOut()`/`fmtWeight()`.
+U silových `entries[] = {exerciseId, sets: [{reps, weight, note, failure?}]}` — váhy vždy
+interně v **kg**, na výstup přes `kgOut()`/`fmtWeight()`. `failure: true` (v1.27) =
+mini check „do selhání" **u série** — štítek mezi váhou a křížkem, objeví se na
+sérii hned po přidání (`failChipHtml()`, akce `w-set-fail`). Ukládá se jen zapnutý;
+oprava čísel série ho nemění. Sbalený cvik ukazuje „do selhání N×", detail štítek
+u série, report a export „(do selhání)".
 
 Sync slévá kolekce **podle `id`** (ne last-write-wins), tombstony v `deletedIds`.
 
@@ -249,6 +253,9 @@ sklo dostane až po přilepení — třída `.stuck` z `updateTopbar()`).
 Navigace je **Dnes · Trénink · Týden · Více** — podle toho, co děláš, ne podle
 typu dat. „Více" otevírá sheet s dlaždicemi, Jídlo je obrazovka pod Dnes.
 
+- **Váha jde zapsat k jinému dni** (v1.27): na kartě Dnes pilulka s datem
+  (`weightDatePill()`, `TV.wDate`, jen dnes a zpět), v okně zápisu pole Datum
+  (`#bwDate`). U dne, který už váhu má, se předvyplní a upozorní na přepsání.
 - **Dnes** = seznam toho, co dnes dlužíš: váha → trénink → jídlo. Hotová položka
   se sbalí na řádek (`dayItemDone()`), rámeček (`.item-hero`) nese **jen první
   nedokončená** — tři hrdinové naráz o pozornost soupeří. Nahoře týdenní pás

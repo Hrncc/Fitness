@@ -6,8 +6,18 @@ const CZ_MONTHS_GEN = ["ledna", "února", "března", "dubna", "května", "červn
   "července", "srpna", "září", "října", "listopadu", "prosince"];
 
 const TV = {
-  wDraft: null   // rozepsaná váha ve stepperu, v zobrazené jednotce
+  wDraft: null,  // rozepsaná váha ve stepperu, v zobrazené jednotce
+  wDate: null    // den, ke kterému se váha zapíše (null = dnes)
 };
+
+/* Výběr data u zápisu váhy — pilulka s neviditelným type=date přes celou
+   plochu (klepnutí otevře systémový výběr). Budoucí dny nejdou. */
+function weightDatePill(day, change) {
+  const t = todayStr();
+  const lbl = day === t ? "dnes" : day === addDays(t, -1) ? "včera" : fmtDate(day);
+  return `<label class="date-pill">${ic("calendar", 14)}<span>${lbl}</span>
+    <input type="date" data-change="${change}" value="${day}" max="${t}" aria-label="Datum zápisu váhy"></label>`;
+}
 
 function renderToday() {
   const today = todayStr();
@@ -94,8 +104,13 @@ function todayWeightItem(today, hero) {
   if (w != null) {
     return dayItemDone(`${ic("scale", 17)}Váha`, `<span class="num">${fmtWeight(w)}</span>`, "bw-open", `data-date="${today}"`);
   }
+  /* váha jde zapsat i zpětně — den vybraný v pilulce (výchozí dnešek) */
+  const day = TV.wDate && TV.wDate < today ? TV.wDate : today;
+  const existing = day !== today ? bodyWeightOn(day) : null;
   const last = lastBodyWeight(today);
   if (TV.wDraft == null) TV.wDraft = last ? Math.round(kgOut(last.weightKg) * 10) / 10 : null;
+  const lastTxt = last ? `naposledy ${fmtNum(kgOut(last.weightKg), 1)} · ${
+    last.date === addDays(today, -1) ? "včera" : `${parseDate(last.date).getDate()}. ${parseDate(last.date).getMonth() + 1}.`}` : "";
   const avg = movingAvgAt(S.bodyLog, today);
   const weekAgo = movingAvgAt(S.bodyLog, addDays(today, -7));
   const trend = (avg != null && weekAgo != null) ? kgOut(avg) - kgOut(weekAgo) : null;
@@ -110,20 +125,22 @@ function todayWeightItem(today, hero) {
   }
   return `
     <div class="card${hero ? " item-hero" : ""}">
-      ${cardHead("scale", "Váha · ráno", last ? `<span class="badge neutral">naposledy ${fmtNum(kgOut(last.weightKg), 1)}</span>` : "")}
+      ${cardHead("scale", "Váha · ráno", weightDatePill(day, "t-w-date"))}
       <div class="stepper">
         <button class="step-btn" data-act="t-w-step" data-d="-0.1" aria-label="Méně">${ic("minus", 24, 2.4)}</button>
-        <button class="step-val" data-act="bw-open" data-date="${today}">
+        <button class="step-val" data-act="bw-open" data-date="${day}">
           ${fmtNum(TV.wDraft, 1)}<small>${weightUnit()}</small>
         </button>
         <button class="step-btn" data-act="t-w-step" data-d="0.1" aria-label="Více">${ic("plus", 24, 2.4)}</button>
       </div>
       <div class="small center" style="margin:10px 0 14px">
+        ${lastTxt ? `${lastTxt}<br>` : ""}
         ${avg != null ? `7denní průměr <b style="color:var(--text)">${fmtNum(kgOut(avg), 1)}</b>` : "první záznam v průměru"}
         ${trend != null && Math.abs(trend) >= 0.05
           ? ` · za týden <b style="color:var(--green)">${trend > 0 ? "+" : ""}${fmtNum(trend, 1)}</b>` : ""}
+        ${existing != null ? `<br><span style="color:var(--yellow)">K ${fmtDate(day)} už je ${fmtWeight(existing)} — potvrzením ji přepíšeš.</span>` : ""}
       </div>
-      <button class="btn primary full" data-act="t-w-save">Potvrdit ${fmtNum(TV.wDraft, 1)} ${weightUnit()}</button>
+      <button class="btn primary full" data-act="t-w-save">Potvrdit ${fmtNum(TV.wDraft, 1)} ${weightUnit()}${day !== today ? ` · ${day === addDays(today, -1) ? "včera" : fmtDate(day)}` : ""}</button>
     </div>`;
 }
 
@@ -307,20 +324,39 @@ function weeklyRecapCard() {
 /* date = null → dnešek; jinak zpětný zápis (kalendář v Souhrnu) */
 function openBodyWeightModal(date) {
   const day = date || todayStr();
-  const isToday = day === todayStr();
   // předvyplní se hodnota toho dne, jinak poslední známá váha k tomu dni
   const current = bodyWeightOn(day) ?? (lastBodyWeight(day) || {}).weightKg;
-  openModal(`${modalTitle("Zapsat váhu" + (isToday ? "" : " · " + fmtDate(day)))}
-    <label class="field"><span>Tělesná váha (${weightUnit()})</span>
-      <input class="input" id="bwInput" type="text" inputmode="decimal"
-        value="${current != null ? fmtNum(kgOut(current), 1) : ""}" placeholder="např. 80,5"></label>
-    ${bodyWeightOn(day) != null ? `<p class="small" style="margin:-6px 0 14px">K tomuto dni už váha zapsaná je — uložením ji přepíšeš.</p>` : ""}
+  openModal(`${modalTitle("Zapsat váhu")}
+    <div class="input-row">
+      <label class="field"><span>Tělesná váha (${weightUnit()})</span>
+        <input class="input" id="bwInput" type="text" inputmode="decimal"
+          value="${current != null ? fmtNum(kgOut(current), 1) : ""}" placeholder="např. 80,5"></label>
+      <label class="field"><span>Datum</span>
+        <input class="input" id="bwDate" type="date" value="${day}" max="${todayStr()}"></label>
+    </div>
+    <p class="small" id="bwNote" style="margin:-6px 0 14px"></p>
     <button class="btn primary full" data-act="bw-save" data-date="${day}">Uložit</button>`);
+  /* po změně data se předvyplní váha toho dne a upozorní na přepsání */
+  const dateEl = document.getElementById("bwDate");
+  const note = () => {
+    const d = dateEl.value || day;
+    const w = bodyWeightOn(d);
+    document.getElementById("bwNote").textContent =
+      w != null ? `K ${fmtDate(d)} už je zapsáno ${fmtWeight(w)} — uložením ji přepíšeš.` : "";
+    return w;
+  };
+  dateEl.addEventListener("change", () => {
+    const w = note();
+    if (w != null) document.getElementById("bwInput").value = fmtNum(kgOut(w), 1);
+  });
+  note();
   document.getElementById("bwInput").focus();
 }
 
 function saveBodyWeight(date) {
-  const day = date || todayStr();
+  const dateEl = document.getElementById("bwDate");
+  const day = (dateEl && dateEl.value) || date || todayStr();
+  if (day > todayStr()) { toast("Váhu nejde zapsat do budoucna", "err"); return; }
   const kg = kgIn(document.getElementById("bwInput").value);
   if (kg == null || kg <= 0) { toast("Zadej platnou váhu", "err"); return; }
   logBodyWeight(kg, day);

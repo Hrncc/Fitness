@@ -119,6 +119,8 @@ function renderActiveSession() {
     const setCount = (entry.sets || []).length;
     const isOpen = WV.openIdx === i;
     const summary = entry.sets.map(st => `${st.reps}×${fmtNum(kgOut(st.weight), 1)}`).join(" · ");
+    const failN = entry.sets.filter(st => st.failure).length;
+    const failTxt = failN ? ` · do selhání ${failN}×` : "";
 
     /* --- sbalený hotový cvik --- */
     if (entry.done && !isOpen) {
@@ -129,7 +131,7 @@ function renderActiveSession() {
           <span class="done-check">${ic("check", 16, 3)}</span>
           <div class="grow">
             <div class="name" style="font-weight:700">${esc(exName(entry.exerciseId))}</div>
-            <div class="small">${setCount} ${setWord(setCount)} · ${summary} ${weightUnit()}${entry.prHit ? ` · <span style="color:var(--yellow);font-weight:700">PR!</span>` : ""}</div>
+            <div class="small">${setCount} ${setWord(setCount)} · ${summary} ${weightUnit()}${failTxt}${entry.prHit ? ` · <span style="color:var(--yellow);font-weight:700">PR!</span>` : ""}</div>
           </div>
           ${dragHandleHtml(i)}
         </div>
@@ -139,7 +141,7 @@ function renderActiveSession() {
     /* --- sbalený cvik (nezačatý nebo rozdělaný) --- */
     if (!isOpen) {
       const sub = setCount
-        ? `${setCount} ${setWord(setCount)} · ${summary} ${weightUnit()}`
+        ? `${setCount} ${setWord(setCount)} · ${summary} ${weightUnit()}${failTxt}`
         : (planShort(ex) || "klepni pro zápis");
       return `
       <div class="ex-row ex-collapsed${setCount ? " ex-active" : ""}" id="exblock-${i}" data-act="w-ex-open" data-i="${i}">
@@ -179,6 +181,7 @@ function renderActiveSession() {
         <span class="set-num">${j + 1}</span>
         <span class="grow"><span class="set-val">${fmtNum(st.reps)}<span>×</span>${fmtWeight(st.weight)}</span>${st.note ? ` <span class="small">· ${esc(st.note)}</span>` : ""}</span>
         ${st.isPR ? `<span class="badge yellow">PR!</span>` : ""}
+        ${failChipHtml(st, i, j)}
         <button class="iconbtn sm muted" data-act="w-del-set" data-i="${i}" data-j="${j}" aria-label="Smazat sérii">${ic("x", 16)}</button>
       </div>`).join("");
 
@@ -266,6 +269,17 @@ function coreCardHtml(a) {
       <button class="switch${on ? " on" : ""}" data-act="w-core" role="switch"
         aria-checked="${on}" aria-label="Core odcvičen"${sets ? " disabled" : ""}></button>
     </div>`;
+}
+
+/* ---- Mini check „do selhání" u série ----
+   Objeví se na každé zapsané sérii mezi váhou a křížkem: klepnutí přepne
+   ano/ne. Vypnutý je tlumený obrys s prázdným kroužkem, zapnutý volt štítek
+   s fajfkou. Ukládá se k sérii (set.failure), jen když je zapnutý. */
+function failChipHtml(st, i, j) {
+  const on = st.failure === true;
+  return `<button class="fail-chip${on ? " on" : ""}" data-act="w-set-fail" data-i="${i}" data-j="${j}"
+    aria-pressed="${on}" aria-label="Série do selhání: ${on ? "ano" : "ne"}">
+    <i>${on ? ic("check", 11, 3.4) : ""}</i>selhání</button>`;
 }
 
 function setWordTop(n) { return n === 1 ? "série" : n >= 2 && n <= 4 ? "série" : "sérií"; }
@@ -588,6 +602,7 @@ function saveSetEdit(i) {
   if (weight == null || weight < 0) { toast("Zadej váhu", "err"); return; }
   const prevBest = currentPR(entry.exerciseId);
   const set = { reps, weight, note: note || null };
+  if (entry.sets[j].failure) set.failure = true;   // oprava čísel nemění „do selhání"
   if (est1RM(weight, reps) > (prevBest ? prevBest.e1rm : 0)) set.isPR = true;
   entry.sets[j] = set;
   entry.prHit = entry.sets.some(st => st.isPR);
@@ -621,7 +636,8 @@ function beginEditSession(id) {
     templateName: s.templateName || null,
     core: s.core === true,
     entries: (s.entries || []).map(e => Object.assign(
-      { exerciseId: e.exerciseId, sets: (e.sets || []).map(st => ({ reps: st.reps, weight: st.weight, note: st.note || null })), done: true },
+      { exerciseId: e.exerciseId, sets: (e.sets || []).map(st => Object.assign(
+        { reps: st.reps, weight: st.weight, note: st.note || null }, st.failure ? { failure: true } : {})), done: true },
       e.exerciseName ? { exerciseName: e.exerciseName } : {}))
   };
   WV.openIdx = null;
@@ -637,7 +653,8 @@ function finishWorkout() {
   const entries = a.entries
     .filter(e => (e.sets || []).length)
     .map(e => Object.assign(
-      { exerciseId: e.exerciseId, sets: e.sets.map(({ reps, weight, note }) => ({ reps, weight, note })) },
+      { exerciseId: e.exerciseId, sets: e.sets.map(({ reps, weight, note, failure }) =>
+        Object.assign({ reps, weight, note }, failure ? { failure: true } : {})) },
       e.exerciseName ? { exerciseName: e.exerciseName } : {}));
   if (!entries.length) {
     toast(a.editOf ? "Trénink nemá žádnou sérii — smazat ho jde v detailu" : "Trénink nemá žádnou zapsanou sérii", "err");
@@ -840,7 +857,8 @@ function sessionDetailHtml(s) {
   const blocks = s.entries.map(e => {
     const sets = (e.sets || []).map((st, j) =>
       `<div class="set-row"><span class="set-num">${j + 1}</span>
-       <span class="grow"><span class="set-val">${fmtNum(st.reps)}<span>×</span>${fmtWeight(st.weight)}</span>${st.note ? ` <span class="small">· ${esc(st.note)}</span>` : ""}</span></div>`).join("");
+       <span class="grow"><span class="set-val">${fmtNum(st.reps)}<span>×</span>${fmtWeight(st.weight)}</span>${st.note ? ` <span class="small">· ${esc(st.note)}</span>` : ""}</span>
+       ${st.failure ? `<span class="fail-chip on static"><i>${ic("check", 11, 3.4)}</i>selhání</span>` : ""}</div>`).join("");
     return `<div class="card2 mt">
       <div class="row"><i class="p-stripe" style="background:${exColor(e.exerciseId)}"></i>
         <b style="font-size:14.5px">${esc(exName(e.exerciseId))}</b></div>${sets}</div>`;

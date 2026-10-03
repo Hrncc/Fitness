@@ -153,7 +153,10 @@ function buildCoachReport(rangeId = "month") {
         (s.core === true ? " · core ✓" : ""));
       if (s.note) L.push(`_${s.note}_`);
       for (const e of s.entries) {
-        const line = (e.sets || []).map(st => `${st.reps}×${fmtNum(kgOut(st.weight), 1)}${st.note ? ` (${st.note})` : ""}`).join(", ");
+        const line = (e.sets || []).map(st => {
+          const tags = [st.note, st.failure ? "do selhání" : null].filter(Boolean);
+          return `${st.reps}×${fmtNum(kgOut(st.weight), 1)}${tags.length ? ` (${tags.join(", ")})` : ""}`;
+        }).join(", ");
         L.push(`- ${exName(e.exerciseId)}: ${line || "—"}`);
       }
       L.push("");
