@@ -721,6 +721,20 @@ body.modal-open .dock.show {
 .wk-dots i.on { background: var(--text2); }
 .wk-dots i.part { background: var(--text3); }
 .wk-legend { display: flex; justify-content: center; gap: 14px; font-size: 12px; color: var(--text3); margin-top: 12px; }
+/* Týden ⇄ Měsíc: legenda vlevo, přepínač vpravo */
+.wk-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; }
+.wk-foot .wk-legend { margin-top: 0; justify-content: flex-start; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.wk-toggle {
+  display: inline-flex; align-items: center; gap: 4px; flex: none; min-height: 30px; padding: 0 10px 0 12px;
+  border: 0; border-radius: 999px; background: var(--s2); color: var(--text);
+  font-size: 13px; font-weight: 650; cursor: pointer;
+}
+.wk-toggle:active { background: var(--s3); }
+/* měsíc: stejné buňky jako týden, menší kolečka */
+.wk-month { row-gap: 8px; }
+.wk-month > .wk-l { padding-bottom: 2px; }
+.wk-month .wk-d { gap: 4px; }
+.wk-month .wk-n { width: 34px; height: 34px; font-size: 14px; }
 .wk-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .wk-legend i { width: 7px; height: 7px; border-radius: 50%; display: block; }
 
@@ -794,15 +808,6 @@ body.modal-open .dock.show {
 /* Rekordy · Templates · Library jednou řadou */
 .quick-links { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 28px; }
 .quick-links .start-opt { justify-content: center; min-height: 40px; padding: 0 8px; }
-/* nízký kalendář na kartě Trénink — bez legendy, měsíc vlevo, šipky vpravo */
-.cal-compact { padding: 12px 12px 10px; }
-.cal-compact .cal-head { margin-bottom: 2px; padding-left: 6px; gap: 2px; }
-.cal-compact .cal-head b { order: -1; margin-right: auto; font-size: 16px; }
-.cal-compact .cal-head .iconbtn { width: 34px; height: 34px; background: none; }
-.cal-compact .cal-dow { padding: 2px 0 4px; font-size: 11px; }
-.cal-compact .cal-grid { gap: 2px; }
-.cal-compact .cal-day { width: 100%; max-width: 36px; justify-self: center; font-size: 13.5px; }
-.sec.tight { margin-top: 12px; }
 .sess-row .sess-date { width: 40px; flex: none; text-align: center; line-height: 1.1; }
 .sess-row .sess-date b { display: block; font-size: 18px; font-weight: 750; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
 .sess-row .sess-date span { font-size: 11.5px; color: var(--text3); font-weight: 600; text-transform: lowercase; }

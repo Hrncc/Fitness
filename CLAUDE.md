@@ -76,6 +76,10 @@ Osobní PWA pro zápis silových a kardio tréninků a stravy. **Jeden uživatel
 `exercises`, `templates`, `sessions`, `foods`, `foodLog`, `bodyLog`, `dayLog`,
 `recipes`, `checkins`, `milestones`, `deletedIds`, `goal`, `activeSession`.
 
+`bodyLog`: `{date, weightKg, at}` — `at` (v2.2) = kdy se váha zapsala; ukazuje se
+přesné datum vážení „po 5. 10. · 7:12" (`weightStamp()`, `fmtDayDate()`), čas jen
+když zápis padl do stejného dne (`timeOnDay()`) — u zpětného zápisu by nic neříkal.
+
 `dayLog` (v1.17): `{date, foodRating: "under"|"ok"|"over", proteinOk}` — rychlý
 zápis dne dvěma klepnutími. Slévá se podle `date` jako `bodyLog`.
 `effectiveDayRating(date)` dává přednost podrobnému `foodLog`, když pro den
@@ -86,8 +90,13 @@ Sessions: `{id, date, type: "weights"|"cardio", templateUsed, templateName, core
 `core` (v1.23) = ruční „core ano/ne" z přepínače v tréninku (jde změnit i zpětně
 v detailu tréninku). Zaškrtnutý core se počítá jako pokrytá partie v counteru (✓ místo čísla),
 `lastSessionGaps()`, `dayCatColors()`, `catPipsHtml(counts, core)` i v Týdnu;
-počty sérií zůstávají jen skutečné série. (Starší aktivní session můžou nést
-`startedAt` z v1.23–1.25 — nic ho už nečte.)
+počty sérií zůstávají jen skutečné série.
+`startedAt` (v2.2) = časová značka, kdy se trénink zapnul — jen u živého tréninku
+s dnešním datem (`beginWorkout`, `repeatSession`); zpětný zápis ho nemá, úprava
+ho nemění. Ukazuje se jen **čas začátku** („od 18:42", `startedLabel()`, `fmtTime()`)
+v titulku gym módu, v docku, na Dnes, ve shrnutí, v detailu, v řádcích tréninků,
+v CSV a reportu — **žádný běžící časovač ani délka tréninku** (v1.26 platí dál).
+(Aktivní session z v1.23–1.25 ho můžou nést taky — teď se ukáže jako začátek.)
 U silových `entries[] = {exerciseId, sets: [{reps, weight, note, failure?}]}` — váhy vždy
 interně v **kg**, na výstup přes `kgOut()`/`fmtWeight()`. `failure: true` (v1.27) =
 mini check „do selhání" **u série** — štítek mezi váhou a křížkem, objeví se na
@@ -243,11 +252,11 @@ Dole **Dnes · Trénink · Pokrok · Více**. Stránky se otevírají nad aktuá
 (`goPage(page)` → `App.route = {tab, page}`), navigace drží zvýrazněnou kartu,
 ze které přišly. Stránky: `food`, `history`, `records`, `checkin`, `exlib`,
 `templates`, `foodlib`, `export`, `settings`, `about` (mapa `PAGES` v `app.js`).
-Bývalá karta Týden (tři podzáložky) je rozpuštěná: týden je na Dnes, analytika
-v Pokroku, kalendář na kartě Trénink a v Historii, strava v Pokrok → Strava.
-**Kalendář musí být vidět** — ve v2.0–2.1 byl jen v Historii za odkazem
-a Martin ho postrádal (v2.1.1 ho vrátila na Trénink a do Více jako „Kalendář
-a historie").
+Bývalá karta Týden (tři podzáložky) je rozpuštěná: týden a měsíční kalendář
+jsou na Dnes, analytika v Pokroku, kalendář s proužky partií v Historii, strava
+v Pokrok → Strava. **Kalendář musí být vidět** — ve v2.0–2.1 byl jen v Historii
+za odkazem a Martin ho postrádal; v2.1.1 ho dala na Trénink, v2.2 na jeho přání
+na Dnes, sloučený s „Tento týden" (Více → „Kalendář a historie" vede do Historie).
 
 ### Dnes (`view-today.js`)
 
@@ -262,8 +271,14 @@ Shora dolů od nejbližšího k nejširšímu:
   kalorie pod / v cíli / nad a bílkoviny ne / ano; po druhé odpovědi se sbalí,
   klepnutí na hotový řádek ho otevře k opravě, „Smazat dnešní zápis" jde přes
   `withUndo`. S podrobným zápisem ukazuje řádek kalorie a vede na stránku Jídlo.
-- **Týden** (`weekSectionHtml()`) — pás 7 dní (volt kolečko = silový trénink,
-  červený prstenec = kardio, dvě tečky = váha · jídlo, klepnutí → detail dne),
+- **Týden a kalendář** (`weekSectionHtml()`, v2.2) — jedna sekce: pás 7 dní se
+  přepínačem **Měsíc ⌄** (`td-cal`, `TV.cal`) rozbalí do celého měsíce se stejnými
+  buňkami (`dayCellHtml()`; `monthSectionHtml()`, sdílí `SV.calY/calM` s Historií),
+  šipky pak listují měsíce (`td-month`, ne do budoucna) a čísla i partie platí pro
+  měsíc (probíhající proti stejné době minulého, uzavřený proti celému předchozímu;
+  kroužek týdenního cíle jen v týdnu). Zpět na týden ukáže týden konce měsíce.
+  Buňka: volt kolečko = silový trénink, červený prstenec = kardio, dvě tečky =
+  váha · jídlo, klepnutí → detail dne. Týdenní pás:
   čísla tréninky · série · objem se změnou a pokrytí partií za týden („Bez série:
   …" zlatě). Šipkami se listuje do minulých týdnů (`TV.weekOff`). Probíhající týden
   se srovnává **se stejnou dobou minulého týdne**, uzavřený s celým předchozím.
@@ -283,9 +298,7 @@ Shora dolů od nejbližšího k nejširšímu:
   naposledy …") s volt **Začít** vpravo, případně zlatý řádek „Minule uteklo",
   pod linkou ostatní volby jako malé kapsle `.start-opt` bez ikon (ostatní
   šablony, Volný, Kardio s tečkou). Seznam cviků šablony na startu záměrně není.
-  Pod tím **nízký kalendář** bez legendy (`monthCalendarCardHtml(true)` →
-  `.cal-compact`, měsíc vlevo, šipky vpravo; stejná data jako v Historii, sdílí
-  `SV.calY/calM`), pak **Naposledy** — 3 tréninky (`sessionRowHtml()` — datum,
+  Kalendář tu od v2.2 není (je na Dnes). Pak **Naposledy** — 3 tréninky (`sessionRowHtml()` — datum,
   čísla, partie, počet rekordů `sessionPRCount()`) s odkazem Historie, a dole
   jedna řada kapslí Rekordy · Templates · Library (`.quick-links`).
   Den zápisu je **pilulka s datem v titulku** (`w-date`, `w-date-today`) — trénink
@@ -310,7 +323,7 @@ ukazuje odpočet s kroužkem, −30/+30 a zrušení; když pauza neběží a pro
 trénink, ukazuje počet sérií (`workoutSetsLabel()`) a bílé tlačítko pro ruční
 start pauzy. **Časovač celého tréninku není** — v1.26 na Martinovu žádost
 odstraněn, nevracet.
-Délka pauzy jde z plánu otevřeného cviku (`currentRestSeconds()` / `entryRest()`),
+Vedle názvu tréninku je čas začátku („· od 18:42"). Délka pauzy jde z plánu otevřeného cviku (`currentRestSeconds()` / `entryRest()`),
 jinak z Nastavení. Po doběhnutí pauzy 5 s svítí volt „Pauza skončila". Zvuk na
 konci pauzy byl ve v2.1 nabídnutý a Martin ho nechtěl. Klepnutí vrací na Trénink
 (`dock-open`). Při otevřeném sheetu (`body.modal-open`) se přesune nahoru, aby ho
@@ -364,7 +377,7 @@ v cíli, Ø makra, graf kalorií s cílem), bilance po týdnech (Ø příjem vs 
 7denního průměru váhy) a vstup do jídelníčku.
 
 **Export & Backup** má i **CSV sérií** (`exp-csv`, `buildSetsCsv()`) — jedna série
-na řádek, středník a desetinná čárka (česká tabulka ho otevře rovnou do sloupců),
+na řádek (sloupec `zacatek` = čas začátku tréninku), středník a desetinná čárka (česká tabulka ho otevře rovnou do sloupců),
 BOM kvůli diakritice.
 
 **Cloud sync** je v Export & Backup (ne v Nastavení): URL se ukládá hned po

@@ -104,6 +104,21 @@ function fmtShort(ds) {
   const d = parseDate(ds);
   return `${d.getDate()}. ${d.getMonth() + 1}.`;
 }
+/* Přesné datum s dnem v týdnu „po 5. 10." (rok jen mimo letošek) a čas „7:05" */
+function fmtDayDate(ds) {
+  const d = parseDate(ds);
+  const y = d.getFullYear() !== new Date().getFullYear() ? ` ${d.getFullYear()}` : "";
+  return `${CZ_DOW[(d.getDay() + 6) % 7].toLowerCase()} ${d.getDate()}. ${d.getMonth() + 1}.${y}`;
+}
+function fmtTime(ms) {
+  const d = new Date(ms);
+  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+/* Čas z časové značky jen tehdy, když padla do stejného dne jako záznam —
+   u zpětného zápisu (váha k včerejšku) by čas zápisu nic neříkal */
+function timeOnDay(ms, ds) {
+  return ms && dateStr(new Date(ms)) === ds ? fmtTime(ms) : "";
+}
 function relDay(ds) {
   const n = daysBetween(ds, todayStr());
   if (n === 0) return "dnes";
@@ -234,7 +249,7 @@ const Dock = {
         <button class="dock-main" data-act="dock-open">
           <span class="dock-ring${a.editOf ? "" : " live"}">${ic(a.editOf ? "edit" : "dumbbell", 19)}</span>
           <span class="dock-txt">
-            <span class="dock-k">${a.editOf ? "Úprava · " : ""}${esc(sessionLabel(a))}</span>
+            <span class="dock-k">${a.editOf ? "Úprava · " : ""}${esc(sessionLabel(a))}${!a.editOf && a.startedAt ? ` · ${startedLabel(a)}` : ""}</span>
             <b class="dock-time">${workoutSetsLabel(a)}</b>
           </span>
         </button>
@@ -331,6 +346,10 @@ function workoutSetsLabel(a) {
   if (!a) return "";
   const n = (a.entries || []).reduce((k, e) => k + (e.sets || []).length, 0);
   return `${n} ${plural(n, "série", "série", "sérií")}`;
+}
+/* „od 18:42" — kdy se trénink zapnul (jen čas začátku, žádný běžící časovač) */
+function startedLabel(s) {
+  return s && s.startedAt ? `od ${fmtTime(s.startedAt)}` : "";
 }
 
 /* ---- Modal (bottom sheet) ---- */

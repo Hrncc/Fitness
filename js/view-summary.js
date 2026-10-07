@@ -136,7 +136,7 @@ function openDaySummary(ds) {
     <div class="h3">Trénink</div>${workoutHtml}
     <div class="h3" style="margin-top:26px">Strava</div>${foodDayHtml(ds)}
     <div class="h3" style="margin-top:26px">Váha</div>
-    <div class="card2">${bw != null ? `<b>${fmtWeight(bw)}</b>` : `<span class="muted">Bez záznamu</span>`}</div>
+    <div class="card2">${bw != null ? `<b>${fmtWeight(bw)}</b>${(t => t ? ` <span class="muted">· zapsáno v ${t}</span>` : "")(timeOnDay((S.bodyLog.find(b => b.date === ds) || {}).at, ds))}` : `<span class="muted">Bez záznamu</span>`}</div>
     <div class="h3" style="margin-top:26px">Přidat do tohoto dne</div>
     ${dayAddButtons(ds)}`);
 }

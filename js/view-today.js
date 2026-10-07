@@ -8,7 +8,8 @@ const TV = {
   wDraft: null,  // rozepsaná váha ve stepperu, v zobrazené jednotce
   wDate: null,   // den, ke kterému se váha zapíše (null = dnes)
   open: null,    // rozbalená položka dne: null = první nedokončená, "none" = žádná
-  weekOff: 0     // procházení týdnů: 0 = tento, -1 = minulý…
+  weekOff: 0,    // procházení týdnů: 0 = tento, -1 = minulý…
+  cal: "week"    // Týden (pás 7 dní) / Měsíc (stejné buňky přes celý měsíc, SV.calY/calM)
 };
 
 function capFirst(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
@@ -97,6 +98,13 @@ function weightDatePill(day, change) {
     <input type="date" data-change="${change}" value="${day}" max="${t}" aria-label="Datum zápisu váhy"></label>`;
 }
 
+/* Přesné datum vážení „po 5. 10. · 7:12" (čas jen když se zapsalo týž den) */
+function weightStamp(e) {
+  if (!e) return "";
+  const t = timeOnDay(e.at, e.date);
+  return `${fmtDayDate(e.date)}${t ? ` · ${t}` : ""}`;
+}
+
 /* ---- Váha: potvrzení čísla, ne formulář ----
    Ráno se hýbeš o desetiny, takže se předvyplní poslední hodnota a krokuje
    se po 0,1. Klávesnice se otevře jen když do čísla klepneš. */
@@ -104,11 +112,12 @@ function weightRowHtml(done) {
   const today = todayStr();
   if (done) {
     return tdRow({ icon: "scale", title: "Váha", value: fmtWeight(bodyWeightOn(today)), state: "done",
+      sub: `zapsáno ${weightStamp(S.bodyLog.find(b => b.date === today))}`,
       act: "bw-open", attrs: `data-date="${today}"` });
   }
   const last = lastBodyWeight(today);
   return tdRow({ icon: "scale", title: "Váha",
-    sub: last ? `naposledy ${fmtWeight(last.weightKg)} · ${relDay(last.date)}` : "zatím žádné vážení",
+    sub: last ? `naposledy ${fmtWeight(last.weightKg)} · ${weightStamp(last)}` : "zatím žádné vážení",
     act: "td-open", attrs: `data-k="weight"` });
 }
 
@@ -129,7 +138,7 @@ function weightOpenHtml() {
   const weekAgo = movingAvgAt(S.bodyLog, addDays(today, -7));
   const trend = (avg != null && weekAgo != null) ? kgOut(avg) - kgOut(weekAgo) : null;
   const info = [];
-  if (last) info.push(`naposledy <b>${fmtFixed(kgOut(last.weightKg), 1)}</b> · ${relDay(last.date)}`);
+  if (last) info.push(`naposledy <b>${fmtFixed(kgOut(last.weightKg), 1)}</b> · ${weightStamp(last)}`);
   if (avg != null) info.push(`Ø 7 dní <b>${fmtFixed(kgOut(avg), 1)}</b>${trend != null && Math.abs(trend) >= 0.05
     ? ` (${trend > 0 ? "+" : ""}${fmtNum(trend, 1)})` : ""}`);
   return `<div class="td-open">
@@ -149,7 +158,7 @@ function weightOpenHtml() {
 function workoutRowHtml() {
   const a = S.activeSession;
   if (a) {
-    return tdRow({ icon: "dumbbell", title: "Trénink", sub: `${a.editOf ? "Úprava" : "Probíhá"} · ${esc(sessionLabel(a))}`,
+    return tdRow({ icon: "dumbbell", title: "Trénink", sub: `${a.editOf ? "Úprava" : `Probíhá${a.startedAt ? ` ${startedLabel(a)}` : ""}`} · ${esc(sessionLabel(a))}`,
       state: "nav", act: "nav", attrs: `data-tab="workout"` });
   }
   const sessions = sessionsOn(todayStr());
@@ -175,7 +184,7 @@ function workoutOpenHtml() {
     const hit = CAT_ORDER.filter(c => counts[c] > 0 || (core && c === "Core")).length;
     const done = a.entries.filter(e => e.done).length;
     return `<div class="td-open">
-      ${tdOpenHead("dumbbell", "Trénink", "workout", `<span class="badge${a.editOf ? "" : " green"}">${a.editOf ? "úprava" : "probíhá"}</span>`)}
+      ${tdOpenHead("dumbbell", "Trénink", "workout", `<span class="badge${a.editOf ? "" : " green"}">${a.editOf ? "úprava" : `probíhá${a.startedAt ? ` ${startedLabel(a)}` : ""}`}</span>`)}
       <div class="td-title">${esc(sessionLabel(a))}</div>
       <div class="td-meta">${done} z ${a.entries.length} cviků · ${sets} ${plural(sets, "série", "série", "sérií")} · ${hit} ze ${CAT_ORDER.length} partií</div>
       ${a.type === "weights" ? `<div class="mt">${catPipsHtml(counts, core)}</div>` : ""}
@@ -272,55 +281,47 @@ function weekSummary(from, to) {
   };
 }
 
-function weekSectionHtml() {
-  const off = TV.weekOff;
-  const today = todayStr();
-  const mon = addDays(mondayOf(today), 7 * off);
-  const sun = addDays(mon, 6);
-  const end = off === 0 ? today : sun;
-  const cur = weekSummary(mon, end);
-  const prev = weekSummary(addDays(mon, -7), addDays(end, -7));
+/* Buňka dne — stejná v pásu týdne i v měsíci: volt kolečko = silový trénink,
+   červený prstenec = kardio, dvě tečky = váha · jídlo. Klepnutí → detail dne. */
+function dayCellHtml(ds, today, label = "") {
+  const sess = sessionsOn(ds);
+  const trained = sess.some(s => s.type === "weights");
+  const cardio = sess.some(s => s.type === "cardio");
+  const food = effectiveDayRating(ds);
+  return `<div class="wk-d${trained ? " trained" : ""}${cardio ? " cardio" : ""}${ds === today ? " today" : ""}${ds > today ? " future" : ""}"
+      data-act="sum-cal-day" data-date="${ds}">
+    ${label ? `<span class="wk-l">${label}</span>` : ""}
+    <span class="wk-n">${parseDate(ds).getDate()}</span>
+    <span class="wk-dots"><i class="${bodyWeightOn(ds) != null ? "on" : ""}"></i><i class="${food ? (food.foodRating === "ok" ? "on" : "part") : ""}"></i></span>
+  </div>`;
+}
 
-  const cells = CZ_DOW.map((lbl, i) => {
-    const ds = addDays(mon, i);
-    const sess = sessionsOn(ds);
-    const trained = sess.some(s => s.type === "weights");
-    const cardio = sess.some(s => s.type === "cardio");
-    const food = effectiveDayRating(ds);
-    return `<div class="wk-d${trained ? " trained" : ""}${cardio ? " cardio" : ""}${ds === today ? " today" : ""}${ds > today ? " future" : ""}"
-        data-act="sum-cal-day" data-date="${ds}">
-      <span class="wk-l">${lbl}</span>
-      <span class="wk-n">${parseDate(ds).getDate()}</span>
-      <span class="wk-dots"><i class="${bodyWeightOn(ds) != null ? "on" : ""}"></i><i class="${food ? (food.foodRating === "ok" ? "on" : "part") : ""}"></i></span>
-    </div>`;
-  }).join("");
+/* Legenda + přepínač Týden ⇄ Měsíc pod pásem/mřížkou */
+function calFootHtml() {
+  const month = TV.cal === "month";
+  return `<div class="wk-foot">
+    <div class="wk-legend">
+      <span><i style="background:var(--green)"></i>trénink</span>
+      <span><i style="background:var(--p-cardio)"></i>kardio</span>
+      <span><i style="background:var(--text2)"></i>váha · jídlo</span>
+    </div>
+    <button class="wk-toggle" data-act="td-cal">${month ? "Týden" : "Měsíc"}${ic(month ? "chevU" : "chevD", 14, 2.4)}</button>
+  </div>`;
+}
 
+/* Čísla období + pokrytí partií — společné pro týden i měsíc */
+function periodBodyHtml(cur, prev, { goal = 0, cap = "" } = {}) {
   const vol = fmtVolume(cur.volume);
   const zero = CAT_ORDER.filter(c => !cur.counts[c] && !(c === "Core" && cur.core));
   const hit = CAT_ORDER.length - zero.length;
-  const goal = Number(Settings.get().weeklyGoal) || 0;
-  const title = off === 0 ? "Tento týden" : off === -1 ? "Minulý týden" : `Týden od ${fmtShort(mon)}`;
-  const nav = `<div class="sec-tools">
-    <button class="iconbtn sm soft" data-act="td-week" data-dir="-1" aria-label="Předchozí týden">${ic("chevL", 18)}</button>
-    <button class="iconbtn sm soft" data-act="td-week" data-dir="1" aria-label="Další týden"${off === 0 ? " disabled" : ""}>${ic("chevR", 18)}</button>
-  </div>`;
-
-  return sec(title, `
-    ${off === 0 ? weeklyRecapHtml() : ""}
-    <div class="card">
-      <div class="wk">${cells}</div>
-      <div class="wk-legend">
-        <span><i style="background:var(--green)"></i>trénink</span>
-        <span><i style="background:var(--p-cardio)"></i>kardio</span>
-        <span><i style="background:var(--text2)"></i>váha · jídlo</span>
-      </div>
+  return `
       <hr class="hair">
       <div class="stats">
         ${goal ? goalStatHtml(cur, prev, goal) : statHtml(cur.weights, plural(cur.weights, "trénink", "tréninky", "tréninků") + (cur.cardio ? ` + ${cur.cardio}× kardio` : ""), deltaHtml(cur.weights, prev.weights))}
         ${statHtml(fmtNum(cur.sets), plural(cur.sets, "série", "série", "sérií"), deltaHtml(cur.sets, prev.sets, true))}
         ${statHtml(`${vol.val}<small>${vol.unit}</small>`, "objem", deltaHtml(cur.volume, prev.volume, true))}
       </div>
-      <div class="chart-cap">${off === 0 ? "Změna proti stejné době minulý týden" : "Změna proti předchozímu týdnu"}</div>
+      <div class="chart-cap">${cap}</div>
       <hr class="hair">
       <div class="row between" style="margin-bottom:9px">
         <span class="cap">Partie</span>
@@ -329,8 +330,86 @@ function weekSectionHtml() {
       ${catPipsHtml(cur.counts, cur.core)}
       ${cur.weights ? (zero.length
         ? `<div class="small warn-text" style="margin-top:9px">Bez série: ${zero.join(", ")}</div>`
-        : `<div class="small" style="margin-top:9px">Všech ${CAT_ORDER.length} partií pokryto</div>`) : ""}
+        : `<div class="small" style="margin-top:9px">Všech ${CAT_ORDER.length} partií pokryto</div>`) : ""}`;
+}
+
+/* Týden a kalendář v jedné sekci: pás 7 dní se rozbalí do celého měsíce
+   (stejné buňky), šipky pak listují měsíce a čísla platí pro měsíc.
+   Kalendář s proužky partií a seznamem tréninků zůstává v Historii. */
+function weekSectionHtml() {
+  if (TV.cal === "month") return monthSectionHtml();
+  const off = TV.weekOff;
+  const today = todayStr();
+  const mon = addDays(mondayOf(today), 7 * off);
+  const sun = addDays(mon, 6);
+  const end = off === 0 ? today : sun;
+  const cur = weekSummary(mon, end);
+  const prev = weekSummary(addDays(mon, -7), addDays(end, -7));
+  const cells = CZ_DOW.map((lbl, i) => dayCellHtml(addDays(mon, i), today, lbl)).join("");
+  const goal = Number(Settings.get().weeklyGoal) || 0;
+  const title = off === 0 ? "Tento týden" : off === -1 ? "Minulý týden" : `Týden od ${fmtShort(mon)}`;
+  const nav = `<div class="sec-tools">
+    <button class="iconbtn sm soft" data-act="td-week" data-dir="-1" aria-label="Předchozí týden">${ic("chevL", 18)}</button>
+    <button class="iconbtn sm soft" data-act="td-week" data-dir="1" aria-label="Další týden"${off === 0 ? " disabled" : ""}>${ic("chevR", 18)}</button>
+  </div>`;
+  return sec(title, `
+    ${off === 0 ? weeklyRecapHtml() : ""}
+    <div class="card">
+      <div class="wk">${cells}</div>
+      ${calFootHtml()}
+      ${periodBodyHtml(cur, prev, { goal, cap: off === 0 ? "Změna proti stejné době minulý týden" : "Změna proti předchozímu týdnu" })}
     </div>`, { sub: `${fmtShort(mon)} – ${fmtShort(sun)}`, right: nav });
+}
+
+function monthSectionHtml() {
+  const today = todayStr();
+  const y = SV.calY, m = SV.calM;
+  const first = dateStr(new Date(y, m, 1)), last = dateStr(new Date(y, m + 1, 0));
+  const isCur = today >= first && today <= last;
+  const end = isCur ? today : last;
+  // probíhající měsíc proti stejné době minulého, uzavřený proti celému předchozímu
+  const pFirst = dateStr(new Date(y, m - 1, 1)), pLast = dateStr(new Date(y, m, 0));
+  const pEnd = isCur ? [addDays(pFirst, daysBetween(first, today)), pLast].sort()[0] : pLast;
+  const cur = weekSummary(first, end);
+  const prev = weekSummary(pFirst, pEnd);
+  const shift = (new Date(y, m, 1).getDay() + 6) % 7;
+  const head = CZ_DOW.map(l => `<span class="wk-l">${l}</span>`).join("");
+  let cells = "<div></div>".repeat(shift);
+  for (let d = 1; d <= new Date(y, m + 1, 0).getDate(); d++) cells += dayCellHtml(dateStr(new Date(y, m, d)), today);
+  const nowM = new Date();
+  const title = isCur ? "Tento měsíc" : `${capFirst(CZ_MONTHS[m])}${y !== nowM.getFullYear() ? ` ${y}` : ""}`;
+  const nav = `<div class="sec-tools">
+    <button class="iconbtn sm soft" data-act="td-month" data-dir="-1" aria-label="Předchozí měsíc">${ic("chevL", 18)}</button>
+    <button class="iconbtn sm soft" data-act="td-month" data-dir="1" aria-label="Další měsíc"${isCur ? " disabled" : ""}>${ic("chevR", 18)}</button>
+  </div>`;
+  return sec(title, `
+    <div class="card">
+      <div class="wk wk-month">${head}${cells}</div>
+      ${calFootHtml()}
+      ${periodBodyHtml(cur, prev, { cap: isCur ? "Změna proti stejné době minulý měsíc" : "Změna proti předchozímu měsíci" })}
+    </div>`, { sub: isCur ? `${CZ_MONTHS[m]} ${y}` : `${fmtShort(first)} – ${fmtShort(last)}`, right: nav });
+}
+
+/* Přepnutí Týden ⇄ Měsíc: měsíc se otevře na zobrazeném týdnu a naopak */
+function toggleTodayCal() {
+  const today = todayStr();
+  if (TV.cal === "week") {
+    const sun = addDays(mondayOf(today), 7 * TV.weekOff + 6);
+    const d = parseDate(sun < today ? sun : today);
+    SV.calY = d.getFullYear(); SV.calM = d.getMonth();
+    TV.cal = "month";
+  } else {
+    const last = dateStr(new Date(SV.calY, SV.calM + 1, 0));
+    const target = last < today ? last : today;
+    TV.weekOff = Math.min(0, -Math.round(daysBetween(mondayOf(target), mondayOf(today)) / 7));
+    TV.cal = "week";
+  }
+}
+function shiftTodayMonth(dir) {
+  const d = new Date(SV.calY, SV.calM + dir, 1);
+  const now = new Date();
+  if (d.getFullYear() * 12 + d.getMonth() > now.getFullYear() * 12 + now.getMonth()) return;
+  SV.calY = d.getFullYear(); SV.calM = d.getMonth();
 }
 
 /* Týdenní cíl silových tréninků jako kroužek (Nastavení → weeklyGoal).

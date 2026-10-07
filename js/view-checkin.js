@@ -74,8 +74,9 @@ function bodyWeightHtml() {
     <div class="card">
       <div class="idx-head">
         <div>
-          <div class="cap">${avg != null ? "Průměr posledních 7 dní" : `Poslední vážení · ${relDay(latest.date)}`}</div>
+          <div class="cap">${avg != null ? "Průměr posledních 7 dní" : "Poslední vážení"}</div>
           <div class="hero-fig" style="margin-top:6px">${fmtNum(kgOut(shown), 1)}<small>${weightUnit()}</small></div>
+          <div class="cap" style="margin-top:6px">${avg != null ? `Poslední ${fmtWeight(latest.weightKg)} · ` : ""}${weightStamp(latest)}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;padding-bottom:4px">${chg(dW, "za týden")}${chg(dM, "za 30 dní")}</div>
       </div>

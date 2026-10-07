@@ -216,6 +216,8 @@ const ACTIONS = {
   /* ---- Dnes ---- */
   "td-open": d => { TV.open = todayOpenKey() === d.k ? "none" : d.k; render(); },
   "td-week": d => { TV.weekOff = Math.min(0, TV.weekOff + Number(d.dir)); render(); },
+  "td-cal": () => { toggleTodayCal(); render(); },
+  "td-month": d => { shiftTodayMonth(Number(d.dir)); render(); },
   "t-w-step": d => {
     TV.wDraft = Math.round((TV.wDraft + Number(d.d)) * 10) / 10;
     if (TV.wDraft < 20) TV.wDraft = 20;

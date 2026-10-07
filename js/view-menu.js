@@ -1,7 +1,7 @@
 /* ===== Více: sheet s nabídkou a stránky z něj ===== */
 "use strict";
 
-const APP_VERSION = "2.1.2";
+const APP_VERSION = "2.2";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -599,10 +599,10 @@ function buildSetsCsv() {
     return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
   };
   const num = v => v == null ? "" : String(Math.round(v * 100) / 100).replace(".", ",");
-  const rows = [["datum", "trenink", "cvik", "partie", "druh", "serie", "opakovani_nebo_s", `vaha_${weightUnit()}`, "do_selhani", "superset", "poznamka"]];
+  const rows = [["datum", "zacatek", "trenink", "cvik", "partie", "druh", "serie", "opakovani_nebo_s", `vaha_${weightUnit()}`, "do_selhani", "superset", "poznamka"]];
   const sess = S.sessions.filter(s => s.type === "weights").sort((a, b) => a.date.localeCompare(b.date));
   for (const s of sess) for (const e of s.entries) (e.sets || []).forEach((st, j) => rows.push([
-    s.date, sessionLabel(s), exName(e.exerciseId), exCategory(e.exerciseId) || "", exKind(e.exerciseId),
+    s.date, s.startedAt ? fmtTime(s.startedAt) : "", sessionLabel(s), exName(e.exerciseId), exCategory(e.exerciseId) || "", exKind(e.exerciseId),
     j + 1, st.reps, num(kgOut(st.weight || 0)), st.failure ? "ano" : "", e.link ? "s dalším" : "", st.note || ""
   ]));
   return "\ufeff" + rows.map(r => r.map(cell).join(";")).join("\r\n");

@@ -731,8 +731,9 @@ function lastBodyWeight(beforeDate) {
 function logBodyWeight(kg, date) {
   const d = date || todayStr();
   const e = S.bodyLog.find(b => b.date === d);
-  if (e) e.weightKg = kg;
-  else S.bodyLog.push({ date: d, weightKg: kg });
+  // at = kdy se váha zapsala (v2.2) — ukazuje se přesné datum a čas vážení
+  if (e) { e.weightKg = kg; e.at = Date.now(); }
+  else S.bodyLog.push({ date: d, weightKg: kg, at: Date.now() });
   S.bodyLog.sort((a, b) => a.date.localeCompare(b.date));
 }
 

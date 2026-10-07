@@ -40,7 +40,7 @@ function workoutHead() {
     const total = a.entries.length;
     const done = a.entries.filter(e => e.done).length;
     const sets = sessionSets(a);
-    const dateInfo = a.date !== todayStr() ? `${fmtShort(a.date)} · ` : "";
+    const dateInfo = a.date !== todayStr() ? `${fmtShort(a.date)} · ` : a.startedAt ? `${startedLabel(a)} · ` : "";
     const pct = total ? done / total * 100 : 0;
     return {
       title: sessionLabel(a),
@@ -99,9 +99,6 @@ function renderWorkoutStart() {
   }
   out.push(`<div class="card next-card">${hero}<div class="start-opts${next ? "" : " solo"}">${opts}</div></div>`);
 
-  /* kalendář — nízký, bez legendy (ta je v Historii); měsíc a šipky v hlavičce */
-  out.push(`<section class="sec tight">${monthCalendarCardHtml(true)}</section>`);
-
   /* poslední tréninky */
   const recent = S.sessions.filter(s => !(daySessions.includes(s)))
     .sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id))).slice(0, 3);
@@ -140,7 +137,7 @@ function sessionRowHtml(s) {
     ${date}
     <div class="grow">
       <div class="name">${esc(sessionLabel(s))}</div>
-      <div class="li-sub">${s.entries.length} cviků · ${sets} ${setWordTop(sets)}${sessionVolume(s) ? ` · ${vol.val} ${vol.unit}` : ""}</div>
+      <div class="li-sub">${s.startedAt ? `${fmtTime(s.startedAt)} · ` : ""}${s.entries.length} cviků · ${sets} ${setWordTop(sets)}${sessionVolume(s) ? ` · ${vol.val} ${vol.unit}` : ""}</div>
       ${catPipsHtml(sessionCatSets(s), s.core === true)}
     </div>
     ${prs ? `<span class="badge yellow">${ic("trophy", 12, 2.2)} ${prs}</span>` : ""}
@@ -154,16 +151,15 @@ function sessionPRCount(s) {
 }
 
 /* ---- Kalendář měsíce: proužky partií, kardio, tečka = kalorie v cíli ----
-   Stejná karta je na kartě Trénink i na stránce Historie (sdílí SV.calY/calM).
+   Stránka Historie (sdílí SV.calY/calM s měsícem na Dnes).
    Klepnutí na den → openDaySummary() se zápisem do toho dne. */
-function monthCalendarCardHtml(compact = false) {
+function monthCalendarCardHtml() {
   const cal = calendarHtml(SV.calY, SV.calM, ds => {
     const bars = dayCatColors(ds);
     const f = calorieGoalMet(ds);
     if (!bars.length && !f) return null;
     return { cls: bars.length ? "trained" : "", bars, corner: f };
   }, "sum-cal-day");
-  if (compact) return `<div class="card cal-compact">${cal}</div>`;
   return `
     <div class="card">${cal}
       <div class="cal-legend small" style="margin-top:14px">
@@ -737,6 +733,8 @@ function beginWorkout(templateId) {
     type: "weights",
     templateUsed: tpl ? tpl.id : "custom",
     templateName: tpl ? tpl.name : "Libovolný",
+    // kdy se trénink zapnul (v2.2) — jen u dnešního, zpětný zápis skutečný čas nemá
+    startedAt: WV.date === todayStr() ? Date.now() : null,
     // cíl (série × rozsah × pauza) a superset z plánu šablony
     entries: tpl ? tpl.exercises.filter(getExercise).map(exId => {
       const t = tplPlan(tpl, exId);
@@ -760,7 +758,7 @@ function repeatSession(id) {
   WV.openIdx = null;
   WV.editSet = null;
   S.activeSession = {
-    id: uid(), date: WV.date, type: "weights",
+    id: uid(), date: WV.date, type: "weights", startedAt: Date.now(),
     templateUsed: s.templateUsed || "custom", templateName: s.templateName || null,
     entries: s.entries.filter(e => getExercise(e.exerciseId)).map(e => {
       const t = tplPlan(tpl, e.exerciseId) || ((e.sets || []).length ? { sets: e.sets.length, lo: null, hi: null, rest: null } : null);
@@ -921,8 +919,8 @@ function finishWorkout() {
   const sessionId = a.id;
   // pořadí, supersety a cíle z tréninku — pro „uložit změny do šablony" ve shrnutí
   WV.lastFinish = { sid: sessionId, order: a.entries.map(e => ({ id: e.exerciseId, link: !!e.link, target: e.target || null })) };
-  S.sessions.push({ id: sessionId, date: a.date, type: "weights", templateUsed: a.templateUsed,
-    templateName: a.templateName || null, core: a.core === true, entries });
+  S.sessions.push(Object.assign({ id: sessionId, date: a.date, type: "weights", templateUsed: a.templateUsed,
+    templateName: a.templateName || null, core: a.core === true, entries }, a.startedAt ? { startedAt: a.startedAt } : {}));
   S.activeSession = null;
   WV.openIdx = null;
   WV.editSet = null;
@@ -1226,7 +1224,7 @@ function openWorkoutSummary(sid) {
   const chips = Array.from({ length: 10 }, (_, k) => k + 1).map(n =>
     `<button class="scale-chip ratechip" data-act="w-rate-chip" data-val="${n}">${n}</button>`).join("");
   openModal(`${modalTitle("Trénink uložen")}
-    <p class="modal-sub">${esc(sessionLabel(s))} · ${relDay(s.date)}</p>
+    <p class="modal-sub">${esc(sessionLabel(s))} · ${relDay(s.date)}${s.startedAt ? ` · začátek ${fmtTime(s.startedAt)}` : ""}</p>
     <div class="card">
       <div class="stats">
         ${statHtml(s.entries.length, plural(s.entries.length, "cvik", "cviky", "cviků"), prev ? deltaHtml(s.entries.length, prev.entries.length) : "")}
@@ -1321,6 +1319,7 @@ function sessionDetailHtml(s) {
   return `<div>
     <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:14px">
       <b style="font-size:17px">${esc(sessionLabel(s))}</b>
+      ${s.startedAt ? `<span class="badge neutral">${ic("timer", 12, 2.2)} ${fmtTime(s.startedAt)}</span>` : ""}
       ${s.rating ? `<span class="badge">${s.rating}/10</span>` : ""}
       ${recSet.size ? `<span class="badge yellow">${ic("trophy", 12, 2.2)} ${recSet.size}</span>` : ""}
     </div>
