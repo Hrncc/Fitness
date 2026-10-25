@@ -53,7 +53,8 @@ function mondayOf(s) {
 
 function fmtNum(n, dec = 0) {
   if (n == null || isNaN(n)) return "–";
-  return Number(n).toLocaleString("cs-CZ", { maximumFractionDigits: dec, minimumFractionDigits: 0 });
+  const out = Number(n).toLocaleString("cs-CZ", { maximumFractionDigits: dec, minimumFractionDigits: 0 });
+  return /^-0([,.]0*)?$/.test(out) ? "0" : out;   // záporná nula (−0,001 → „-0") jako 0
 }
 
 function clamp(n, min, max) { return Math.min(max, Math.max(min, n)); }

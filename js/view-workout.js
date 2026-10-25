@@ -662,7 +662,7 @@ function catCounterHtml(session) {
      Klepnutím se rozbalí na cviky · série u každé partie. */
   const bar = CAT_ORDER.map(c => `
     <i class="${sets[c] || ticked(c) ? "" : "zero"}" style="background:${catColor(c)}" title="${c}">
-      <b>${ticked(c) ? "✓" : sets[c]}</b>
+      <b>${ticked(c) ? ic("check", 13, 3) : sets[c]}</b>
     </i>`).join("");
 
   if (!WV.counterOpen) {
@@ -680,7 +680,7 @@ function catCounterHtml(session) {
     <div class="cat-cell${sets[c] || ticked(c) ? "" : " zero"}">
       <i style="background:${catColor(c)}"></i>
       <span class="cat-n">${c}</span>
-      <span class="cat-v">${ticked(c) ? "✓" : `<b>${exs[c]}</b><s>·</s>${sets[c]}`}</span>
+      <span class="cat-v">${ticked(c) ? ic("check", 14, 3) : `<b>${exs[c]}</b><s>·</s>${sets[c]}`}</span>
     </div>`).join("");
   return `
     <div class="card cat-counter" data-act="w-counter">

@@ -233,7 +233,7 @@ function foodRowHtml(done) {
   const m = dayRating(today);
   if (done) {
     const lbl = (FOOD_RATINGS.find(r => r[0] === m.foodRating) || [])[1] || "—";
-    return tdRow({ icon: "food", title: "Jídlo", value: `${lbl} · B ${m.proteinOk ? "✓" : "✗"}`, state: "done",
+    return tdRow({ icon: "food", title: "Jídlo", value: `${lbl} · B ${m.proteinOk ? ic("check", 13, 2.8) : ic("x", 13, 2.6)}`, state: "done",
       act: "td-open", attrs: `data-k="food"` });
   }
   return tdRow({ icon: "food", title: "Jídlo", sub: m ? "rozepsáno — doplň druhou odpověď" : "jak to dnes dopadlo?",

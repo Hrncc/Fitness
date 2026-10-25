@@ -9,7 +9,8 @@ Osobní PWA pro zápis silových a kardio tréninků a stravy. **Jeden uživatel
   přímo v `index.html` v daném pořadí — nový soubor je nutné přidat i do
   `SHELL` pole v `sw.js`.
 - Appka musí zůstat **self-contained** (žádné CDN). Proto je QR generátor
-  (`js/qr.js`) psaný od nuly.
+  (`js/qr.js`) psaný od nuly a písmo Barlow leží v `fonts/` (woff2, latin +
+  latin-ext kvůli češtině, licence OFL v `fonts/OFL.txt`; soubory jsou i v `SHELL`).
 - Externí volání jen na: Google Apps Script (sync), Open Food Facts, USDA,
   `api.anthropic.com` (čtení etiket a odhad jídla z fotky). Klíč je uživatelův,
   v `localStorage` toho zařízení — každé volání jde z jeho kreditu.
@@ -218,6 +219,41 @@ Pořadí je pevné podle těla (`CAT_ORDER`), ať se buňky pod prstem nepřesku
 Všechny tři šablony trenéra pokrývají všech 7 partií, takže „N ze 7" je reálný
 cíl každého tréninku, ne teoretické skóre.
 
+## Vzhled v3.0 — podle skillu UI/UX Pro Max (nad základem v2.0)
+
+Martin chtěl appku předělat podle skillu [UI/UX Pro Max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill).
+Z jeho návrhu pro fitness tracker se vzal styl (Minimalism + Dark Mode OLED — sedí
+na v2.0), písmo a pravidla přístupnosti. **Nevzala** se jeho paleta (oranžová +
+zelená na břidlicové) — kolidovala by s identitou partií (Ramena) a zlatou pro
+rekordy a zrušila OLED černou. Jeho vzor „Feature-Rich Showcase" je pro landing
+page, ne pro appku.
+
+- **Písmo:** text `Barlow` (`--font`), čísla a nadpisy `Barlow Condensed`
+  (`--font-display`: velký titulek, nadpisy sekcí a sheetů, hlavní čísla, steppery,
+  dock, čísla dnů, názvy cviků) a úzké verzálky u štítků (`.td-eyebrow`, `.ex-cat`,
+  `.h3`). Úzké písmo je o stupeň větší než dřív. Základ těla 16 px, záporné
+  prostrkání z v2.0 (laděné na SF) je na třetině. Jen řezy 400/500/600/700 (text)
+  a 600/700 (Condensed) — jiné váhy v CSS nepoužívat.
+- **Kontrast:** `--text3` (ztlumený **text**) je `#86868C` = 5,3:1 na kartě
+  (dřív #626268 = 3,2:1, pod WCAG AA). Na čistou dekoraci (tečky, úchyty, linky)
+  je `--text4` (#626268) — na text ji nepoužívat.
+- **Text nikdy pod 12 px** (ani popisky grafů v SVG).
+- **Dotykové plochy ≥ 44 px:** malé ovládací prvky dostávají neviditelný přesah
+  `::before` (vzhled se nemění), u sousedů blíž než 8 px jen svisle. `.iconbtn.sm`
+  36 px, chipy a kapsle 36 px. Nový malý prvek = přidat ho do bloku „dotykové
+  plochy" na konci CSS (t0 to hlídá).
+- **Fokus:** `:focus-visible` = 2px volt prstenec (`--ring`); pole mají vlastní stav.
+- **Tokeny:** sémantické role `--primary/--on-primary/--muted-fg/--border/--ring`
+  (mapují se na stávající paletu), mezery `--sp-1…8` (rytmus 4/8; karty 16 px,
+  okraj stránky `--pad` 16 px), pohyb `--dur-fast` 120 ms (odezva na klepnutí),
+  `--dur`, `--dur-slow`.
+- **Ikony místo znaků:** toast „ok" kreslí SVG fajfku a koncové „✓" z textu sám
+  odstraní; fajfky v counteru partií a u jídla jsou `ic("check")`.
+- **Grafy:** Pravidelnost má stupnici s čísly („1–8 · 9–16 · 17+ sérií"), ne jen
+  sytost barvy. `fmtNum()` nevrací „-0".
+- **Záměrná odchylka od skillu:** zoom zůstává vypnutý (viz Zamčená obrazovka) —
+  skill to bere jako chybu přístupnosti, Martin chce pocit nativní appky.
+
 ## Vzhled (v2.0 — přestavba od nuly)
 
 Minimalistický, typografický, černý. Martinovo zadání: moderní a čisté, ale stejně
@@ -229,7 +265,7 @@ silné jako dřív — a hlavně **super přehled o tréninku a progresu**.
   kompatibilní stub bez ikony).
 - **Sekce = nadpis nad obsahem**: `sec(title, body, {sub, right})` — 20px nadpis,
   šedý podtitulek, vpravo odkaz `secLink("Vše", …)` nebo nástroje.
-- **Čísla stejným písmem jako text** (žádné `ui-rounded`). Velká samostatná čísla
+- **Čísla:** od v3.0 úzkým `Barlow Condensed` (viz výš). Velká samostatná čísla
   (`.hero-fig`, `.stat-v`) mají proporcionální číslice; `tabular-nums` (`.num`) jen
   tam, kde čísla stojí ve sloupci nebo se mění pod prstem (série, stepper, dock).
   Jedno hlavní číslo (`.hero-fig`) na obrazovku.

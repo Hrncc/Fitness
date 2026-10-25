@@ -308,6 +308,7 @@ function consistencyHtml() {
     days.push({ ds, sets, weights, cardio: sess.some(s => s.type === "cardio"), future: ds > today });
   }
   const level = d => !d.weights ? 0 : !maxSets || d.sets <= maxSets / 3 ? 1 : d.sets <= maxSets * 2 / 3 ? 2 : 3;
+  const b = () => Math.floor(maxSets * 2 / 3);   // horní mez 2. stupně (pro legendu)
 
   /* zkratka měsíce nad týdnem, ve kterém měsíc začíná (podle pondělí) */
   const months = [];
@@ -343,7 +344,10 @@ function consistencyHtml() {
         </div>
       </div>
       <div class="hm-legend">
-        <span>méně</span><i class="hm-c"></i><i class="hm-c l1"></i><i class="hm-c l2"></i><i class="hm-c l3"></i><span>více sérií</span>
+        ${(a => a >= 1 && b(a) > a
+          // stupnice s čísly — sytost barvy sama nestačí (UI/UX Pro Max: nespoléhat jen na barvu)
+          ? `<i class="hm-c l1"></i><span>1–${a}</span><i class="hm-c l2"></i><span>${a + 1}–${b(a)}</span><i class="hm-c l3"></i><span>${b(a) + 1}+ sérií</span>`
+          : `<span>méně</span><i class="hm-c"></i><i class="hm-c l1"></i><i class="hm-c l2"></i><i class="hm-c l3"></i><span>více sérií</span>`)(Math.floor(maxSets / 3))}
         <span class="hm-sep"></span><i class="hm-c"><b></b></i><span>kardio</span>
       </div>
       <hr class="hair">
@@ -409,7 +413,7 @@ function partsWeeksHtml() {
       const d = parseDate(weeks[i].from);
       const v = p.c[cat];
       return [+((i + 0.5) / per.length).toFixed(4), 0, `${cat} · týden od ${d.getDate()}. ${d.getMonth() + 1}.`,
-        !v && cat === "Core" && p.core ? "core ✓" : `${v} ${plural(v, "série", "série", "sérií")}`];
+        !v && cat === "Core" && p.core ? "core odcvičen" : `${v} ${plural(v, "série", "série", "sérií")}`];
     });
     const lt = last[cat];
     const gap = lt ? daysBetween(lt, todayStr()) : null;

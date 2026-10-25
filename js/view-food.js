@@ -404,7 +404,7 @@ function foodDayHtml(ds) {
   if (!entries.length) {
     if (r) {
       const lbl = (FOOD_RATINGS.find(x => x[0] === r.foodRating) || [])[1] || "—";
-      return `<div class="card2">Rychlý zápis: <b>${lbl}</b> · bílkoviny ${r.proteinOk ? "✓" : "✗"}</div>`;
+      return `<div class="card2">Rychlý zápis: <b>${lbl}</b> · bílkoviny <b>${r.proteinOk ? "ano" : "ne"}</b></div>`;
     }
     return `<div class="empty-note" style="padding:12px">Žádný záznam stravy</div>`;
   }

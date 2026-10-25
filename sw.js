@@ -2,7 +2,7 @@
    Cache-first pro vlastní soubory, síť pro externí API (OFF, USDA, GAS). */
 "use strict";
 
-const CACHE = "fitapp-v40";
+const CACHE = "fitapp-v41";
 const SHELL = [
   "./",
   "./index.html",
@@ -26,7 +26,20 @@ const SHELL = [
   "./js/view-menu.js",
   "./js/app.js",
   "./icons/icon-192.png",
-  "./icons/icon-512.png"
+  "./icons/icon-512.png",
+  // písmo Barlow (v3.0) — v appce, aby šla offline a bez CDN
+  "./fonts/barlow-condensed-latin-600-normal.woff2",
+  "./fonts/barlow-condensed-latin-700-normal.woff2",
+  "./fonts/barlow-condensed-latin-ext-600-normal.woff2",
+  "./fonts/barlow-condensed-latin-ext-700-normal.woff2",
+  "./fonts/barlow-latin-400-normal.woff2",
+  "./fonts/barlow-latin-500-normal.woff2",
+  "./fonts/barlow-latin-600-normal.woff2",
+  "./fonts/barlow-latin-700-normal.woff2",
+  "./fonts/barlow-latin-ext-400-normal.woff2",
+  "./fonts/barlow-latin-ext-500-normal.woff2",
+  "./fonts/barlow-latin-ext-600-normal.woff2",
+  "./fonts/barlow-latin-ext-700-normal.woff2"
 ];
 
 self.addEventListener("install", e => {

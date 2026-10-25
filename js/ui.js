@@ -157,7 +157,10 @@ function fmtClock(sec) {
 let _toastTimer;
 function toast(msg, kind = "", action = null) {
   const t = document.getElementById("toast");
-  t.innerHTML = esc(msg) + (action
+  // potvrzení nese SVG fajfku místo znaku ✓ (v3.0)
+  const clean = String(msg).replace(/\s*✓\s*$/, "");
+  const icon = kind === "ok" ? `<span class="toast-ic">${ic("check", 15, 2.8)}</span>` : "";
+  t.innerHTML = icon + esc(clean) + (action
     ? ` <button class="toast-btn" data-act="${action.act}">${esc(action.label)}</button>` : "");
   t.className = "toast show" + (kind ? " " + kind : "");
   t.style.pointerEvents = action ? "auto" : "none";
@@ -600,7 +603,7 @@ function columnChart(data, { height = 150, hl = data.length - 1, unit = "", fmt 
   let grid = "", bars = "", labels = "";
   for (const t of ticks) {
     grid += `<line x1="${padL}" x2="${W - padR}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" stroke="var(--hair)" stroke-width="1"/>
-      <text x="${padL - 7}" y="${(y(t) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text3)">${f(t)}</text>`;
+      <text x="${padL - 7}" y="${(y(t) + 3.5).toFixed(1)}" text-anchor="end" font-size="12" fill="var(--text3)">${f(t)}</text>`;
   }
   const tips = [];
   data.forEach((d, i) => {
@@ -614,10 +617,10 @@ function columnChart(data, { height = 150, hl = data.length - 1, unit = "", fmt 
         fill="var(--chart)" opacity="${i === hl ? 1 : 0.3}"/>`;
     }
     if (d.value && (i === hl || i === maxI)) {
-      bars += `<text x="${cx.toFixed(1)}" y="${(yt - 6).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="650" fill="var(--text${i === hl ? "" : "2"})">${f(d.value)}</text>`;
+      bars += `<text x="${cx.toFixed(1)}" y="${(yt - 6).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="600" fill="var(--text${i === hl ? "" : "2"})">${f(d.value)}</text>`;
     }
     if ((data.length - 1 - i) % every === 0) {
-      labels += `<text x="${cx.toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="10" fill="var(--text3)">${esc(d.label)}</text>`;
+      labels += `<text x="${cx.toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="12" fill="var(--text3)">${esc(d.label)}</text>`;
     }
     tips.push([+(cx / W).toFixed(4), +(yt / H).toFixed(4), d.tip || d.label, `${f(d.value)}${unit}`]);
   });
@@ -654,7 +657,7 @@ function lineChart(series, { color = "chart", height = 150, goal = null, raw = n
     const step = [1, 2, 2.5, 5, 10].map(k => k * mag).find(st => st >= raw3) || 10 * mag;
     for (let v = Math.ceil(min / step) * step; v <= max; v += step) {
       grid += `<line x1="${padL}" x2="${W - padR}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--hair)" stroke-width="1"/>
-        <text x="${padL - 7}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text3)">${fmtNum(v, step < 1 ? 1 : 0)}</text>`;
+        <text x="${padL - 7}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="12" fill="var(--text3)">${fmtNum(v, step < 1 ? 1 : 0)}</text>`;
     }
   }
   if (zero && min < 0 && max > 0) {
@@ -667,12 +670,12 @@ function lineChart(series, { color = "chart", height = 150, goal = null, raw = n
   if (goal) {
     extra += `<line x1="${padL}" y1="${y(goal).toFixed(1)}" x2="${W - padR}" y2="${y(goal).toFixed(1)}"
       stroke="var(--green)" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.8"/>
-      <text x="${W - padR}" y="${(y(goal) - 6).toFixed(1)}" text-anchor="end" font-size="10.5" fill="var(--text2)">cíl ${fmtNum(goal)}</text>`;
+      <text x="${W - padR}" y="${(y(goal) - 6).toFixed(1)}" text-anchor="end" font-size="12" fill="var(--text2)">cíl ${fmtNum(goal)}</text>`;
   }
   let rawDots = "";
   if (raw) {
     rawDots = raw.map((p, i) => !p || p.value == null ? "" :
-      `<circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="2" fill="var(--text3)"/>`).join("");
+      `<circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="2" fill="var(--text4)"/>`).join("");
   }
   const li = idx[idx.length - 1];
   const last = series[li];
@@ -691,9 +694,9 @@ function lineChart(series, { color = "chart", height = 150, goal = null, raw = n
     ${rawDots}
     <path d="${path}" fill="none" stroke="var(--${color})" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
     <circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="4.5" fill="var(--${color})" stroke="var(--s1)" stroke-width="2"/>
-    <text x="${Math.min(lx, W - padR - 2).toFixed(1)}" y="${(ly - 11).toFixed(1)}" text-anchor="end" font-size="11.5" font-weight="700" fill="var(--text)">${F(last.value)}</text>
-    <text x="${padL}" y="${H - 5}" font-size="10" fill="var(--text3)">${firstLbl}</text>
-    <text x="${W - padR}" y="${H - 5}" text-anchor="end" font-size="10" fill="var(--text3)">${lastLbl}</text>
+    <text x="${Math.min(lx, W - padR - 2).toFixed(1)}" y="${(ly - 11).toFixed(1)}" text-anchor="end" font-size="12.5" font-weight="700" fill="var(--text)">${F(last.value)}</text>
+    <text x="${padL}" y="${H - 5}" font-size="12" fill="var(--text3)">${firstLbl}</text>
+    <text x="${W - padR}" y="${H - 5}" text-anchor="end" font-size="12" fill="var(--text3)">${lastLbl}</text>
   </svg></div>`;
 }
 
