@@ -267,8 +267,8 @@ const Dock = {
       <button class="dock-main" data-act="dock-open">
         <span class="dock-ring">
           <svg class="ring" width="40" height="40" viewBox="0 0 40 40">
-            <circle cx="20" cy="20" r="${this.RING_R}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="3"/>
-            ${mode === "rest" ? `<circle id="dockRing" cx="20" cy="20" r="${this.RING_R}" fill="none" stroke="var(--green)"
+            <circle cx="20" cy="20" r="${this.RING_R}" fill="none" stroke="var(--hair2)" stroke-width="3"/>
+            ${mode === "rest" ? `<circle id="dockRing" cx="20" cy="20" r="${this.RING_R}" fill="none" stroke="var(--green-ink)"
               stroke-width="3" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"
               style="transition:stroke-dashoffset .3s linear"/>` : ""}
           </svg>
@@ -669,7 +669,7 @@ function lineChart(series, { color = "chart", height = 150, goal = null, raw = n
   let extra = "";
   if (goal) {
     extra += `<line x1="${padL}" y1="${y(goal).toFixed(1)}" x2="${W - padR}" y2="${y(goal).toFixed(1)}"
-      stroke="var(--green)" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.8"/>
+      stroke="var(--green-ink)" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.8"/>
       <text x="${W - padR}" y="${(y(goal) - 6).toFixed(1)}" text-anchor="end" font-size="12" fill="var(--text2)">cíl ${fmtNum(goal)}</text>`;
   }
   let rawDots = "";
@@ -721,7 +721,7 @@ function sparklineHtml(values, w = 64, h = 26, { area = false, down = false } = 
     ${fill}
     <path d="${d}" fill="none" stroke="var(--chart)" stroke-opacity=".55" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
     <circle cx="${x(values.length - 1).toFixed(1)}" cy="${y(lastV).toFixed(1)}" r="3.2"
-      fill="var(--${good ? "green" : "text2"})"/>
+      fill="var(--${good ? "green-ink" : "text2"})"/>
   </svg>`;
 }
 

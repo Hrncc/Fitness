@@ -49,7 +49,7 @@ function foodWeekHtml() {
           <div><span>dní v cíli</span><b>${a.ok} ze ${a.logged}</b></div>
           <div><span>bílkoviny</span><b>${a.protein} ze ${a.logged}</b></div>
           <div><span>váha Ø</span><b>${avg != null ? fmtNum(kgOut(avg), 1) : "—"}</b></div>
-          <div><span>za týden</span><b style="color:var(--${trend != null && trend > 0.04 ? "green" : "text"})">${
+          <div><span>za týden</span><b style="color:var(--${trend != null && trend > 0.04 ? "green-ink" : "text"})">${
             trend != null ? fmtSigned(trend, 1) : "—"}</b></div>
         </div>
       </div>

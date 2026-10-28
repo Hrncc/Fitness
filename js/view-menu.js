@@ -1,7 +1,7 @@
 /* ===== Více: sheet s nabídkou a stránky z něj ===== */
 "use strict";
 
-const APP_VERSION = "3.0";
+const APP_VERSION = "4.0";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -861,7 +861,7 @@ async function importQrFile(file) {
 function renderAbout() {
   return `
     <div class="card">
-      <div class="about-logo">Fitness<span style="color:var(--green)">Log</span></div>
+      <div class="about-logo">Fitness<span style="color:var(--green-ink)">Log</span></div>
       <p class="muted" style="margin:0 0 16px">Verze ${APP_VERSION}</p>
       <p class="muted" style="margin:0 0 12px;line-height:1.55">
         Osobní deník silových a kardio tréninků, postavy a stravy.

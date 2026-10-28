@@ -423,7 +423,7 @@ function goalStatHtml(cur, prev, goal) {
     <div class="goal-ring${met ? " met" : ""}">
       <svg width="42" height="42" viewBox="0 0 42 42" aria-hidden="true">
         <circle cx="21" cy="21" r="${r}" fill="none" stroke="var(--s3)" stroke-width="4"/>
-        ${n ? `<circle cx="21" cy="21" r="${r}" fill="none" stroke="var(--green)" stroke-width="4" stroke-linecap="round"
+        ${n ? `<circle cx="21" cy="21" r="${r}" fill="none" stroke="var(--green-ink)" stroke-width="4" stroke-linecap="round"
           stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - pct)).toFixed(1)}" transform="rotate(-90 21 21)"/>` : ""}
       </svg>
       ${met ? `<span>${ic("check", 15, 3)}</span>` : ""}
