@@ -9,8 +9,8 @@ Osobní PWA pro zápis silových a kardio tréninků a stravy. **Jeden uživatel
   přímo v `index.html` v daném pořadí — nový soubor je nutné přidat i do
   `SHELL` pole v `sw.js`.
 - Appka musí zůstat **self-contained** (žádné CDN). Proto je QR generátor
-  (`js/qr.js`) psaný od nuly a písmo Barlow leží v `fonts/` (woff2, latin +
-  latin-ext kvůli češtině, licence OFL v `fonts/OFL.txt`; soubory jsou i v `SHELL`).
+  (`js/qr.js`) psaný od nuly. Písmo je od v4.0 systémové (SF Pro / SF Pro
+  Rounded) — žádné soubory písma (Barlow z v3.0 i složka `fonts/` jsou pryč).
 - Externí volání jen na: Google Apps Script (sync), Open Food Facts, USDA,
   `api.anthropic.com` (čtení etiket a odhad jídla z fotky). Klíč je uživatelův,
   v `localStorage` toho zařízení — každé volání jde z jeho kreditu.
@@ -26,14 +26,14 @@ Osobní PWA pro zápis silových a kardio tréninků a stravy. **Jeden uživatel
 | `js/data.js` | stav `S`, `save()`, `replaceState()`, PR logika a **rekordy čtyř druhů** (`exerciseRecords()`), plán cviku v šabloně (`tplPlan()`), druhy cviků (`exKind()`), milníky, plán trenéra, barvy partií (`CAT_COLOR`, `CAT_ORDER`, `sessionCatSets()`, `dayCatColors()`) |
 | `js/sync.js` | cloud sync + `mergeStates()` (slévání podle id) |
 | `js/foodapi.js` | OFF (cz → world), USDA, Claude vision (etiketa / jídlo), čárový kód |
-| `js/ui.js` | ikony `ic()`, sekce `sec()`/`secHead()`/`secLink()`, segmenty `segHtml()`, čísla `statHtml()`, české tvary `plural()`, data `fmtShort()`/`relDay()`, `fmtVolume()`, `fmtFixed()`, toast (i s akcí), sheet, výběr cviku `openExPicker()`, kalendář, SVG grafy (`lineChart`, `columnChart`, `sparklineHtml`) + dotykový readout `ChartTip`, rest timer `Rest` + zamčený timer `Dock`, nezhasínání obrazovky `KeepAwake`, `dayNavHtml()` |
+| `js/ui.js` | ikony `ic()`, sekce `sec()`/`secHead()`/`secLink()`, iOS seznam `listGroup()`/`lgLink()`/`lgField()`/`lgSwitch()`, segmenty `segHtml()`, čísla `statHtml()`, české tvary `plural()`, data `fmtShort()`/`relDay()`, `fmtVolume()`, `fmtFixed()`, toast (i s akcí), sheet (+ zavření stažením `SheetDrag`), výběr cviku `openExPicker()`, kalendář, SVG grafy (`lineChart`, `columnChart`, `sparklineHtml`) + dotykový readout `ChartTip`, rest timer `Rest` + zamčený timer `Dock`, nezhasínání obrazovky `KeepAwake`, `dayNavHtml()` |
 | `js/view-today.js` | **Dnes** — seznam dne (váha · trénink · jídlo · check-in), týden s listováním, pokrok v kostce |
-| `js/view-workout.js` | **Trénink** — start (šablona na řadě, ostatní, kardio, poslední tréninky), gym mód (plán, supersety, stopky, menu cviku ⋯), shrnutí po tréninku, stránky Historie a Rekordy, detail tréninku |
+| `js/view-workout.js` | **Trénink** — start (šablona na řadě, ostatní, kardio, čerstvost partií, poslední tréninky), gym mód (plán, supersety, stopky, menu cviku ⋯, kotouče, RIR), shrnutí po tréninku, stránky Historie a Rekordy, detail tréninku |
 | `js/view-progress.js` | **Pokrok** — segmenty Trénink · Tělo · Strava; segment Trénink (index síly, 30 dní, týdny, pravidelnost, partie, rekordy) |
 | `js/view-checkin.js` | Pokrok → **Tělo** (váha, check-in, fotky, obvody, historie) + stránka formuláře check-inu |
 | `js/view-summary.js` | Pokrok → **Strava**, detail dne `openDaySummary()`, `movingAvgAt()`, stav kalendáře `SV` |
 | `js/view-food.js` | stránka **Jídlo** (denní log) + přidání jídla (hledání, foto, oblíbené, ručně) |
-| `js/view-menu.js` | sheet **Více** + stránky Exercise Library, Workout Templates (+ editor plánu `openPlanModal()`), Food Library, Export & Backup (+ CSV sérií `buildSetsCsv()`), Nastavení, O aplikaci; fotky (`PV`) |
+| `js/view-menu.js` | stránka **Více** (`renderMore()`) + stránky Exercise Library, Workout Templates (+ editor plánu `openPlanModal()`), Food Library, Export & Backup (+ CSV sérií `buildSetsCsv()`), Nastavení, O aplikaci; fotky (`PV`) |
 | `js/report.js` | `buildCoachReport(range)` — textový report pro Clauda |
 | `js/app.js` | router + velký titulek (`pageHead()`), delegace akcí (`ACTIONS`), `withUndo()`, start |
 | `apps-script/Code.gs` | backend syncu v Google Sheetu + 7 denních záloh |
@@ -98,12 +98,15 @@ ho nemění. Ukazuje se jen **čas začátku** („od 18:42", `startedLabel()`, 
 v titulku gym módu, v docku, na Dnes, ve shrnutí, v detailu, v řádcích tréninků,
 v CSV a reportu — **žádný běžící časovač ani délka tréninku** (v1.26 platí dál).
 (Aktivní session z v1.23–1.25 ho můžou nést taky — teď se ukáže jako začátek.)
-U silových `entries[] = {exerciseId, sets: [{reps, weight, note, failure?}]}` — váhy vždy
+U silových `entries[] = {exerciseId, sets: [{reps, weight, note, failure?, rir?}]}` — váhy vždy
 interně v **kg**, na výstup přes `kgOut()`/`fmtWeight()`. `failure: true` (v1.27) =
 mini check „do selhání" **u série** — štítek mezi váhou a křížkem, objeví se na
 sérii hned po přidání (`failChipHtml()`, akce `w-set-fail`). Ukládá se jen zapnutý;
 oprava čísel série ho nemění. Sbalený cvik ukazuje „do selhání N×", detail štítek
-u série, report a export „(do selhání)".
+u série, report a export „(do selhání)". `rir` (v4.0, 0–4, 4 = „4+") = opakování
+v záloze; zapisuje se jen se zapnutým Nastavení → Zapisovat RIR (`rirMode`),
+RIR 0 nastaví i `failure`. Ukazuje se u série („· RIR 2"), v detailu, v CSV
+(sloupec `rir`), v Markdownu a reportu.
 
 **v2.1 — plán, supersety, druhy cviků:**
 - Cvik: `kind` = `"weight"` (výchozí) | `"bw"` (vlastní váha + volitelná zátěž,
@@ -156,6 +159,11 @@ Při každé změně kódu zvyš **obojí**:
 nasadit **novou verzi stávajícího nasazení**, ne nové nasazení (jinak se změní URL).
 
 ## Testování
+
+Od v4.0 testuj **v obou režimech** (`prefers-color-scheme` light i dark) a s **větším
+textem** (`document.documentElement.style.fontSize = "23px"` / `"28px"` simuluje iOS
+Velikost textu) — nic nesmí přetékat do strany. SF Pro mimo Apple zařízení
+není; na Linuxu podobné metriky dává Inter (v testech se podstrčí přes `--font`).
 
 Preview server je v `.claude/launch.json` (`preview_start` s `name: "fitness-app"`).
 Testuje se přes `javascript_tool` — volání akcí přes `document.querySelector(
@@ -219,6 +227,47 @@ Pořadí je pevné podle těla (`CAT_ORDER`), ať se buňky pod prstem nepřesku
 Všechny tři šablony trenéra pokrývají všech 7 partií, takže „N ze 7" je reálný
 cíl každého tréninku, ne teoretické skóre.
 
+## Vzhled v4.0 — Apple (HIG) podle skillů apple-design a swiftui-pro
+
+Martin dal skilly [apple-design](https://github.com/dickwu/apple-design-skill)
+(recenze podle Apple Human Interface Guidelines) a
+[swiftui-agent-skill](https://github.com/twostraws/swiftui-agent-skill) (psaní
+SwiftUI — pro webovou appku platí jen jeho designová pravidla) a chtěl „Apple
+vzhled + menší funkce". Z návrhu vybral: systémové písmo + Dynamic Type, světlý
+i tmavý režim, iOS seznamy, sheety stažením, Více jako stránka; kotouče, RIR,
+čerstvost partií. **Nevybral (zatím):** trénink přes celou obrazovku, tabulku
+sérií ve stylu Strong/Hevy, nativní SwiftUI appku — viz Záměrně neimplementováno.
+
+- **Písmo:** `--font` = `-apple-system` (SF Pro; nadpisy Safari sám přepne na SF
+  Pro Display), `--font-num` = `ui-rounded` (SF Pro Rounded, jako Apple Fitness
+  a Zdraví) na samostatná čísla (`.hero-fig`, `.stat-v`, `.step-val`, dock, čísla
+  dnů…). Prostrkání nechává na systému — **žádné záporné letter-spacing**.
+- **Dynamic Type:** `html { font-size: 17px; font: -apple-system-body; }` — na iPhonu
+  dá základ podle Nastavení → Velikost textu, jinde zůstane 17 px. **Všechny
+  velikosti písma jsou v `rem`** (px ÷ 17), takže při výchozí velikosti vypadají
+  stejně jako dřív v px. Pole `max(16px, …)` (kvůli zoomu iOS). Textové prvky mají
+  `min-height` místo `height`, mřížky `minmax(0, 1fr)`, velká čísla `min(…rem, …vw)`.
+  Ověřeno bez přetečení až do 34 px základu.
+- **Světlý režim** (`@media (prefers-color-scheme: light)`, výchozí zůstává tmavý):
+  iOS plochy `--bg #F2F2F7`, karty bílé. Volt zůstává **výplní** s tmavým textem;
+  jako **text nebo tenká čára** je `--green-ink` (tmavý režim = volt, světlý
+  #3F6E0A). Zlatá a červená ve světlém ztmavené. **Výběr** je `--sel`/`--on-sel`
+  (tmavý: bílá s černým textem, světlý: černá s bílým) — nepoužívat `var(--text)`
+  + `#000`. Stisk `--press`, podbarvení `--tint`, palec segmentu `--thumb`,
+  stíny `--sheet-shadow`/`--shadow-float`, Pravidelnost `--hm1–3`. Natvrdo
+  dané barvy v pravidlech nepoužívat. Všechny textové role ≥ 4,5:1 na `--s1`,
+  `--s2` i `--bg` v obou režimech (t0 to hlídá).
+- Stavový řádek `apple-mobile-web-app-status-bar-style: default` (řídí se
+  režimem; `black-translucent` má vždy bílý text) a `theme-color` pro oba režimy.
+- **Více je záložka se stránkou** (`TABS.more`, `renderMore()`) — HIG: záložky
+  navigují, nespouštějí akce. Stránky z ní mají zpět na Více.
+- **iOS seznam** (`listGroup()` + `lgLink`/`lgField`/`lgSwitch`, třídy `.lg*`):
+  Více a Nastavení. **Nastavení se ukládá hned po změně** (`data-change="set-field"`
+  → `saveSettings()`), tlačítko Uložit není; jednotka je segment kg/lb (`set-unit`).
+- **Sheet stažením dolů** (`SheetDrag` v `ui.js`): když je obsah nahoře, tah dolů
+  sheet táhne; zavře od 110 px nebo rychlým švihem, jinak se vrátí. Pole, chipy
+  `.chips.scroll`, grafy s readoutem a `.no-sheet-drag` tah nezačínají.
+
 ## Vzhled v3.0 — podle skillu UI/UX Pro Max (nad základem v2.0)
 
 Martin chtěl appku předělat podle skillu [UI/UX Pro Max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill).
@@ -228,7 +277,7 @@ zelená na břidlicové) — kolidovala by s identitou partií (Ramena) a zlatou
 rekordy a zrušila OLED černou. Jeho vzor „Feature-Rich Showcase" je pro landing
 page, ne pro appku.
 
-- **Písmo:** text `Barlow` (`--font`), čísla a nadpisy `Barlow Condensed`
+- ~~**Písmo:**~~ (v4.0 nahrazeno systémovým, viz výš) text `Barlow` (`--font`), čísla a nadpisy `Barlow Condensed`
   (`--font-display`: velký titulek, nadpisy sekcí a sheetů, hlavní čísla, steppery,
   dock, čísla dnů, názvy cviků) a úzké verzálky u štítků (`.td-eyebrow`, `.ex-cat`,
   `.h3`). Úzké písmo je o stupeň větší než dřív. Základ těla 16 px, záporné
@@ -265,7 +314,7 @@ silné jako dřív — a hlavně **super přehled o tréninku a progresu**.
   kompatibilní stub bez ikony).
 - **Sekce = nadpis nad obsahem**: `sec(title, body, {sub, right})` — 20px nadpis,
   šedý podtitulek, vpravo odkaz `secLink("Vše", …)` nebo nástroje.
-- **Čísla:** od v3.0 úzkým `Barlow Condensed` (viz výš). Velká samostatná čísla
+- **Čísla:** od v4.0 SF Pro Rounded (`--font-num`, viz Vzhled v4.0). Velká samostatná čísla
   (`.hero-fig`, `.stat-v`) mají proporcionální číslice; `tabular-nums` (`.num`) jen
   tam, kde čísla stojí ve sloupci nebo se mění pod prstem (série, stepper, dock).
   Jedno hlavní číslo (`.hero-fig`) na obrazovku.
@@ -284,7 +333,7 @@ silné jako dřív — a hlavně **super přehled o tréninku a progresu**.
 
 ### Navigace (v2.0)
 
-Dole **Dnes · Trénink · Pokrok · Více**. Stránky se otevírají nad aktuální kartou
+Dole **Dnes · Trénink · Pokrok · Více** (Více je od v4.0 záložka se stránkou, ne sheet). Stránky se otevírají nad aktuální kartou
 (`goPage(page)` → `App.route = {tab, page}`), navigace drží zvýrazněnou kartu,
 ze které přišly. Stránky: `food`, `history`, `records`, `checkin`, `exlib`,
 `templates`, `foodlib`, `export`, `settings`, `about` (mapa `PAGES` v `app.js`).
@@ -334,6 +383,10 @@ Shora dolů od nejbližšího k nejširšímu:
   naposledy …") s volt **Začít** vpravo, případně zlatý řádek „Minule uteklo",
   pod linkou ostatní volby jako malé kapsle `.start-opt` bez ikon (ostatní
   šablony, Volný, Kardio s tečkou). Seznam cviků šablony na startu záměrně není.
+  Pod ní **Čerstvost partií** (v4.0, `freshnessHtml()` z `partLastTrained()`):
+  dny od poslední série na partii v pořadí `CAT_ORDER` — dnes/včera šedě
+  (regeneruje), přes 14 dní zlatě. Záměrně jen dny, žádné % regenerace (jako
+  Fitbod) — předstíralo by přesnost, kterou z dat neznáme.
   Kalendář tu od v2.2 není (je na Dnes). Pak **Naposledy** — 3 tréninky (`sessionRowHtml()` — datum,
   čísla, partie, počet rekordů `sessionPRCount()`) s odkazem Historie, a dole
   jedna řada kapslí Rekordy · Templates · Library (`.quick-links`).
@@ -462,6 +515,15 @@ sklo dostane až po přilepení — třída `.stuck` z `updateTopbar()`).
 - **Druhy cviků**: výdrž = stepper „Výdrž · s" + **stopky** (`toggleStopwatch()`,
   `WV.sw`; druhé klepnutí zapíše sekundy do pole), vlastní váha = „Zátěž" (prázdná
   = 0). Zápis série čte pole podle druhu (`readSetInputs()`).
+- **Kotouče** (v4.0): u cviků s osou nebo strojem na kotouče (`usesPlates()` —
+  `PLATE_RE`/`NO_PLATE_RE` nad názvem, jednoručky a kladky ne) je u pole Váha
+  odkaz Kotouče → sheet (`openPlatesModal()`): váha s ± (mění i pole v tréninku),
+  nákres jedné strany osy a „Na každou stranu 20 + 1,25 kg", co složit nejde,
+  zlatě. Kotouče kg 25…1,25 / lb 45…2,5, hladově. Osa 20/15/10/bez (lb 45/35/25)
+  se pamatuje u cviku jen v zařízení (`Settings.plateBars`).
+- **RIR** (v4.0, Nastavení → Zapisovat RIR, výchozí vypnuto): pod poli řada
+  0 · 1 · 2 · 3 · 4+; volba se přepíná na místě (`w-rir`, bez překreslení —
+  rozepsaná pole zůstanou) a čte ji `readSetInputs()`. Oprava série volbu načte.
 - **Smazání série má undo** (`withUndo("Série smazána")`) a rekordy cviku se
   přepočtou (`refreshEntryRecords()`). Pozor: schovaný toast musí vrátit
   `pointer-events: none` — jinak neviditelné „Vrátit" blokuje tlačítka pod sebou.
@@ -501,8 +563,8 @@ Chová se jako nativní appka — bez zoomu, bez houpání, bez skákání:
 
 - viewport `maximum-scale=1, user-scalable=no` + `gesturestart` preventDefault
   (iOS pinch) + `touch-action: manipulation` na body (double-tap zoom)
-- **pole mají písmo 16 px** — pod 16 px iOS při klepnutí do pole přiblíží
-  stránku. Nezmenšovat.
+- **pole mají písmo aspoň 16 px** (od v4.0 `max(16px, …rem)`) — pod 16 px iOS
+  při klepnutí do pole přiblíží stránku. Nezmenšovat.
 - `overscroll-behavior: none` (žádné gumové houpání) a `overflow-x: clip`.
   **Ne `hidden`** — to z body udělá scroll kontejner a rozbije `window.scrollTo`
   i autoscroll při přetahování.
@@ -527,3 +589,14 @@ zase smazaný (v1.21). Nestavět znovu, dokud si o to výslovně neřekne.
 Rest timer původně taky vyloučen, ale uživatel si ho později vyžádal (v1.10).
 Ve v2.1 (inspirace Hevy) nabídnuté a odmítnuté: **zahřívací série** a **zvuk
 na konci pauzy** — nestavět bez výslovné žádosti.
+**v3.1 (inspirace opengym) postavená a vrácená:** animované ukázky cviků (vlastní
+SVG piktogramy), vedený režim „jeden cvik na obrazovku" a dotaz na váhu při
+startu tréninku. Martinovi to nesedlo („clunky") — revert. Nestavět znovu bez
+výslovné žádosti. (Cizí média stejně nejdou: opengym je AGPL, animace Gym visual
+bez licence, fotky free-exercise-db nejasného původu.)
+**Navržené ve v4.0, zatím nevybrané:** trénink přes celou obrazovku (bez
+navigace a docku, zmenší se do lišty), tabulka sérií ve stylu Strong/Hevy
+(předvyplněné řádky, ✓ = zapsáno + pauza), nativní SwiftUI appka (pauza na
+zamčené obrazovce / Dynamic Island, vibrace, Apple Health, widget, Watch — za
+cenu přepisu, Xcode a vývojářského účtu). Webová appka na iPhonu nevibruje
+(`navigator.vibrate` Safari nemá), takže konec pauzy je jen vizuální.

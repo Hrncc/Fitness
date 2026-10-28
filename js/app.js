@@ -296,6 +296,30 @@ const ACTIONS = {
     render();
   },
   "w-set-save": d => saveSetEdit(Number(d.i)),
+  /* RIR: přepne volbu na místě (bez překreslení — rozepsaná pole zůstanou) */
+  "w-rir": (d, t) => {
+    const on = !t.classList.contains("on");
+    t.parentElement.querySelectorAll(".rir-opt").forEach(b => { b.classList.remove("on"); b.setAttribute("aria-pressed", "false"); });
+    if (on) { t.classList.add("on"); t.setAttribute("aria-pressed", "true"); }
+  },
+  /* kalkulačka kotoučů */
+  "w-plates": d => openPlatesModal(Number(d.i)),
+  "pl-step": d => {
+    const el = document.getElementById("plBody");
+    const inp = el && document.getElementById("weight-" + el.dataset.i);
+    if (!inp) return;
+    const cur = parseDec(inp.value);
+    inp.value = fmtNum(Math.max(0, (Number.isFinite(cur) ? cur : 0) + Number(d.d)), 2);
+    refreshPlates();
+  },
+  "pl-bar": d => {
+    const el = document.getElementById("plBody");
+    const a = S.activeSession;
+    if (!el || !a) return;
+    const exId = a.entries[Number(el.dataset.i)].exerciseId;
+    Settings.set({ plateBars: Object.assign({}, Settings.get().plateBars, { [exId]: Number(d.v) }) });
+    refreshPlates();
+  },
   /* mini check „do selhání" u série */
   "w-set-fail": d => {
     const e = S.activeSession && S.activeSession.entries[Number(d.i)];
@@ -681,6 +705,12 @@ const ACTIONS = {
   "exp-md": () => downloadFile(`fitness-log-${todayStr()}.md`, buildMarkdown(reportRangeArg()), "text/markdown"),
   "exp-csv": () => downloadFile(`fitness-log-serie-${todayStr()}.csv`, buildSetsCsv(), "text/csv"),
   "exp-import": () => importBackup(),
+  "set-rir": (d, t) => {
+    const on = Settings.get().rirMode !== true;
+    Settings.set({ rirMode: on });
+    t.classList.toggle("on", on);
+    t.setAttribute("aria-checked", on);
+  },
   "set-unit": d => {
     if (Settings.get().weightUnit === d.v) return;
     Settings.set({ weightUnit: d.v === "lb" ? "lb" : "kg" });

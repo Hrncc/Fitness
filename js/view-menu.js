@@ -585,7 +585,7 @@ function buildMarkdown(rangeId) {
     } else {
       lines.push(`### ${fmtDate(s.date)} — ${templateLabel(s.templateUsed)}`);
       for (const e of s.entries) {
-        const sets = (e.sets || []).map(st => `${st.reps}×${fmtWeight(st.weight, false)}${st.failure ? " (do selhání)" : ""}`).join(", ");
+        const sets = (e.sets || []).map(st => `${st.reps}×${fmtWeight(st.weight, false)}${st.rir != null ? ` RIR ${rirLabel(st.rir)}` : ""}${st.failure ? " (do selhání)" : ""}`).join(", ");
         lines.push(`- ${exName(e.exerciseId)}: ${sets} ${weightUnit()}`);
       }
     }
@@ -602,11 +602,11 @@ function buildSetsCsv() {
     return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
   };
   const num = v => v == null ? "" : String(Math.round(v * 100) / 100).replace(".", ",");
-  const rows = [["datum", "zacatek", "trenink", "cvik", "partie", "druh", "serie", "opakovani_nebo_s", `vaha_${weightUnit()}`, "do_selhani", "superset", "poznamka"]];
+  const rows = [["datum", "zacatek", "trenink", "cvik", "partie", "druh", "serie", "opakovani_nebo_s", `vaha_${weightUnit()}`, "do_selhani", "rir", "superset", "poznamka"]];
   const sess = S.sessions.filter(s => s.type === "weights").sort((a, b) => a.date.localeCompare(b.date));
   for (const s of sess) for (const e of s.entries) (e.sets || []).forEach((st, j) => rows.push([
     s.date, s.startedAt ? fmtTime(s.startedAt) : "", sessionLabel(s), exName(e.exerciseId), exCategory(e.exerciseId) || "", exKind(e.exerciseId),
-    j + 1, st.reps, num(kgOut(st.weight || 0)), st.failure ? "ano" : "", e.link ? "s dalším" : "", st.note || ""
+    j + 1, st.reps, num(kgOut(st.weight || 0)), st.failure ? "ano" : "", st.rir ?? "", e.link ? "s dalším" : "", st.note || ""
   ]));
   return "\ufeff" + rows.map(r => r.map(cell).join(";")).join("\r\n");
 }
@@ -685,6 +685,7 @@ function renderSettings() {
       lgField("Výchozí pauza", num("setRest", st.restSeconds ?? 120, "s"), "0 = bez pauzy"),
       lgField("Týdenní cíl tréninků", num("setGoal", st.weeklyGoal ?? 3), "0 = bez cíle"),
       `<div class="lg-row"><span class="lg-l">Jednotka váhy</span>${unitSeg}</div>`,
+      lgSwitch("Zapisovat RIR", "set-rir", st.rirMode === true, "Kolik opakování zbylo v záloze · 0 = do selhání"),
       lgSwitch("Nezhasínat obrazovku", "set-awake", st.keepAwake !== false, "Během tréninku · novější iOS a Chrome")
     ], { head: "Trénink" })
     + listGroup([

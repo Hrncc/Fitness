@@ -154,7 +154,7 @@ function buildCoachReport(rangeId = "month") {
       if (s.note) L.push(`_${s.note}_`);
       for (const e of s.entries) {
         const line = (e.sets || []).map(st => {
-          const tags = [st.note, st.failure ? "do selhání" : null].filter(Boolean);
+          const tags = [st.note, st.rir != null ? `RIR ${rirLabel(st.rir)}` : null, st.failure ? "do selhání" : null].filter(Boolean);
           return `${st.reps}×${fmtNum(kgOut(st.weight), 1)}${tags.length ? ` (${tags.join(", ")})` : ""}`;
         }).join(", ");
         L.push(`- ${exName(e.exerciseId)}: ${line || "—"}`);

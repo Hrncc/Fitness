@@ -99,6 +99,8 @@ function renderWorkoutStart() {
   }
   out.push(`<div class="card next-card">${hero}<div class="start-opts${next ? "" : " solo"}">${opts}</div></div>`);
 
+  out.push(freshnessHtml());
+
   /* poslední tréninky */
   const recent = S.sessions.filter(s => !(daySessions.includes(s)))
     .sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id))).slice(0, 3);
@@ -113,6 +115,25 @@ function renderWorkoutStart() {
       <button class="start-opt" data-act="menu" data-page="exlib">${ic("book", 15)}<span>Library</span></button>
     </div>`);
   return out.join("");
+}
+
+/* ---- Čerstvost partií (v4.0) ----
+   Kolik dní od poslední série na každé partii — pomůže vybrat, co dnes.
+   Dnes a včera = regeneruje (šedě), přes 14 dní zlatě (něco utíká, stejný
+   práh jako „naposledy" v Pokroku). Pořadí podle těla (CAT_ORDER), core se
+   počítá i z přepínače. Záměrně jen dny, žádné procento regenerace —
+   to by předstíralo přesnost, kterou z dat neznáme. */
+function freshnessHtml() {
+  const last = partLastTrained();
+  if (!Object.keys(last).length) return "";
+  const today = todayStr();
+  const cells = CAT_ORDER.map(c => {
+    const d = last[c] ? daysBetween(last[c], today) : null;
+    const cls = d == null ? " none" : d <= 1 ? " rest" : d > 14 ? " stale" : "";
+    const val = d == null ? "—" : d <= 0 ? "dnes" : d === 1 ? "včera" : `${d} d`;
+    return `<div class="fr-c${cls}"><i style="background:${catColor(c)}"></i><b>${val}</b><span>${c}</span></div>`;
+  }).join("");
+  return sec("Čerstvost partií", `<div class="card fr">${cells}</div>`, { sub: "dny od poslední série · šedě regeneruje" });
 }
 
 /* Řádek tréninku v seznamu: datum, název, čísla, pokrytí partií, rekordy */
@@ -290,6 +311,7 @@ function renderActiveSession() {
     let pfReps = prog ? prog.lo : (pf ? pf.reps : (target && target.lo) || "");
     let pfWeight = prog ? fmtNum(kgOut(prog.next), 1) : (pf ? fmtNum(kgOut(pf.weight), 1) : (kind === "bw" ? "0" : ""));
     let pfNote = "";
+    let pfRir = null;
     const started = setCount > 0;
     /* oprava série: klepnutí na sérii ji načte do polí, tlačítko ji pak přepíše */
     const es = WV.editSet && WV.editSet.i === i && entry.sets[WV.editSet.j] ? WV.editSet.j : null;
@@ -298,12 +320,13 @@ function renderActiveSession() {
       pfReps = st.reps;
       pfWeight = fmtNum(kgOut(st.weight), 1);
       pfNote = st.note || "";
+      pfRir = st.rir ?? null;
     }
 
     const sets = (entry.sets || []).map((st, j) => `
       <div class="set-row${es === j ? " editing" : ""}" data-act="w-set-edit" data-i="${i}" data-j="${j}">
         <span class="set-num">${j + 1}</span>
-        <span class="grow"><span class="set-val">${setValHtml(exId, st)}</span>${st.note ? ` <span class="small">· ${esc(st.note)}</span>` : ""}</span>
+        <span class="grow"><span class="set-val">${setValHtml(exId, st)}</span>${rirTag(st)}${st.note ? ` <span class="small">· ${esc(st.note)}</span>` : ""}</span>
         ${st.isPR ? `<span class="badge yellow" title="${esc((st.rec || []).map(t => REC_LABEL[t]).join(", "))}">PR</span>` : ""}
         ${failChipHtml(st, i, j)}
         <button class="iconbtn sm muted" data-act="w-del-set" data-i="${i}" data-j="${j}" aria-label="Smazat sérii">${ic("x", 16, 2.1)}</button>
@@ -346,8 +369,10 @@ function renderActiveSession() {
       </div>` : `
       <div class="set-input">
         ${stepperHtml("reps-" + i, pfReps, 1, "Opakování")}
-        ${stepperHtml("weight-" + i, pfWeight, 2.5, (kind === "bw" ? "Zátěž · " : "Váha · ") + weightUnit())}
-      </div>`;
+        ${stepperHtml("weight-" + i, pfWeight, 2.5, (kind === "bw" ? "Zátěž · " : "Váha · ") + weightUnit(),
+          usesPlates(exId) ? `<button class="lbl-link" data-act="w-plates" data-i="${i}">Kotouče</button>` : "")}
+      </div>
+      ${Settings.get().rirMode === true ? rirRowHtml(i, pfRir) : ""}`;
 
     return `
     <div class="ex-open${entry.prHit ? " pr-flash" : ""}${ss}" id="exblock-${i}" data-i="${i}">
@@ -635,16 +660,106 @@ const Drag = {
 /* ---- Stepper pro sérii ----
    Se zpocenou rukou je klávesnice nepřítel: ± mění hodnotu jedním klepnutím,
    pole zůstává editovatelné, když chceš zadat číslo přesně. */
-function stepperHtml(id, value, step, label) {
+function stepperHtml(id, value, step, label, extra = "") {
   return `
     <div class="set-field">
-      <span class="set-lbl">${esc(label)}</span>
+      <span class="set-lbl">${esc(label)}${extra}</span>
       <div class="set-step">
         <button class="step-btn sm" data-act="w-step" data-id="${id}" data-d="${-step}" aria-label="Méně">${ic("minus", 20, 2.3)}</button>
         <input class="input step-in" id="${id}" type="text" inputmode="decimal" value="${value}">
         <button class="step-btn sm" data-act="w-step" data-id="${id}" data-d="${step}" aria-label="Více">${ic("plus", 20, 2.3)}</button>
       </div>
     </div>`;
+}
+
+/* ---- RIR (v4.0, volitelné v Nastavení) ----
+   Kolik opakování zbylo v záloze: 0 = do selhání (zapne i „do selhání"),
+   4+ = lehká série. Volba se vybírá před zápisem a čte se z DOM
+   (readSetInputs), takže přepnutí nepřekresluje rozepsaná pole. */
+function rirLabel(v) { return v >= 4 ? "4+" : String(v); }
+function rirTag(st) {
+  return st.rir != null ? ` <span class="small rir-tag">· RIR ${rirLabel(st.rir)}</span>` : "";
+}
+function rirRowHtml(i, cur) {
+  return `
+      <div class="rir-row">
+        <span class="set-lbl">RIR · opakování v záloze</span>
+        <div class="rir-opts" data-i="${i}" role="group" aria-label="RIR">${[0, 1, 2, 3, 4].map(v =>
+          `<button class="rir-opt${cur === v ? " on" : ""}" data-act="w-rir" data-v="${v}" aria-pressed="${cur === v}">${rirLabel(v)}</button>`).join("")}</div>
+      </div>`;
+}
+
+/* ---- Kalkulačka kotoučů (v4.0) ----
+   Kolik kotoučů dát na každou stranu osy pro váhu v poli. Kotouče hladově
+   od největšího (u těchto řad vychází nejméně kusů); co složit nejde, ukáže
+   se zlatě. Osa se pamatuje u cviku jen v zařízení (Settings.plateBars).
+   Nabízí se jen u cviků s osou nebo strojů na kotouče (podle názvu). */
+const PLATES = { kg: [25, 20, 15, 10, 5, 2.5, 1.25], lb: [45, 35, 25, 10, 5, 2.5] };
+const BARS = { kg: [20, 15, 10, 0], lb: [45, 35, 25, 0] };
+const PLATE_RE = /velk\w* cink|barbell|\bosou\b|\bosa\b|bench|benc[hk]|squat|\bdrep|deadlift|mrtv\w* tah|rumunsk|multipress|smith|hip thrust|leg press|hack|t-bar|landmine|pendulum|beltsquat|\bez\b/;
+const NO_PLATE_RE = /jednoruc|dumbbell|kettlebell|ktb|kladk|cable|goblet|sissy|\bdb\b/;
+function usesPlates(exId) {
+  if (exKind(exId) !== "weight") return false;
+  const e = getExercise(exId);
+  const txt = e ? norm(`${e.name} ${e.nameEn || ""}`) : "";
+  return PLATE_RE.test(txt) && !NO_PLATE_RE.test(txt);
+}
+function plateBar(exId) {
+  const bars = BARS[weightUnit()];
+  const v = (Settings.get().plateBars || {})[exId];
+  return bars.includes(v) ? v : bars[0];
+}
+function platesFor(total, bar, unit) {
+  const per = (total - bar) / 2;
+  if (!(per > 0)) return { per: Math.max(0, per), plates: [], rest: 0 };
+  let left = Math.round(per * 100);
+  const plates = [];
+  for (const p of PLATES[unit]) {
+    const c = Math.round(p * 100);
+    while (left >= c) { plates.push(p); left -= c; }
+  }
+  return { per, plates, rest: left / 100 };
+}
+function openPlatesModal(i) {
+  const a = S.activeSession;
+  const entry = a && a.entries[i];
+  if (!entry) return;
+  openModal(`${modalTitle("Kotouče")}
+    <p class="modal-sub">${esc(exName(entry.exerciseId))} · na každou stranu osy</p>
+    <div id="plBody" data-i="${i}">${platesBodyHtml(i)}</div>`);
+}
+function platesBodyHtml(i) {
+  const a = S.activeSession;
+  const exId = a.entries[i].exerciseId;
+  const u = weightUnit();
+  const inp = document.getElementById("weight-" + i);
+  const raw = inp ? parseDec(inp.value) : NaN;
+  const w = Number.isFinite(raw) ? raw : 0;
+  const bar = plateBar(exId);
+  const r = platesFor(w, bar, u);
+  const maxP = PLATES[u][0];
+  const vis = r.plates.map(p => `<span class="pl" style="height:${(30 + 66 * p / maxP).toFixed(0)}px;width:${(10 + 8 * p / maxP).toFixed(0)}px"></span>`).join("");
+  const step = u === "lb" ? 5 : 2.5;
+  const txt = !w ? "Zadej váhu v poli Váha"
+    : w < bar ? `Méně než samotná osa (${fmtNum(bar)} ${u})`
+    : !r.plates.length ? (bar ? "Jen osa, bez kotoučů" : "Bez kotoučů")
+    : `Na každou stranu <b>${r.plates.map(p => fmtNum(p, 2)).join(" + ")}</b> ${u}`;
+  return `
+    <div class="pl-top">
+      <button class="step-btn" data-act="pl-step" data-d="${-step}" aria-label="Méně">${ic("minus", 22, 2.2)}</button>
+      <div class="pl-w"><b class="num">${fmtNum(w, 2)}</b><small>${u}</small></div>
+      <button class="step-btn" data-act="pl-step" data-d="${step}" aria-label="Více">${ic("plus", 22, 2.2)}</button>
+    </div>
+    <div class="pl-vis" aria-hidden="true"><i class="pl-collar"></i>${vis}<i class="pl-sleeve"></i></div>
+    <p class="pl-txt">${txt}</p>
+    ${r.rest ? `<p class="pl-warn">${ic("alert", 15)} Zbývá ${fmtNum(r.rest, 2)} ${u} na stranu — z kotoučů ${fmtNum(PLATES[u][PLATES[u].length - 1], 2)}+ nejde složit</p>` : ""}
+    <div class="lg-head pl-bar-h">Osa</div>
+    <div class="seg sm" role="tablist">${BARS[u].map(b => `<button class="seg-btn${b === bar ? " on" : ""}" data-act="pl-bar" data-v="${b}"
+      role="tab" aria-selected="${b === bar}">${b ? `${fmtNum(b)} ${u}` : "Bez osy"}</button>`).join("")}</div>`;
+}
+function refreshPlates() {
+  const el = document.getElementById("plBody");
+  if (el) el.innerHTML = platesBodyHtml(Number(el.dataset.i));
 }
 
 /* ---- Counter partií ----
@@ -790,7 +905,10 @@ function readSetInputs(i, kind) {
   const note = document.getElementById(`note-${i}`).value.trim();
   if (!reps || reps <= 0) { toast(kind === "time" ? "Zadej délku výdrže" : "Zadej počet opakování", "err"); return null; }
   if (weight == null || weight < 0) { toast("Zadej váhu", "err"); return null; }
-  return { reps, weight, note: note || null };
+  // RIR (v4.0): vybraná volba pod poli; 0 = do selhání
+  const rEl = document.querySelector(`.rir-opts[data-i="${i}"] .rir-opt.on`);
+  const rir = rEl ? Number(rEl.dataset.v) : null;
+  return Object.assign({ reps, weight, note: note || null }, rir != null ? { rir } : {}, rir === 0 ? { failure: true } : {});
 }
 
 function addSet(i) {
@@ -871,7 +989,7 @@ function beginEditSession(id) {
     core: s.core === true,
     entries: (s.entries || []).map(e => Object.assign(
       { exerciseId: e.exerciseId, sets: (e.sets || []).map(st => Object.assign(
-        { reps: st.reps, weight: st.weight, note: st.note || null }, st.failure ? { failure: true } : {})), done: true, target: null },
+        { reps: st.reps, weight: st.weight, note: st.note || null }, st.failure ? { failure: true } : {}, st.rir != null ? { rir: st.rir } : {})), done: true, target: null },
       e.exerciseName ? { exerciseName: e.exerciseName } : {}, e.link ? { link: true } : {}))
   };
   WV.openIdx = null;
@@ -890,8 +1008,8 @@ function finishWorkout() {
     .map((e, i) => [e, e.link && hasSets(a.entries[i + 1])])
     .filter(([e]) => hasSets(e))
     .map(([e, link]) => Object.assign(
-      { exerciseId: e.exerciseId, sets: e.sets.map(({ reps, weight, note, failure }) =>
-        Object.assign({ reps, weight, note }, failure ? { failure: true } : {})) },
+      { exerciseId: e.exerciseId, sets: e.sets.map(({ reps, weight, note, failure, rir }) =>
+        Object.assign({ reps, weight, note }, failure ? { failure: true } : {}, rir != null ? { rir } : {})) },
       e.exerciseName ? { exerciseName: e.exerciseName } : {}, link ? { link: true } : {}));
   if (!entries.length) {
     toast(a.editOf ? "Trénink nemá žádnou sérii — smazat ho jde v detailu" : "Trénink nemá žádnou zapsanou sérii", "err");
@@ -1297,7 +1415,7 @@ function sessionDetailHtml(s) {
     const linked = e.link || (k > 0 && s.entries[k - 1].link);
     const sets = (e.sets || []).map((st, j) =>
       `<div class="set-row"><span class="set-num">${j + 1}</span>
-       <span class="grow"><span class="set-val">${setValHtml(e.exerciseId, st)}</span>${st.note ? ` <span class="small">· ${esc(st.note)}</span>` : ""}</span>
+       <span class="grow"><span class="set-val">${setValHtml(e.exerciseId, st)}</span>${rirTag(st)}${st.note ? ` <span class="small">· ${esc(st.note)}</span>` : ""}</span>
        ${recSet.has(`${k}|${j}`) ? `<span class="badge yellow">PR</span>` : ""}
        ${st.failure ? `<span class="fail-chip on static"><i>${ic("check", 9, 3.6)}</i>selhání</span>` : ""}</div>`).join("");
     return `<div class="detail-ex">
