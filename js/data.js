@@ -12,7 +12,7 @@ const Settings = {
       try { this._cache = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; }
       catch (e) { this._cache = {}; }
       this._cache = Object.assign({ gasWebAppUrl: "", usdaApiKey: "", anthropicApiKey: "", weightUnit: "kg", restSeconds: 120,
-        weeklyGoal: 3, keepAwake: true }, this._cache);
+        weeklyGoal: 3, keepAwake: true, gymMode: "guided", askWeight: true }, this._cache);
     }
     return this._cache;
   },

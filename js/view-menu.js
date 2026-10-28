@@ -1,7 +1,7 @@
 /* ===== Více: sheet s nabídkou a stránky z něj ===== */
 "use strict";
 
-const APP_VERSION = "3.0";
+const APP_VERSION = "3.1";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -88,6 +88,7 @@ function openExerciseDetail(id) {
       ${e.isCustom ? `<span class="badge">vlastní</span>` : ""}
       ${pr ? `<span class="badge yellow">${ic("trophy", 12, 2.2)} ${fmtWeight(pr.weight)} × ${pr.reps}</span>` : ""}
     </div>
+    ${moveKeyFor(id) ? `<div class="move-box ex-move" style="margin-bottom:16px">${moveHtml(id)}</div>` : ""}
     <p class="muted" style="margin:0 0 ${e.pin ? 12 : 20}px;line-height:1.55">${esc(e.description || "Bez popisu")}</p>
     ${e.pin ? `<div class="hint pin" style="margin-bottom:20px">${ic("pin", 15)}<span>${esc(e.pin)}</span></div>` : ""}
     <div class="small" style="margin:-8px 2px 16px">${esc((EX_KINDS.find(k => k[0] === exKind(id)) || [])[1] || "")}</div>
@@ -689,6 +690,16 @@ function renderSettings() {
         <span class="grow"><b style="font-weight:600">Nezhasínat obrazovku při tréninku</b><br>
           <span class="small">Funguje na novějším iOS a v Chrome</span></span>
         <button class="switch${st.keepAwake !== false ? " on" : ""}" data-act="set-awake" role="switch" aria-checked="${st.keepAwake !== false}" aria-label="Nezhasínat obrazovku"></button>
+      </div>
+      <div class="row detail-core" style="margin:0 0 14px">
+        <span class="grow"><b style="font-weight:600">Vedený trénink</b><br>
+          <span class="small">Jeden cvik na obrazovku s ukázkou pohybu a pauzou v kartě. Vypnuto = seznam cviků.</span></span>
+        <button class="switch${st.gymMode !== "list" ? " on" : ""}" data-act="set-guided" role="switch" aria-checked="${st.gymMode !== "list"}" aria-label="Vedený trénink"></button>
+      </div>
+      <div class="row detail-core" style="margin:0 0 14px">
+        <span class="grow"><b style="font-weight:600">Zeptat se na váhu při startu</b><br>
+          <span class="small">Jen když dnešní váha ještě chybí</span></span>
+        <button class="switch${st.askWeight !== false ? " on" : ""}" data-act="set-askw" role="switch" aria-checked="${st.askWeight !== false}" aria-label="Zeptat se na váhu při startu tréninku"></button>
       </div>
       <label class="field" style="margin:0"><span>Jednotka váhy</span>
         <select class="input" id="setUnit">

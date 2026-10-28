@@ -21,6 +21,7 @@ Osobní PWA pro zápis silových a kardio tréninků a stravy. **Jeden uživatel
 |---|---|
 | `js/util.js` | datum, formátování, jednotky, `parseDec()` (desetinná **čárka i tečka**), e1RM |
 | `js/exercise-db.js` | `EXERCISE_DB` — 90 cviků knihovny s vysvětlivkami, `EXERCISE_NAME_EN` — anglické názvy všech 142 cviků |
+| `js/moves.js` | animované ukázky cviků — vlastní SVG piktogramy (37 vzorů pohybu `MOVES`, přiřazení `MOVE_RULES` → `moveKeyFor()`, `moveHtml()`, animátor `Moves`) |
 | `js/qr.js` | QR generátor (ISO 18004, byte mode, EC L, v1–13, výběr masky) |
 | `js/photos.js` | fotky postupu v IndexedDB + zmenšení na JPEG |
 | `js/data.js` | stav `S`, `save()`, `replaceState()`, PR logika a **rekordy čtyř druhů** (`exerciseRecords()`), plán cviku v šabloně (`tplPlan()`), druhy cviků (`exKind()`), milníky, plán trenéra, barvy partií (`CAT_COLOR`, `CAT_ORDER`, `sessionCatSets()`, `dayCatColors()`) |
@@ -198,7 +199,8 @@ ať uživateli nezůstanou testovací data. Reálná data jdou stáhnout z jeho 
 
 ## Pokrytí partií
 
-`catCounterHtml()` (`view-workout.js`) drží nad cviky po celou dobu tréninku.
+`catCounterHtml()` (`view-workout.js`) drží nad cviky po celou dobu tréninku
+(ve vedeném režimu v3.1 pod kartou cviku).
 Sbalený je **pruh** se sériemi (v posilovně je místo na obrazovce nejcennější),
 klepnutím (`w-counter`) se rozbalí na **cviky · série** u každé partie —
 série samy nerozliší „tři série na jednom cviku" od „tři cviky po jedné".
@@ -354,7 +356,8 @@ Shora dolů od nejbližšího k nejširšímu:
 
 ### Zamčený timer (`Dock` v `ui.js`)
 
-Pilulka nad plovoucí navigací, **viditelná na každé obrazovce**: běží-li pauza,
+Pilulka nad plovoucí navigací, **viditelná na každé obrazovce** (kromě vedeného
+tréninku, kde je pauza v kartě — viz v3.1): běží-li pauza,
 ukazuje odpočet s kroužkem, −30/+30 a zrušení; když pauza neběží a probíhá
 trénink, ukazuje počet sérií (`workoutSetsLabel()`) a bílé tlačítko pro ruční
 start pauzy. **Časovač celého tréninku není** — v1.26 na Martinovu žádost
@@ -494,6 +497,66 @@ sklo dostane až po přilepení — třída `.stuck` z `updateTopbar()`).
   otevřeným cvikem. `moveExercise()` přepočítá `WV.openIdx` a vrátí rozepsanou
   sérii do polí. Otevřený cvik úchyt nemá. Klik těsně po puštění (≤ 350 ms)
   delegace zahodí — iOS ho posílá navíc.
+
+## Vedený trénink a ukázky pohybu (v3.1, inspirace opengym)
+
+Martin chtěl z [opengym](https://github.com/alexpcosta/opengym) „Guided workout —
+animated demos & sets". **opengym je AGPL-3.0 — kód se nepřebírá, jen nápady.**
+Jejich animace jsou z datasetu Gym visual (© Gym visual, bez licence pro nás)
+a fotky z free-exercise-db mají nejasný původ — **žádná cizí média**. Ukázky
+jsou vlastní piktogramy v `js/moves.js` (self-contained, pár kB).
+
+- **Piktogramy:** postava z kloubových úhlů (bok, kotník, ruka jako kotvy), bokem
+  (`side`) nebo zepředu (`front`, zrcadlené). Pozice `a` → `b`, `mvLerp()` bere
+  úhly kratší cestou (jinak pullover / ab wheel přetočí paži dokola). Výbava šedě
+  (`MV_EQ`), vzdálenější končetiny `--text4`. Cvik s jednoručkami v názvu
+  (`moveUsesDumbbells()`) dostane variantu `db` místo osy.
+- **Přiřazení:** `MOVE_RULES` (regexy nad `norm(name + nameEn)`, **pořadí rozhoduje**
+  — upažování před rozpažky, obecný tlak vleže na konci), jinak `MOVE_BY_CAT` podle
+  partie. Všech 140 cviků má ukázku (t9 to hlídá). Ukázka je obecný vzor pohybu,
+  ne přesná technika konkrétního stroje — od toho je Technika a YouTube.
+- **Animátor `Moves`:** jedna rAF smyčka ~30 fps, kreslí jen viditelné
+  `svg[data-move]`; `render()` i `openModal()` volají `Moves.sync()`.
+  Při „omezit pohyb" jen koncová poloha.
+- Ukázka je ve vedené kartě, v seznamu uvnitř **Technika** a v detailu cviku
+  v Exercise Library.
+
+**Vedený režim** (`Settings.gymMode`, výchozí `"guided"`; přepínač ikonami
+v titulku `w-mode` a v Nastavení). Zpětná úprava uloženého tréninku jede vždy
+v seznamu (`gymGuided(a)` je false při `editOf`).
+- Jeden cvik na obrazovku (`renderGuided()`, `guidedCardHtml()`): hlavička,
+  ukázka, **„Série 2 / 3"** s cílem a minulou hodnotou té série, steppery,
+  poznámka, volt **Zapsat N. sérii** → po splnění plánu volt **Další cvik**
+  (`w-ex-done`; poslední = Hotovo → karta „Všechno odcvičeno" s volt Dokončit).
+- Aktuální cvik = `WV.openIdx`, jinak první neodcvičený (`guidedIdx()`);
+  `renderGuided()` ho do `WV.openIdx` zapíše, ať `currentRestSeconds()` a
+  `addSet()` sedí. Pole jsou **stejná jako v seznamu** (`#reps-i`, `#weight-i`,
+  `#note-i`) — sdílené kusy dává `entryInfo()` + `openParts()`.
+- **Pauza v kartě:** blok `#gRest` (`guidedTopHtml()`) se po zápisu série změní
+  na odpočet s −30 / +30 / Přeskočit a „Další: 2. série · cíl · minule" (nebo
+  další cvik). Překresluje ho `Dock.sync()` (`guidedTopSync()`), čísla tiká
+  `Dock.tick()`. **Dock se na vedené obrazovce schová** (pauza je v kartě);
+  na ostatních obrazovkách zůstává.
+- Navigace: šipky Předchozí / Další pod kartou (`w-g-go`, nemění „hotovo")
+  a **pruh cviků v titulku** (`guidedStripHtml()`: hotové volt, aktuální bílý,
+  rozdělané šedé, superset u sebe) — klepnutí otevře přehled cviků
+  (`openGuidedList()`). Přeřazování jen v seznamu.
+- Supersety jedou dál přes `addSet()` (bez pauzy na další kartu, po posledním
+  pauza a zpět na první); v kartě se jen posune nahoru.
+- Counter partií je ve vedeném režimu **pod kartou**, ne nad ní — na menším
+  iPhonu by jinak Zapsat sérii padlo pod navigaci.
+
+**Váha při startu** (`Settings.askWeight`, výchozí zapnuto): živý trénink ze
+šablony (i Zopakovat) s dnešním datem bez dnešní váhy otevře sheet „Váha dnes"
+(`openWeightPrompt()` — stepper po 0,1 s polem, předvyplněná poslední váha,
+Přeskočit / Uložit váhu). Volný trénink se neptá (otevře se výběr cviku),
+zpětný zápis taky ne.
+
+Testy: `seed()` v testech nastaví seznam a vypne dotaz na váhu (starší testy
+klikají do seznamu); vedený režim testuje `t9.js` (`seed(page, {guided: true})`).
+
+Z opengym dál **nepřebráno** (k nabídnutí): mapa svalů, kalkulačka e1RM pro
+jiná opakování, RIR/RPE u série, roční heatmapa, pravidla progrese per cvik.
 
 ## Zamčená obrazovka (v1.22)
 

@@ -42,10 +42,13 @@ function workoutHead() {
     const sets = sessionSets(a);
     const dateInfo = a.date !== todayStr() ? `${fmtShort(a.date)} · ` : a.startedAt ? `${startedLabel(a)} · ` : "";
     const pct = total ? done / total * 100 : 0;
+    // vedený režim: místo pruhu průběhu pruh cviků (klepnutí = přehled)
     return {
       title: sessionLabel(a),
       sub: `${dateInfo}<b>${done}/${total}</b> cviků · <b>${sets}</b> ${setWordTop(sets)}`,
-      below: `<div class="page-prog"><i style="width:${pct.toFixed(0)}%"></i></div>`
+      right: gymModeSegHtml(),
+      below: gymGuided(a) && total ? guidedStripHtml(a, guidedIdx(a))
+        : `<div class="page-prog"><i style="width:${pct.toFixed(0)}%"></i></div>`
     };
   }
   const today = todayStr();
@@ -239,68 +242,63 @@ function youtubeUrl(exId) {
   return "https://www.youtube.com/results?search_query=" + encodeURIComponent(q + " technique");
 }
 
-/* ---- Aktivní silová session ---- */
-function renderActiveSession() {
-  const a = S.activeSession;
-  if (a.type === "cardio") return ""; // kardio se zapisuje přímo formulářem
-  const n = a.entries.length;
+/* ---- Aktivní silová session ----
+   Dva režimy (Nastavení gymMode): vedený = jeden cvik na obrazovku s ukázkou
+   pohybu a pauzou v kartě, seznam = akordeon všech cviků. Zpětná úprava
+   uloženého tréninku jede vždy v seznamu. Oba zapisují stejnými poli
+   (#reps-i, #weight-i, #note-i), takže addSet() i readSetInputs() platí v obou. */
+function gymGuided(a) {
+  return !!a && a.type === "weights" && !a.editOf && Settings.get().gymMode !== "list";
+}
 
-  const blocks = a.entries.map((entry, i) => {
-    const exId = entry.exerciseId;
-    const ex = getExercise(exId);
-    const kind = exKind(exId);
-    const pcol = catColor(ex && ex.category);   // identita partie — jen proužek
-    const last = lastExerciseSets(exId, a.id);
-    const target = a.editOf ? null : entryTarget(a, entry);
-    const setCount = (entry.sets || []).length;
-    const isOpen = WV.openIdx === i;
-    const failN = entry.sets.filter(st => st.failure).length;
-    const failTxt = failN ? ` · do selhání ${failN}×` : "";
-    /* superset = řada cviků propojených „s dalším"; svislá linka vlevo */
-    const linkPrev = i > 0 && !!a.entries[i - 1].link;
-    const linkNext = !!entry.link && i < n - 1;
-    const ss = linkPrev || linkNext ? ` ss${linkPrev ? " ss-prev" : ""}${linkNext ? " ss-next" : ""}` : "";
-    const progress = target && target.sets ? `${setCount}/${target.sets} ${setWordTop(target.sets)}` : `${setCount} ${setWordTop(setCount)}`;
+/* Co o cviku potřebuje sbalený řádek i otevřená karta */
+function entryInfo(a, i) {
+  const entry = a.entries[i];
+  const exId = entry.exerciseId;
+  const ex = getExercise(exId);
+  const target = a.editOf ? null : entryTarget(a, entry);
+  const setCount = (entry.sets || []).length;
+  /* superset = řada cviků propojených „s dalším"; svislá linka vlevo */
+  const linkPrev = i > 0 && !!a.entries[i - 1].link;
+  const linkNext = !!entry.link && i < a.entries.length - 1;
+  return {
+    entry, exId, ex, kind: exKind(exId), target, setCount, linkPrev, linkNext,
+    pcol: catColor(ex && ex.category),   // identita partie — jen proužek nebo tečka
+    last: lastExerciseSets(exId, a.id),
+    ss: linkPrev || linkNext ? ` ss${linkPrev ? " ss-prev" : ""}${linkNext ? " ss-next" : ""}` : "",
+    progress: target && target.sets ? `${setCount}/${target.sets} ${setWordTop(target.sets)}` : `${setCount} ${setWordTop(setCount)}`,
+    doneEnough: !!(target && target.sets && setCount >= target.sets)
+  };
+}
 
-    /* --- sbalený cvik: hotový, rozdělaný, nezačatý --- */
-    if (!isOpen) {
-      const sub = setCount
-        ? `${progress} · ${setsSummary(exId, entry.sets)}${failTxt}`
-        : (planText(target, exId) || "klepni pro zápis");
-      return `
-      <div class="ex-row${entry.done ? " ex-done" : setCount ? " ex-active" : ""}${ss}" id="exblock-${i}" data-act="w-ex-open" data-i="${i}">
-        <div class="row">
-          <i class="p-stripe" style="background:${pcol}"></i>
-          <span class="ex-num${entry.done ? " done" : ""}">${entry.done ? ic("check", 15, 3) : i + 1}</span>
-          <div class="grow">
-            <div class="name">${esc(exName(exId))}</div>
-            <div class="small">${ss ? `<span class="ss-tag">superset</span> · ` : ""}${esc(sub)}${entry.prHit ? ` · <span style="color:var(--yellow);font-weight:650">PR</span>` : ""}</div>
-          </div>
-          ${dragHandleHtml(i)}
-        </div>
-      </div>`;
-    }
+/* „8–12 opak." / „30–60 s" z cíle cviku */
+function goalText(t, kind) {
+  if (!t || !t.lo) return "";
+  return `${t.lo}${t.hi && t.hi !== t.lo ? "–" + t.hi : ""} ${kind === "time" ? "s" : "opak."}`;
+}
 
-    // předvyplnění další série podle minulého tréninku (stejný index, jinak poslední)
-    const pf = last ? (last.sets[setCount] || last.sets[last.sets.length - 1]) : null;
-    // návrh progrese a „blízko rekordu" patří živému tréninku, ne opravě
-    // uloženého (rekord by se navíc porovnával sám se sebou)
-    const prog = a.editOf ? null : progressionSuggestion(target, last, kind);
-    // při splněné progresi předvyplň vyšší váhu a spodek rozsahu
-    let pfReps = prog ? prog.lo : (pf ? pf.reps : (target && target.lo) || "");
-    let pfWeight = prog ? fmtNum(kgOut(prog.next), 1) : (pf ? fmtNum(kgOut(pf.weight), 1) : (kind === "bw" ? "0" : ""));
-    let pfNote = "";
-    const started = setCount > 0;
-    /* oprava série: klepnutí na sérii ji načte do polí, tlačítko ji pak přepíše */
-    const es = WV.editSet && WV.editSet.i === i && entry.sets[WV.editSet.j] ? WV.editSet.j : null;
-    if (es != null) {
-      const st = entry.sets[es];
-      pfReps = st.reps;
-      pfWeight = fmtNum(kgOut(st.weight), 1);
-      pfNote = st.note || "";
-    }
+/* Kusy otevřeného cviku: série, nápovědy, pole pro zápis, poznámka, technika */
+function openParts(a, i, f) {
+  const { entry, exId, ex, kind, last, target, setCount, linkPrev, linkNext } = f;
+  // předvyplnění další série podle minulého tréninku (stejný index, jinak poslední)
+  const pf = last ? (last.sets[setCount] || last.sets[last.sets.length - 1]) : null;
+  // návrh progrese a „blízko rekordu" patří živému tréninku, ne opravě
+  // uloženého (rekord by se navíc porovnával sám se sebou)
+  const prog = a.editOf ? null : progressionSuggestion(target, last, kind);
+  // při splněné progresi předvyplň vyšší váhu a spodek rozsahu
+  let pfReps = prog ? prog.lo : (pf ? pf.reps : (target && target.lo) || "");
+  let pfWeight = prog ? fmtNum(kgOut(prog.next), 1) : (pf ? fmtNum(kgOut(pf.weight), 1) : (kind === "bw" ? "0" : ""));
+  let pfNote = "";
+  /* oprava série: klepnutí na sérii ji načte do polí, tlačítko ji pak přepíše */
+  const es = WV.editSet && WV.editSet.i === i && entry.sets[WV.editSet.j] ? WV.editSet.j : null;
+  if (es != null) {
+    const st = entry.sets[es];
+    pfReps = st.reps;
+    pfWeight = fmtNum(kgOut(st.weight), 1);
+    pfNote = st.note || "";
+  }
 
-    const sets = (entry.sets || []).map((st, j) => `
+  const sets = (entry.sets || []).map((st, j) => `
       <div class="set-row${es === j ? " editing" : ""}" data-act="w-set-edit" data-i="${i}" data-j="${j}">
         <span class="set-num">${j + 1}</span>
         <span class="grow"><span class="set-val">${setValHtml(exId, st)}</span>${st.note ? ` <span class="small">· ${esc(st.note)}</span>` : ""}</span>
@@ -308,36 +306,34 @@ function renderActiveSession() {
         ${failChipHtml(st, i, j)}
         <button class="iconbtn sm muted" data-act="w-del-set" data-i="${i}" data-j="${j}" aria-label="Smazat sérii">${ic("x", 16, 2.1)}</button>
       </div>`).join("");
-    /* naplánované série, které ještě nejsou zapsané — tlumené řádky s cílem */
-    const ghosts = [];
-    if (target && target.sets && es == null) {
-      const unit = kind === "time" ? "s" : "opak.";
-      const goal = target.lo ? `${target.lo}${target.hi && target.hi !== target.lo ? "–" + target.hi : ""} ${unit}` : "";
-      for (let j = setCount; j < target.sets; j++) {
-        const prev = last && last.sets[j];
-        ghosts.push(`<div class="set-row ghost"><span class="set-num">${j + 1}</span>
+  /* naplánované série, které ještě nejsou zapsané — tlumené řádky s cílem */
+  const ghosts = [];
+  if (target && target.sets && es == null) {
+    const goal = goalText(target, kind);
+    for (let j = setCount; j < target.sets; j++) {
+      const prev = last && last.sets[j];
+      ghosts.push(`<div class="set-row ghost"><span class="set-num">${j + 1}</span>
           <span class="grow">${goal}${prev ? `${goal ? " · " : ""}minule ${setShort(exId, prev)}` : ""}</span></div>`);
-      }
     }
+  }
 
-    /* poznámka, rekord, minulý výkon, návrh progrese a „blízko rekordu" */
-    const pr = kind === "weight" ? currentPR(exId) : null;
-    const bestR = kind !== "weight" ? exerciseRecords(exId).best.reps : null;
-    const near = a.editOf ? null : nearPRHint(entry, pr);
-    const hints = [
-      ex && ex.pin ? `<div class="hint pin" data-act="w-pin" data-i="${i}">${ic("pin", 15)}<span>${esc(ex.pin)}</span></div>` : "",
-      pr ? `<div class="hint pr">${ic("trophy", 15)}<span>Rekord <b>${fmtWeight(pr.weight)} × ${pr.reps}</b> · e1RM ${fmtWeight(pr.e1rm)}</span></div>`
-        : bestR ? `<div class="hint pr">${ic("trophy", 15)}<span>Rekord <b>${setShort(exId, bestR)}</b>${kind === "bw" ? " opak." : ""}</span></div>` : "",
-      last ? `<div class="hint">${ic("history", 15)}<span>Minule ${relDay(last.date)}: <b>${setsSummary(exId, last.sets)}</b></span></div>` : "",
-      prog ? `<div class="hint prog">${ic("trend", 15)}<span>Progrese — minule vše ≥ ${prog.topReps} opak., zkus <b>${fmtWeight(prog.next)}</b></span></div>` : "",
-      near ? `<div class="hint near">${ic("target", 15)}<span>${near}</span></div>` : ""
-    ].join("");
+  /* poznámka, rekord, minulý výkon, návrh progrese a „blízko rekordu" */
+  const pr = kind === "weight" ? currentPR(exId) : null;
+  const bestR = kind !== "weight" ? exerciseRecords(exId).best.reps : null;
+  const near = a.editOf ? null : nearPRHint(entry, pr);
+  const hints = [
+    ex && ex.pin ? `<div class="hint pin" data-act="w-pin" data-i="${i}">${ic("pin", 15)}<span>${esc(ex.pin)}</span></div>` : "",
+    pr ? `<div class="hint pr">${ic("trophy", 15)}<span>Rekord <b>${fmtWeight(pr.weight)} × ${pr.reps}</b> · e1RM ${fmtWeight(pr.e1rm)}</span></div>`
+      : bestR ? `<div class="hint pr">${ic("trophy", 15)}<span>Rekord <b>${setShort(exId, bestR)}</b>${kind === "bw" ? " opak." : ""}</span></div>` : "",
+    last ? `<div class="hint">${ic("history", 15)}<span>Minule ${relDay(last.date)}: <b>${setsSummary(exId, last.sets)}</b></span></div>` : "",
+    prog ? `<div class="hint prog">${ic("trend", 15)}<span>Progrese — minule vše ≥ ${prog.topReps} opak., zkus <b>${fmtWeight(prog.next)}</b></span></div>` : "",
+    near ? `<div class="hint near">${ic("target", 15)}<span>${near}</span></div>` : ""
+  ].join("");
 
-    const planBits = [planText(target, exId), target && target.rest ? `pauza ${fmtClock(target.rest)}` : "",
-      linkNext ? "superset s dalším" : linkPrev ? "superset" : ""].filter(Boolean);
-    const doneEnough = target && target.sets && setCount >= target.sets;
-    const sw = WV.sw && WV.sw.i === i;
-    const inputs = kind === "time" ? `
+  const planBits = [planText(target, exId), target && target.rest ? `pauza ${fmtClock(target.rest)}` : "",
+    linkNext ? "superset s dalším" : linkPrev ? "superset" : ""].filter(Boolean);
+  const sw = WV.sw && WV.sw.i === i;
+  const inputs = kind === "time" ? `
       <div class="set-input">
         ${stepperHtml("reps-" + i, pfReps, 5, "Výdrž · s")}
         <div class="set-field"><span class="set-lbl">Stopky</span>
@@ -348,36 +344,84 @@ function renderActiveSession() {
         ${stepperHtml("reps-" + i, pfReps, 1, "Opakování")}
         ${stepperHtml("weight-" + i, pfWeight, 2.5, (kind === "bw" ? "Zátěž · " : "Váha · ") + weightUnit())}
       </div>`;
+  const note = `
+      <details class="note-toggle"${pfNote ? " open" : ""}>
+        <summary>${ic("note", 15)} Poznámka k sérii</summary>
+        <input class="input" id="note-${i}" type="text" placeholder="např. pomalé negativum" value="${esc(pfNote)}">
+      </details>`;
+  // v seznamu je ukázka pohybu schovaná v Technice, ve vedeném režimu nahoře v kartě
+  const tech = demo => `
+      <details class="ex-desc"><summary>Technika ${ic("chevD", 14, 2.2)}</summary>
+        ${demo && moveKeyFor(exId) ? `<div class="move-box ex-move">${moveHtml(exId)}</div>` : ""}
+        ${ex && ex.description ? `<p>${esc(ex.description)}</p>` : ""}
+        <a class="video-link" href="${youtubeUrl(exId)}" target="_blank" rel="noopener">${ic("play", 12)} Video na YouTube</a>
+      </details>`;
+  return { es, sets, ghosts: ghosts.join(""), hints, planBits, inputs, note, tech };
+}
 
-    return `
-    <div class="ex-open${entry.prHit ? " pr-flash" : ""}${ss}" id="exblock-${i}" data-i="${i}">
-      <div class="ex-head" data-act="w-ex-close">
+/* hlavička otevřeného cviku: partie, název, plán; vpravo výměna a menu ⋯ */
+function exHeadHtml(a, i, f, p, cat, attrs = "") {
+  const { ex, exId, pcol } = f;
+  return `
+      <div class="ex-head"${attrs}>
         <div class="grow">
-          <div class="ex-cat"><i class="p-dot" style="background:${pcol}"></i>${esc((ex && ex.category) || "—")} · ${i + 1}. cvik${target && target.sets ? ` · ${progress}` : ""}</div>
+          <div class="ex-cat"><i class="p-dot" style="background:${pcol}"></i>${esc((ex && ex.category) || "—")} · ${cat}</div>
           <div class="ex-title">${esc(exName(exId))}</div>
           ${exNameEn(ex) ? `<div class="name-en">${esc(exNameEn(ex))}</div>` : ""}
-          ${planBits.length ? `<div class="ex-plan">${planBits.join(" · ")}</div>` : ""}
+          ${p.planBits.length ? `<div class="ex-plan">${p.planBits.join(" · ")}</div>` : ""}
         </div>
         <div class="ex-tools">
           <button class="iconbtn soft" data-act="w-swap-ex" data-i="${i}" aria-label="Vyměnit cvik">${ic("swap", 18)}</button>
           <button class="iconbtn soft" data-act="w-ex-menu" data-i="${i}" aria-label="Další možnosti">${ic("more", 18)}</button>
         </div>
-      </div>
-      <details class="ex-desc"><summary>Technika ${ic("chevD", 14, 2.2)}</summary>
-        ${ex && ex.description ? `<p>${esc(ex.description)}</p>` : ""}
-        <a class="video-link" href="${youtubeUrl(exId)}" target="_blank" rel="noopener">${ic("play", 12)} Video na YouTube</a>
-      </details>
-      ${hints ? `<div class="ex-hints">${hints}</div>` : ""}
-      ${sets || ghosts.length ? `<div class="sets">${sets}${ghosts.join("")}</div>` : ""}
-      ${inputs}
-      <details class="note-toggle"${pfNote ? " open" : ""}>
-        <summary>${ic("note", 15)} Poznámka k sérii</summary>
-        <input class="input" id="note-${i}" type="text" placeholder="např. pomalé negativum" value="${esc(pfNote)}">
-      </details>
+      </div>`;
+}
+
+function renderActiveSession() {
+  const a = S.activeSession;
+  if (a.type === "cardio") return ""; // kardio se zapisuje přímo formulářem
+  if (gymGuided(a)) return renderGuided(a);
+
+  const blocks = a.entries.map((entry, i) => {
+    const f = entryInfo(a, i);
+    const { exId, target, setCount, ss, progress } = f;
+    const failN = entry.sets.filter(st => st.failure).length;
+    const failTxt = failN ? ` · do selhání ${failN}×` : "";
+
+    /* --- sbalený cvik: hotový, rozdělaný, nezačatý --- */
+    if (WV.openIdx !== i) {
+      const sub = setCount
+        ? `${progress} · ${setsSummary(exId, entry.sets)}${failTxt}`
+        : (planText(target, exId) || "klepni pro zápis");
+      return `
+      <div class="ex-row${entry.done ? " ex-done" : setCount ? " ex-active" : ""}${ss}" id="exblock-${i}" data-act="w-ex-open" data-i="${i}">
+        <div class="row">
+          <i class="p-stripe" style="background:${f.pcol}"></i>
+          <span class="ex-num${entry.done ? " done" : ""}">${entry.done ? ic("check", 15, 3) : i + 1}</span>
+          <div class="grow">
+            <div class="name">${esc(exName(exId))}</div>
+            <div class="small">${ss ? `<span class="ss-tag">superset</span> · ` : ""}${esc(sub)}${entry.prHit ? ` · <span style="color:var(--yellow);font-weight:650">PR</span>` : ""}</div>
+          </div>
+          ${dragHandleHtml(i)}
+        </div>
+      </div>`;
+    }
+
+    const p = openParts(a, i, f);
+    const { es } = p;
+    const started = setCount > 0;
+    return `
+    <div class="ex-open${entry.prHit ? " pr-flash" : ""}${ss}" id="exblock-${i}" data-i="${i}">
+      ${exHeadHtml(a, i, f, p, `${i + 1}. cvik${target && target.sets ? ` · ${progress}` : ""}`, ` data-act="w-ex-close"`)}
+      ${p.tech(true)}
+      ${p.hints ? `<div class="ex-hints">${p.hints}</div>` : ""}
+      ${p.sets || p.ghosts ? `<div class="sets">${p.sets}${p.ghosts}</div>` : ""}
+      ${p.inputs}
+      ${p.note}
       <div class="ex-actions">
         ${es != null ? `
         <button class="btn primary grow" data-act="w-set-save" data-i="${i}">${ic("check", 18, 2.6)} Uložit ${es + 1}. sérii</button>
-        <button class="btn ghost" data-act="w-set-cancel">Zrušit</button>` : doneEnough ? `
+        <button class="btn ghost" data-act="w-set-cancel">Zrušit</button>` : f.doneEnough ? `
         <button class="btn" data-act="w-add-set" data-i="${i}">${ic("plus", 18, 2.6)} Série navíc</button>
         <button class="btn primary grow" data-act="w-ex-done" data-i="${i}">${ic("check", 18, 2.6)} ${entry.done ? "Zavřít" : "Hotovo"}</button>` : `
         <button class="btn primary grow" data-act="w-add-set" data-i="${i}">${ic("plus", 18, 2.6)} Přidat sérii</button>
@@ -402,6 +446,203 @@ function renderActiveSession() {
     <div class="mt2">${coreCardHtml(a)}</div>
     <button class="btn primary full mt" data-act="w-finish">${ic("check", 18, 2.6)} ${a.editOf ? "Uložit změny" : "Dokončit trénink"}</button>
     <button class="btn text danger full" data-act="w-cancel">${a.editOf ? "Zahodit úpravy" : "Zrušit trénink"}</button>`;
+}
+
+/* ---- Vedený režim: jeden cvik na obrazovku ----
+   Nahoře ukázka pohybu, pod ní „Série 2 / 3" s cílem a minulou hodnotou
+   té série; po zápisu se na jejím místě rozběhne pauza s náhledem, co přijde.
+   Dock se tu schová — pauza je v kartě. Mezi cviky šipky dole nebo pruh
+   v titulku (přehled cviků). */
+function guidedIdx(a) {
+  if (WV.openIdx != null && a.entries[WV.openIdx]) return WV.openIdx;
+  return a.entries.findIndex(e => !e.done);   // −1 = všechno odcvičeno
+}
+/* další neodcvičený cvik: nejdřív za ním, pak od začátku (jako Hotovo v seznamu) */
+function nextPendingIdx(a, i) {
+  const list = a.entries;
+  const order = list.map((_, k) => k).filter(k => k > i).concat(list.map((_, k) => k).filter(k => k < i));
+  const k = order.find(k => !list[k].done);
+  return k == null ? null : k;
+}
+
+/* přepínač režimu v titulku (ikony; popisky pro čtečku) */
+function gymModeSegHtml() {
+  const m = Settings.get().gymMode === "list" ? "list" : "guided";
+  const b = (k, icon, label) => `<button class="seg-btn${m === k ? " on" : ""}" data-act="w-mode" data-v="${k}"
+    role="tab" aria-selected="${m === k}" aria-label="${label}">${ic(icon, 17)}</button>`;
+  return `<div class="seg sm g-mode" role="tablist">${b("guided", "card", "Vedený režim")}${b("list", "list", "Seznam cviků")}</div>`;
+}
+
+/* pruh cviků v titulku: hotové volt, aktuální bílý, rozdělané šedé;
+   superset drží pohromadě. Klepnutí otevře přehled cviků. */
+function guidedStripHtml(a, cur) {
+  const n = a.entries.length;
+  const segs = a.entries.map((e, k) => `<i class="${k === cur ? "cur" : e.done ? "done" : e.sets.length ? "part" : ""}${e.link && k < n - 1 ? " ln" : ""}"></i>`).join("");
+  return `<button class="g-strip" data-act="w-g-list" aria-label="Přehled cviků">${segs}</button>`;
+}
+
+function renderGuided(a) {
+  const i = guidedIdx(a);
+  if (i >= 0) WV.openIdx = i;
+  const body = !a.entries.length ? `
+    <div class="card g-done">
+      <div class="td-title">Prázdný trénink</div>
+      <p class="muted">Přidej první cvik — pak tě appka povede sérií po sérii.</p>
+      <button class="btn primary full" data-act="w-add-ex">${ic("plus", 18, 2.4)} Přidat cvik</button>
+    </div>` : i < 0 ? guidedDoneHtml(a) : guidedCardHtml(a, i) + guidedNavHtml(a, i);
+  // counter partií je tu až pod kartou — nahoře má přednost cvik, který se právě dělá
+  return `
+    ${body}
+    <div class="mt2">${catCounterHtml(a)}</div>
+    ${a.entries.length ? `<button class="btn ghost full" data-act="w-add-ex">${ic("plus", 18, 2.2)} Přidat cvik</button>` : ""}
+    <div class="mt2">${coreCardHtml(a)}</div>
+    ${i >= 0 ? `<button class="btn full mt" data-act="w-finish">${ic("check", 18, 2.6)} Dokončit trénink</button>` : ""}
+    <button class="btn text danger full" data-act="w-cancel">Zrušit trénink</button>`;
+}
+
+function guidedCardHtml(a, i) {
+  const f = entryInfo(a, i);
+  const p = openParts(a, i, f);
+  const { entry, exId, setCount } = f;
+  const { es } = p;
+  const nx = nextPendingIdx(a, i);
+  let actions;
+  if (es != null) {
+    actions = `
+        <button class="btn primary grow" data-act="w-set-save" data-i="${i}">${ic("check", 18, 2.6)} Uložit ${es + 1}. sérii</button>
+        <button class="btn ghost" data-act="w-set-cancel">Zrušit</button>`;
+  } else if (f.doneEnough) {
+    actions = `
+        <button class="btn" data-act="w-add-set" data-i="${i}">${ic("plus", 18, 2.6)} Série navíc</button>
+        <button class="btn primary grow" data-act="w-ex-done" data-i="${i}">${nx == null
+          ? `${ic("check", 18, 2.6)} Hotovo` : `Další cvik ${ic("chevR", 18, 2.4)}`}</button>`;
+  } else {
+    actions = `
+        <button class="btn primary grow" data-act="w-add-set" data-i="${i}">${ic("plus", 18, 2.6)} Zapsat ${setCount + 1}. sérii</button>
+        ${setCount && !(f.target && f.target.sets) ? `<button class="btn" data-act="w-ex-done" data-i="${i}">${nx == null ? "Hotovo" : "Další cvik"}</button>` : ""}`;
+  }
+  const demo = moveHtml(exId);
+  return `
+    <div class="ex-open g-card${entry.prHit ? " pr-flash" : ""}" id="exblock-${i}" data-i="${i}">
+      ${exHeadHtml(a, i, f, p, `${i + 1} / ${a.entries.length}`)}
+      ${demo ? `<div class="move-box g-demo">${demo}</div>` : ""}
+      <div class="g-top" id="gRest" data-i="${i}">${guidedTopHtml(a, i)}</div>
+      ${p.inputs}
+      ${p.note}
+      <div class="ex-actions">${actions}</div>
+      ${p.sets ? `<div class="sets">${p.sets}</div>` : ""}
+      ${setCount && es == null ? `<p class="set-hint">Klepnutím na sérii ji opravíš.</p>` : ""}
+      ${p.hints ? `<div class="ex-hints">${p.hints}</div>` : ""}
+      ${p.tech(false)}
+    </div>`;
+}
+
+/* Horní řádek karty: číslo série s cílem, nebo běžící pauza s náhledem
+   na další sérii či cvik. Překresluje ho i Dock.sync() (začátek a konec pauzy). */
+function guidedTopHtml(a, i) {
+  if (!a || !a.entries[i]) return "";
+  const f = entryInfo(a, i);
+  const { exId, kind, target, setCount, last } = f;
+  const unit = kind === "weight" ? " " + weightUnit() : "";
+  if (Rest.running()) {
+    let next;
+    if (f.doneEnough) {
+      const nx = nextPendingIdx(a, i);
+      next = nx == null ? "Poslední cvik — pak už jen dokončit" : `Další cvik: <b>${esc(exName(a.entries[nx].exerciseId))}</b>`;
+    } else {
+      const prev = last && last.sets[setCount];
+      const goal = goalText(target, kind);
+      next = `Další: <b>${setCount + 1}. série</b>${goal ? ` · cíl ${goal}` : ""}${prev ? ` · minule ${setShort(exId, prev)}${unit}` : ""}`;
+    }
+    const pct = clamp(Rest.left() / Rest.total(), 0, 1) * 100;
+    return `
+      <div class="g-rest">
+        <div class="g-row">
+          <div><div class="g-lbl">Pauza</div><b class="g-big num" id="gRestTime">${fmtClock(Rest.left())}</b></div>
+          <div class="g-btns">
+            <button class="btn sm" data-act="rest-minus">−30</button>
+            <button class="btn sm" data-act="rest-plus">+30</button>
+            <button class="btn sm" data-act="rest-stop">Přeskočit</button>
+          </div>
+        </div>
+        <div class="g-bar"><i id="gRestBar" style="width:${pct.toFixed(1)}%"></i></div>
+        <div class="g-next">${next}</div>
+      </div>`;
+  }
+  const es = WV.editSet && WV.editSet.i === i && f.entry.sets[WV.editSet.j] ? WV.editSet.j : null;
+  const n = es != null ? es + 1 : setCount + 1;
+  const of = target && target.sets ? `<small>/ ${target.sets}</small>` : "";
+  const over = Dock.overUntil > Date.now();
+  const done = f.doneEnough && es == null;
+  const prev = last && last.sets[n - 1];
+  const goal = goalText(target, kind);
+  const info = [goal ? `cíl <b>${goal}</b>` : "", !done && prev ? `minule <b>${setShort(exId, prev)}${unit}</b>` : ""].filter(Boolean);
+  const rs = !a.editOf && setCount ? entryRest(a, f.entry) : 0;
+  return `
+      <div class="g-set">
+        <div>
+          <div class="g-lbl${over ? " over" : ""}">${over ? "Pauza skončila — jedeš" : es != null ? "Oprava série" : done ? "Série hotové" : "Série"}</div>
+          <b class="g-big num${done ? " done" : ""}">${done ? `${setCount}${of}${ic("check", 22, 3)}` : `${n}${of}`}</b>
+        </div>
+        <div class="g-goal">${info.join("<br>")}</div>
+        ${rs > 0 && !over ? `<button class="btn sm g-rest-go" data-act="rest-start" aria-label="Spustit pauzu">${ic("timer", 15, 2.1)} ${fmtClock(rs)}</button>` : ""}
+      </div>`;
+}
+function guidedTopSync() {
+  const el = document.getElementById("gRest");
+  if (el && S.activeSession) el.innerHTML = guidedTopHtml(S.activeSession, Number(el.dataset.i));
+}
+
+/* šipky mezi cviky — nemění „hotovo", jen přechází */
+function guidedNavHtml(a, i) {
+  const n = a.entries.length;
+  const b = (k, dir) => k < 0 || k >= n ? `<span></span>` : `
+      <button class="g-nav-btn ${dir}" data-act="w-g-go" data-i="${k}">
+        ${dir === "prev" ? ic("chevL", 18, 2.3) : ""}
+        <span class="grow"><small>${dir === "prev" ? "Předchozí" : "Další"}</small>${esc(exName(a.entries[k].exerciseId))}</span>
+        ${dir === "next" ? ic("chevR", 18, 2.3) : ""}
+      </button>`;
+  return n > 1 ? `<div class="g-nav">${b(i - 1, "prev")}${b(i + 1, "next")}</div>` : "";
+}
+
+/* všechno odcvičeno — jediná hlavní akce je dokončit */
+function guidedDoneHtml(a) {
+  const sets = sessionSets(a);
+  const exN = a.entries.filter(e => e.sets.length).length;
+  const vol = fmtVolume(sessionVolume(a));
+  return `
+    <div class="card g-done">
+      <span class="done-check g-done-ic">${ic("check", 26, 3)}</span>
+      <div class="td-title">Všechno odcvičeno</div>
+      <p class="muted">${exN} ${plural(exN, "cvik", "cviky", "cviků")} · ${sets} ${setWordTop(sets)}${sessionVolume(a) ? ` · ${vol.val} ${vol.unit}` : ""}</p>
+      <button class="btn primary full" data-act="w-finish">${ic("check", 18, 2.6)} Dokončit trénink</button>
+    </div>`;
+}
+
+/* přehled cviků (klepnutí na pruh v titulku) — skok na libovolný cvik */
+function openGuidedList() {
+  const a = S.activeSession;
+  if (!a) return;
+  const cur = guidedIdx(a);
+  const rows = a.entries.map((e, k) => {
+    const f = entryInfo(a, k);
+    const sub = f.setCount ? `${f.progress} · ${setsSummary(f.exId, e.sets)}` : (planText(f.target, f.exId) || "bez zápisu");
+    return `
+      <div class="ex-row${e.done ? " ex-done" : f.setCount ? " ex-active" : ""}${k === cur ? " g-cur" : ""}${f.ss}" data-act="w-g-go" data-i="${k}">
+        <div class="row">
+          <i class="p-stripe" style="background:${f.pcol}"></i>
+          <span class="ex-num${e.done ? " done" : ""}">${e.done ? ic("check", 15, 3) : k + 1}</span>
+          <div class="grow">
+            <div class="name">${esc(exName(f.exId))}</div>
+            <div class="small">${f.ss ? `<span class="ss-tag">superset</span> · ` : ""}${esc(sub)}</div>
+          </div>
+          ${k === cur ? `<span class="badge">teď</span>` : ""}
+        </div>
+      </div>`;
+  }).join("");
+  openModal(`${modalTitle("Cviky v tréninku")}
+    <div class="g-list">${rows}</div>
+    <button class="btn ghost full mt" data-act="w-mode" data-v="list">${ic("list", 17)} Přeřadit v seznamu</button>`);
 }
 
 /* ---- Nabídka cviku (⋯): superset, poznámka, progres, video, odebrání ---- */
@@ -744,6 +985,32 @@ function beginWorkout(templateId) {
   save();
   render({ top: true });
   if (!tpl) openExercisePicker(null);
+  else if (shouldAskWeight()) openWeightPrompt();
+}
+
+/* ---- Váha při startu tréninku ----
+   Váha se zapisuje nejmíň ze všeho, a v šatně před tréninkem je chvíle.
+   Ptá se jen u živého tréninku s dnešním datem, když dnešní váha chybí;
+   vypnout jde v Nastavení (askWeight). */
+function shouldAskWeight() {
+  return Settings.get().askWeight !== false && WV.date === todayStr() && bodyWeightOn(todayStr()) == null;
+}
+function openWeightPrompt() {
+  const last = lastBodyWeight(todayStr());
+  const v = last ? Math.round(kgOut(last.weightKg) * 10) / 10 : null;
+  openModal(`${modalTitle("Váha dnes")}
+    <p class="modal-sub">Zapíše se k dnešku${last ? ` · naposledy <b>${fmtFixed(kgOut(last.weightKg), 1)} ${weightUnit()}</b>, ${weightStamp(last)}` : ""}</p>
+    <div class="stepper wp-stepper">
+      <button class="step-btn" data-act="w-wp-step" data-d="-0.1" aria-label="Méně">${ic("minus", 24, 2.2)}</button>
+      <div class="wp-val"><input class="step-val wp-in" id="wpVal" type="text" inputmode="decimal" value="${v != null ? fmtFixed(v, 1) : ""}"
+        placeholder="—" aria-label="Váha v ${weightUnit()}"><small>${weightUnit()}</small></div>
+      <button class="step-btn" data-act="w-wp-step" data-d="0.1" aria-label="Více">${ic("plus", 24, 2.2)}</button>
+    </div>
+    <div class="btn-row mt">
+      <button class="btn" data-act="modal-close">Přeskočit</button>
+      <button class="btn primary" data-act="w-wp-save">Uložit váhu</button>
+    </div>
+    <p class="cap center mt2">Ptaní na váhu jde vypnout v Nastavení.</p>`);
 }
 
 /* Zopakovat uložený trénink: stejné cviky a supersety, dnešní datum */
@@ -768,6 +1035,7 @@ function repeatSession(id) {
   save();
   render({ top: true });
   toast("Trénink zopakován s dnešním datem", "ok");
+  if (shouldAskWeight()) openWeightPrompt();
 }
 
 /* Po přepočtu (oprava/smazání série) znovu označí rekordy v cviku */
@@ -824,7 +1092,9 @@ function addSet(i) {
   }
   save();
   render();
-  if (WV.openIdx !== i) {
+  // vedený režim: další cvik supersetu je nová karta — zpět nahoru
+  if (WV.openIdx !== i && gymGuided(a)) window.scrollTo({ top: 0, behavior: "smooth" });
+  else if (WV.openIdx !== i) {
     const el = document.getElementById("exblock-" + WV.openIdx);
     if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
   }

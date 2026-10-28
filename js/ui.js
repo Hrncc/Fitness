@@ -31,6 +31,7 @@ const ICONS = {
   food: '<path d="M7 3v8M4.5 3v5a2.5 2.5 0 0 0 5 0V3M7 11v10"/><path d="M17.5 21V3c-2.2 1.4-3.5 4.3-3.5 8h3.5"/>',
   book: '<path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5Z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19"/><path d="M9 7.5h6"/>',
   list: '<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" stroke-width="3"/>',
+  card: '<rect x="4.5" y="3.5" width="15" height="13" rx="2.5"/><path d="M9 20.5h.01M12 20.5h.01M15 20.5h.01" stroke-width="2.8"/>',
   camera: '<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13.5" r="3.5"/>',
   clipboard: '<rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4V2.8h6V4"/><path d="m9 13 2 2 4-4"/>',
   share: '<path d="M12 3v12"/><path d="m7.5 7.5 4.5-4.5 4.5 4.5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/>',
@@ -231,9 +232,13 @@ const Dock = {
       : this.overUntil > Date.now() ? "over"
       : (a && a.type === "weights") ? "workout" : null;
     this.mode = mode;
-    el.className = "dock" + (mode ? " show " + mode : "");
-    document.body.classList.toggle("has-dock", !!mode);
-    el.innerHTML = mode ? this.html(mode, a) : "";
+    // vedený režim má pauzu přímo v kartě cviku — dock se na té obrazovce schová
+    const guided = !!document.getElementById("gRest");
+    const show = mode && !guided;
+    el.className = "dock" + (show ? " show " + mode : "");
+    document.body.classList.toggle("has-dock", !!show);
+    el.innerHTML = show ? this.html(mode, a) : "";
+    if (guided) guidedTopSync();
     KeepAwake.sync(!!(a && a.type === "weights" && !a.editOf));
     clearInterval(this.timer);
     this.timer = null;
@@ -298,6 +303,10 @@ const Dock = {
         return;
       }
       if (t) t.textContent = fmtClock(left);
+      const gt = document.getElementById("gRestTime");
+      if (gt) gt.textContent = fmtClock(left);
+      const gb = document.getElementById("gRestBar");
+      if (gb) gb.style.width = (clamp(left / Rest.total(), 0, 1) * 100).toFixed(1) + "%";
       const ring = document.getElementById("dockRing");
       if (ring) {
         const c = 2 * Math.PI * this.RING_R;
@@ -364,6 +373,7 @@ function openModal(html) {
   m.classList.add("open");
   document.getElementById("modalBackdrop").classList.add("open");
   document.body.classList.add("modal-open");
+  Moves.sync();
 }
 function closeModal() {
   document.getElementById("modal").classList.remove("open");
