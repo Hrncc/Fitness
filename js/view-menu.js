@@ -17,23 +17,26 @@ const MV = {
 };
 
 /* ================= Více — sheet se seznamem ================= */
-function openMoreSheet() {
-  const items = [
-    ["food", "Jídlo", "menu", "page", "food"],
-    ["calendar", "Kalendář a historie", "menu", "page", "history"],
-    ["body", "Postava a check-in", "go-progress", "seg", "body"],
-    ["book", "Exercise Library", "menu", "page", "exlib"],
-    ["list", "Workout Templates", "menu", "page", "templates"],
-    ["star", "Food Library", "menu", "page", "foodlib"],
-    ["share", "Export & Backup", "menu", "page", "export"],
-    ["sliders", "Nastavení", "menu", "page", "settings"],
-    ["info", "O aplikaci", "menu", "page", "about"]
-  ].map(([icon, label, act, key, val]) => `
-    <button class="more-item" data-act="${act}" data-${key}="${val}">
-      <span class="mi-ic">${ic(icon, 21)}</span>${esc(label)}<span class="mi-chev">${ic("chevR", 18)}</span></button>`).join("");
-  openModal(`${modalTitle("Více")}
-    <div class="more-list">${items}</div>
-    <div class="small more-foot">Fitness Log ${APP_VERSION}</div>`);
+/* ---- Více: běžná stránka se seznamem (v4.0) — záložka naviguje, ne otevírá sheet ---- */
+function renderMore() {
+  const link = (icon, label, page, value = "") => lgLink(icon, label, `data-act="menu" data-page="${page}"`, value);
+  const lastSync = Settings.get().gasWebAppUrl ? `<span id="syncBadge">${syncBadgeHtml()}</span>` : "";
+  return listGroup([
+      link("food", "Jídlo", "food"),
+      link("calendar", "Kalendář a historie", "history"),
+      lgLink("body", "Postava a check-in", `data-act="go-progress" data-seg="body"`)
+    ], { head: "Záznamy" })
+    + listGroup([
+      link("book", "Exercise Library", "exlib", String(S.exercises.length)),
+      link("list", "Workout Templates", "templates", String(S.templates.length)),
+      link("star", "Food Library", "foodlib")
+    ], { head: "Knihovny" })
+    + listGroup([
+      link("share", "Export & Backup", "export", lastSync),
+      link("sliders", "Nastavení", "settings"),
+      link("info", "O aplikaci", "about")
+    ], { head: "Data a aplikace" })
+    + `<p class="lg-foot center">Fitness Log ${APP_VERSION}</p>`;
 }
 
 /* ================= Exercise Library ================= */
@@ -663,77 +666,53 @@ function importBackup() {
 }
 
 /* ================= Nastavení ================= */
+/* Nastavení jako iOS seznam: každá změna se uloží hned (data-change="set-field"),
+   tlačítko Uložit není. Čísla jsou vpravo v řádku. */
 function renderSettings() {
   const st = Settings.get();
   const g = S.goal;
-  return sec("Denní nutriční cíl", `
-    <div class="card">
-      <div class="input-row">
-        <label class="field"><span>Kalorie (kcal)</span><input class="input" id="setKcal" type="number" inputmode="numeric" value="${g.dailyCalories}"></label>
-        <label class="field"><span>Bílkoviny (g)</span><input class="input" id="setProt" type="number" inputmode="numeric" value="${g.proteinGrams}"></label>
-      </div>
-      <div class="input-row">
-        <label class="field" style="margin:0"><span>Sacharidy (g)</span><input class="input" id="setCarb" type="number" inputmode="numeric" value="${g.carbsGrams}"></label>
-        <label class="field" style="margin:0"><span>Tuky (g)</span><input class="input" id="setFat" type="number" inputmode="numeric" value="${g.fatGrams}"></label>
-      </div>
-    </div>`)
-  + sec("Trénink a jednotky", `
-    <div class="card">
-      <div class="input-row">
-        <label class="field"><span>Výchozí pauza (s, 0 = vypnuto)</span>
-          <input class="input" id="setRest" type="number" inputmode="numeric" value="${st.restSeconds ?? 120}"></label>
-        <label class="field"><span>Týdenní cíl tréninků (0 = bez cíle)</span>
-          <input class="input" id="setGoal" type="number" inputmode="numeric" value="${st.weeklyGoal ?? 3}"></label>
-      </div>
-      <div class="row detail-core" style="margin:0 0 14px">
-        <span class="grow"><b style="font-weight:600">Nezhasínat obrazovku při tréninku</b><br>
-          <span class="small">Funguje na novějším iOS a v Chrome</span></span>
-        <button class="switch${st.keepAwake !== false ? " on" : ""}" data-act="set-awake" role="switch" aria-checked="${st.keepAwake !== false}" aria-label="Nezhasínat obrazovku"></button>
-      </div>
-      <label class="field" style="margin:0"><span>Jednotka váhy</span>
-        <select class="input" id="setUnit">
-          <option value="kg"${st.weightUnit === "kg" ? " selected" : ""}>kilogramy (kg)</option>
-          <option value="lb"${st.weightUnit === "lb" ? " selected" : ""}>libry (lb)</option>
-        </select></label>
-    </div>`)
-  + sec("API klíče", `
-    <div class="card">
-      <label class="field"><span>USDA FoodData Central</span>
-        <input class="input" id="setUsda" placeholder="prázdné = DEMO_KEY (30 dotazů/hod)" value="${esc(st.usdaApiKey)}"></label>
-      <p class="small" style="margin:-6px 2px 14px">Klíč zdarma: fdc.nal.usda.gov/api-key-signup.html</p>
-      <label class="field"><span>Claude API (čtení etiket z fotky)</span>
-        <input class="input" id="setAnthropic" type="password" placeholder="sk-ant-…" value="${esc(st.anthropicApiKey)}"></label>
-      <p class="small" style="margin:-6px 2px 0">Klíč z console.anthropic.com. Ukládá se jen v tomto zařízení a posílá se pouze na api.anthropic.com.</p>
-    </div>`)
-  + sec("Přenos na jiné zařízení", `
-    <div class="card">
-      <p class="muted" style="margin:0 0 14px">QR kód přenese sync URL, API klíče a jednotky — na novém zařízení je nemusíš opisovat.</p>
-      <div class="btn-row">
-        <button class="btn" data-act="set-qr-show">Zobrazit QR</button>
-        <button class="btn" data-act="set-qr-scan">Načíst z QR</button>
-      </div>
-      <input type="file" id="qrScanInput" accept="image/*" capture="environment" style="display:none">
-    </div>`)
-  + `<button class="btn primary full mt2" data-act="set-save">Uložit nastavení</button>`;
+  const num = (id, val, unit = "") => `<span class="lg-in-wrap"><input class="lg-in" id="${id}" type="text" inputmode="numeric"
+    value="${val}" data-change="set-field" autocomplete="off">${unit ? `<span class="lg-unit">${unit}</span>` : ""}</span>`;
+  const unitSeg = `<div class="seg sm lg-seg" role="tablist">${[["kg", "kg"], ["lb", "lb"]].map(([k, l]) =>
+    `<button class="seg-btn${st.weightUnit === k ? " on" : ""}" data-act="set-unit" data-v="${k}" role="tab" aria-selected="${st.weightUnit === k}">${l}</button>`).join("")}</div>`;
+  return listGroup([
+      lgField("Kalorie", num("setKcal", g.dailyCalories, "kcal")),
+      lgField("Bílkoviny", num("setProt", g.proteinGrams, "g")),
+      lgField("Sacharidy", num("setCarb", g.carbsGrams, "g")),
+      lgField("Tuky", num("setFat", g.fatGrams, "g"))
+    ], { head: "Denní nutriční cíl" })
+    + listGroup([
+      lgField("Výchozí pauza", num("setRest", st.restSeconds ?? 120, "s"), "0 = bez pauzy"),
+      lgField("Týdenní cíl tréninků", num("setGoal", st.weeklyGoal ?? 3), "0 = bez cíle"),
+      `<div class="lg-row"><span class="lg-l">Jednotka váhy</span>${unitSeg}</div>`,
+      lgSwitch("Nezhasínat obrazovku", "set-awake", st.keepAwake !== false, "Během tréninku · novější iOS a Chrome")
+    ], { head: "Trénink" })
+    + listGroup([
+      `<label class="lg-row lg-stack"><span class="lg-l">USDA FoodData Central</span>
+        <input class="lg-in full" id="setUsda" type="text" data-change="set-field" placeholder="prázdné = DEMO_KEY (30 dotazů/hod)"
+          value="${esc(st.usdaApiKey)}" autocomplete="off" autocorrect="off" spellcheck="false"></label>`,
+      `<label class="lg-row lg-stack"><span class="lg-l">Claude API (etikety a jídlo z fotky)</span>
+        <input class="lg-in full" id="setAnthropic" type="password" data-change="set-field" placeholder="sk-ant-…"
+          value="${esc(st.anthropicApiKey)}" autocomplete="off"></label>`
+    ], { head: "API klíče", foot: "Klíče se ukládají jen v tomto zařízení. USDA klíč zdarma na fdc.nal.usda.gov, Claude klíč z console.anthropic.com — posílá se jen na api.anthropic.com." })
+    + listGroup([
+      `<button class="lg-row" data-act="set-qr-show"><span class="lg-ic">${ic("share", 20)}</span><span class="lg-l">Zobrazit QR kód</span><span class="lg-chev">${ic("chevR", 16, 2.2)}</span></button>`,
+      `<button class="lg-row" data-act="set-qr-scan"><span class="lg-ic">${ic("camera", 20)}</span><span class="lg-l">Načíst z QR kódu</span><span class="lg-chev">${ic("chevR", 16, 2.2)}</span></button>`
+    ], { head: "Přenos na jiné zařízení", foot: "QR kód přenese sync URL, API klíče a jednotky — na novém zařízení je nemusíš opisovat." })
+    + `<input type="file" id="qrScanInput" accept="image/*" capture="environment" style="display:none">`;
 }
 
+/* Uloží všechna pole Nastavení; volá se po každé změně pole (bez toastu) */
 function saveSettings() {
+  const int = (id, lo = 0, hi = 1e6) => clamp(parseInt(document.getElementById(id).value, 10) || 0, lo, hi);
   Settings.set({
     usdaApiKey: document.getElementById("setUsda").value.trim(),
     anthropicApiKey: document.getElementById("setAnthropic").value.trim(),
-    weightUnit: document.getElementById("setUnit").value,
-    restSeconds: Math.max(0, parseInt(document.getElementById("setRest").value, 10) || 0),
-    weeklyGoal: clamp(parseInt(document.getElementById("setGoal").value, 10) || 0, 0, 14)
+    restSeconds: int("setRest", 0, 900),
+    weeklyGoal: int("setGoal", 0, 14)
   });
-  S.goal = {
-    dailyCalories: parseInt(document.getElementById("setKcal").value, 10) || 0,
-    proteinGrams: parseInt(document.getElementById("setProt").value, 10) || 0,
-    carbsGrams: parseInt(document.getElementById("setCarb").value, 10) || 0,
-    fatGrams: parseInt(document.getElementById("setFat").value, 10) || 0
-  };
+  S.goal = { dailyCalories: int("setKcal"), proteinGrams: int("setProt"), carbsGrams: int("setCarb"), fatGrams: int("setFat") };
   save();
-  render();
-  toast("Nastavení uloženo ✓", "ok");
 }
 
 /* ================= Fotky postupu ================= */

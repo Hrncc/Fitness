@@ -11,7 +11,7 @@ const TITLES = {
   today: "Dnes", workout: "Trénink", progress: "Pokrok",
   food: "Jídlo", history: "Historie", records: "Rekordy", checkin: "Check-in",
   exlib: "Exercise Library", templates: "Workout Templates", foodlib: "Food Library",
-  export: "Export & Backup", settings: "Nastavení", about: "O aplikaci"
+  export: "Export & Backup", settings: "Nastavení", about: "O aplikaci", more: "Více"
 };
 
 /* Velký titulek stránky (iOS large title) — nad obsahem každé obrazovky.
@@ -47,7 +47,7 @@ const PAGES = {
   export: () => renderExport(), settings: () => renderSettings(), about: () => renderAbout()
 };
 const TABS = {
-  today: () => renderToday(), workout: () => renderWorkout(), progress: () => renderProgress()
+  today: () => renderToday(), workout: () => renderWorkout(), progress: () => renderProgress(), more: () => renderMore()
 };
 
 /* Nahoru se skočí jen při přechodu na jinou obrazovku (nebo s {top: true}).
@@ -173,7 +173,7 @@ const ACTIONS = {
     App.route.page = null;
     render({ top: true });
   },
-  "more-open": () => openMoreSheet(),
+  "more-open": () => goTab("more"),
   "modal-close": () => closeModal(),
   "app-undo": () => {
     if (!UNDO_SNAP) return;
@@ -681,7 +681,11 @@ const ACTIONS = {
   "exp-md": () => downloadFile(`fitness-log-${todayStr()}.md`, buildMarkdown(reportRangeArg()), "text/markdown"),
   "exp-csv": () => downloadFile(`fitness-log-serie-${todayStr()}.csv`, buildSetsCsv(), "text/csv"),
   "exp-import": () => importBackup(),
-  "set-save": () => saveSettings(),
+  "set-unit": d => {
+    if (Settings.get().weightUnit === d.v) return;
+    Settings.set({ weightUnit: d.v === "lb" ? "lb" : "kg" });
+    render();
+  },
   "set-awake": (d, t) => {
     const on = Settings.get().keepAwake === false;
     Settings.set({ keepAwake: on });
@@ -727,6 +731,7 @@ document.addEventListener("pointercancel", e => Drag.end(e));
 document.addEventListener("change", e => {
   const t = e.target.closest("[data-change]");
   if (!t) return;
+  if (t.dataset.change === "set-field") saveSettings();
   if (t.dataset.change === "f-date") {
     if (t.value) { FV.date = t.value; render(); }
   }

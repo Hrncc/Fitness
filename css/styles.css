@@ -1341,6 +1341,50 @@ a.more-item, a.btn { text-decoration: none; }
 /* toast s ikonou místo znaku ✓ */
 .toast .toast-ic { display: inline-flex; vertical-align: -3px; margin-right: 6px; }
 
+/* ===== v4.0 — iOS seznam (inset grouped): Více, Nastavení =====
+   Karta s řádky, oddělovač začíná u textu (ne u ikony), řádek ≥ 44 px
+   a roste s velikostí textu. Hodnota a šipka vpravo šedě. */
+.lg-sec { margin-top: 26px; }
+.page-head + .lg-sec { margin-top: 0; }
+.lg-head {
+  margin: 0 16px 7px; font-size: .7647rem; font-weight: 500; color: var(--text3);
+  text-transform: uppercase; letter-spacing: .03em;
+}
+.lg { background: var(--s1); border-radius: var(--r-lg); overflow: hidden; }
+.lg-row {
+  position: relative; display: flex; align-items: center; gap: 12px; width: 100%;
+  min-height: 48px; padding: 10px 16px; background: none; border: 0; margin: 0;
+  color: var(--text); font: inherit; font-size: 1rem; text-align: left; cursor: pointer;
+  transition: background var(--dur-fast);
+}
+button.lg-row:active { background: var(--tint); }
+.lg-row + .lg-row::before {
+  content: ""; position: absolute; top: 0; right: 0; left: 16px; height: 1px;
+  background: var(--hair); transform: scaleY(.6); transform-origin: top;
+}
+.lg:has(.lg-ic) .lg-row + .lg-row::before { left: 52px; }
+.lg-ic { flex: none; width: 24px; display: flex; justify-content: center; color: var(--text2); }
+.lg-l { flex: 1; min-width: 0; }
+.lg-l small { display: block; font-size: .7647rem; color: var(--text3); margin-top: 1px; }
+.lg-v { flex: none; color: var(--text2); font-size: .9412rem; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lg-chev { flex: none; display: flex; color: var(--text4); margin-right: -4px; }
+.lg-foot { margin: 8px 16px 0; font-size: .7647rem; color: var(--text3); line-height: 1.4; }
+.lg-foot.center { margin-top: 24px; text-align: center; }
+/* pole v řádku: hodnota vpravo, bez rámečku (iOS) */
+.lg-field { cursor: text; }
+.lg-in-wrap { display: flex; align-items: baseline; gap: 4px; flex: none; }
+.lg-in {
+  width: 5.5em; padding: 6px 0; background: none; border: 0; color: var(--text2);
+  font: inherit; font-size: max(16px, 1rem); text-align: right; font-variant-numeric: tabular-nums;
+  -webkit-appearance: none; appearance: none;
+}
+.lg-in:focus { outline: none; color: var(--text); }
+.lg-in::placeholder { color: var(--text3); }
+.lg-unit { color: var(--text3); font-size: .9412rem; }
+.lg-stack { flex-direction: column; align-items: stretch; gap: 2px; cursor: text; }
+.lg-in.full { width: 100%; text-align: left; }
+.lg-seg { flex: none; width: 112px; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }

@@ -74,6 +74,27 @@ function sec(title, body, opts = {}) {
 function secLink(label, act, attrs = "") {
   return `<button class="sec-link" data-act="${act}" ${attrs}>${label}${ic("chevR", 16, 2.2)}</button>`;
 }
+/* ---- iOS seznam (inset grouped, v4.0) ----
+   Skupina řádků na kartě s volitelným nadpisem a patičkou. Řádek je odkaz
+   (lgLink: ikona, popisek, hodnota, šipka), pole (lgField: popisek vlevo,
+   hodnota vpravo) nebo přepínač (lgSwitch). Oddělovače začínají u textu. */
+function listGroup(rows, { head = "", foot = "" } = {}) {
+  return `<section class="lg-sec">${head ? `<h2 class="lg-head">${esc(head)}</h2>` : ""}
+    <div class="lg">${rows.filter(Boolean).join("")}</div>${foot ? `<p class="lg-foot">${foot}</p>` : ""}</section>`;
+}
+function lgLink(icon, label, attrs, value = "") {
+  return `<button class="lg-row" ${attrs}>${icon ? `<span class="lg-ic">${ic(icon, 20)}</span>` : ""}
+    <span class="lg-l">${esc(label)}</span>${value ? `<span class="lg-v">${value}</span>` : ""}
+    <span class="lg-chev">${ic("chevR", 16, 2.2)}</span></button>`;
+}
+function lgField(label, control, sub = "") {
+  return `<label class="lg-row lg-field"><span class="lg-l">${esc(label)}${sub ? `<small>${sub}</small>` : ""}</span>${control}</label>`;
+}
+function lgSwitch(label, act, on, sub = "") {
+  return `<div class="lg-row"><span class="lg-l">${esc(label)}${sub ? `<small>${sub}</small>` : ""}</span>
+    <button class="switch${on ? " on" : ""}" data-act="${act}" role="switch" aria-checked="${on}" aria-label="${esc(label)}"></button></div>`;
+}
+
 /* Starší hlavička karty — zbyla kvůli kompatibilitě, ikonu už nekreslí */
 function cardHead(icon, title, right = "") {
   return `<div class="row between" style="margin-bottom:14px"><span class="h2" style="margin:0">${title}</span>${right}</div>`;
@@ -374,6 +395,57 @@ function modalTitle(text) {
   return `<div class="modal-title"><span>${esc(text)}</span>
     <button class="iconbtn" data-act="modal-close" aria-label="Zavřít">${ic("x", 18, 2.3)}</button></div>`;
 }
+/* ---- Sheet jde zavřít stažením dolů (iOS, v4.0) ----
+   Tah dolů funguje, když je obsah sheetu odscrollovaný úplně nahoru; tah
+   nahoru je obyčejný scroll. Pole, vodorovně scrollované chipy a grafy
+   s dotykovým readoutem tah nezačínají. Zavře po 110 px nebo rychlém švihu. */
+const SheetDrag = {
+  on: false, moved: false, y0: 0, dy: 0, t0: 0,
+  el() { return document.getElementById("modal"); },
+  start(e) {
+    const m = this.el();
+    this.on = false;
+    if (e.touches.length !== 1 || !m.classList.contains("open") || m.scrollTop > 0) return;
+    if (e.target.closest("input, textarea, select, .chips.scroll, .chart-wrap[data-tip], .no-sheet-drag")) return;
+    this.on = true; this.moved = false; this.dy = 0;
+    this.y0 = e.touches[0].clientY; this.t0 = Date.now();
+  },
+  move(e) {
+    if (!this.on) return;
+    const dy = e.touches[0].clientY - this.y0;
+    const m = this.el();
+    if (!this.moved) {
+      if (dy < -4) { this.on = false; return; }   // nahoru = scroll obsahu
+      if (dy < 8) return;
+      this.moved = true;
+      this.t0 = Date.now();   // rychlost švihu se měří od začátku tahu, ne od dotyku
+      m.style.transition = "none";
+    }
+    e.preventDefault();
+    this.dy = Math.max(0, dy - 8);
+    m.style.transform = `translateY(${this.dy}px)`;
+    document.getElementById("modalBackdrop").style.opacity = String(clamp(1 - this.dy / 400, .2, 1));
+  },
+  end() {
+    if (!this.on) return;
+    this.on = false;
+    if (!this.moved) return;
+    const m = this.el();
+    const v = this.dy / Math.max(1, Date.now() - this.t0);   // px / ms
+    m.style.transition = "";
+    m.style.transform = "";
+    document.getElementById("modalBackdrop").style.opacity = "";
+    if (this.dy > 110 || (this.dy > 36 && v > .45)) closeModal();
+  }
+};
+{
+  const m = document.getElementById("modal");
+  m.addEventListener("touchstart", e => SheetDrag.start(e), { passive: true });
+  m.addEventListener("touchmove", e => SheetDrag.move(e), { passive: false });
+  m.addEventListener("touchend", () => SheetDrag.end());
+  m.addEventListener("touchcancel", () => SheetDrag.end());
+}
+
 /* stín pod lepkavou hlavičkou sheetu, jakmile se pod ní začne scrollovat */
 document.getElementById("modal").addEventListener("scroll", e => {
   e.currentTarget.classList.toggle("scrolled", e.currentTarget.scrollTop > 4);
