@@ -1279,7 +1279,7 @@ a.more-item, a.btn { text-decoration: none; }
   content: ""; position: absolute;
 }
 .iconbtn::before { inset: -2px; }
-.iconbtn.sm::before, .modal-title .iconbtn::before { inset: -4px; }
+.iconbtn.sm::before { inset: -4px; }
 .chip { height: 36px; }
 .chip::before, .start-opt::before, .wk-toggle::before { inset: -4px 0; }
 .start-opt { min-height: 36px; }
@@ -1307,94 +1307,6 @@ a.more-item, a.btn { text-decoration: none; }
 
 /* toast s ikonou místo znaku ✓ */
 .toast .toast-ic { display: inline-flex; vertical-align: -3px; margin-right: 6px; }
-
-/* ===== v3.1 — animované ukázky cviků (js/moves.js) =====
-   Piktogram: postava bíle, vzdálenější končetiny a výbava šedě, podlaha linkou. */
-svg.move { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; }
-.move-box { background: var(--s2); border-radius: var(--r-lg); padding: 6px 10px 2px; }
-.mv-limb { fill: none; stroke: var(--text); stroke-width: 6.5; stroke-linecap: round; stroke-linejoin: round; }
-.mv-far { fill: none; stroke: var(--text4); stroke-width: 6.5; stroke-linecap: round; stroke-linejoin: round; }
-.mv-head { fill: var(--text); }
-.mv-eq { fill: none; stroke: var(--text3); stroke-width: 3; stroke-linecap: round; }
-.mv-eqf { fill: var(--text3); }
-.mv-plate { stroke: var(--text3); stroke-width: 5; stroke-linecap: round; }
-.mv-bench { stroke: var(--text3); stroke-width: 4.5; stroke-linecap: round; fill: none; }
-.mv-cable { stroke: var(--text3); stroke-width: 1.5; stroke-dasharray: 3 3; }
-.mv-floor { stroke: var(--hair2); stroke-width: 2; }
-
-.ex-move { margin-top: 10px; }
-.ex-move svg.move { max-width: 240px; margin: 0 auto; }
-
-/* ===== v3.1 — vedený trénink: jeden cvik na obrazovku =====
-   Volt zůstává hlavní akci (Zapsat sérii / Další cvik) a průběhu pauzy;
-   aktuální cvik v pruhu je bílý (výběr), hotové volt. */
-.g-mode { flex: none; }
-.g-mode .seg-btn { flex: none; width: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
-.g-strip {
-  position: relative; display: flex; align-items: center; gap: 5px;
-  width: 100%; height: 30px; margin-top: 8px; padding: 0;
-  background: none; border: 0; cursor: pointer;
-}
-.g-strip::before { content: ""; position: absolute; inset: -7px 0; }
-.g-strip i { flex: 1; height: 4px; border-radius: 2px; background: var(--s3); transition: background var(--dur), height var(--dur-fast); }
-.g-strip i.ln { margin-right: -3px; }          /* superset drží pohromadě */
-.g-strip i.part { background: var(--text4); }
-.g-strip i.done { background: var(--green); }
-.g-strip i.cur { background: var(--text); height: 6px; }
-
-.g-card { margin-top: 4px; }
-.g-demo { margin-top: 14px; padding: 4px 0 0; }
-.g-demo svg.move { width: 156px; margin: 0 auto; }
-.g-top { margin-top: 16px; min-height: 70px; }
-.g-set, .g-rest .g-row { display: flex; align-items: flex-end; gap: 14px; }
-.g-rest .g-row { justify-content: space-between; }
-.g-lbl {
-  font-family: var(--font-display); font-size: 14px; font-weight: 600;
-  letter-spacing: .06em; text-transform: uppercase; color: var(--text2); margin-bottom: 2px;
-}
-.g-lbl.over { color: var(--green); }
-.g-big {
-  display: inline-flex; align-items: baseline; gap: 5px;
-  font-family: var(--font-display); font-size: 46px; font-weight: 700; line-height: 1;
-}
-.g-big small { font-size: 24px; font-weight: 600; color: var(--text3); }
-.g-big svg { color: var(--green); align-self: center; margin-left: 2px; }
-.g-goal { flex: 1; min-width: 0; font-size: 14px; color: var(--text2); line-height: 1.45; padding-bottom: 2px; }
-.g-goal b { color: var(--text); font-weight: 600; }
-.g-rest-go { flex: none; align-self: center; gap: 6px; padding: 8px 12px; }
-.g-btns { display: flex; gap: 6px; padding-bottom: 2px; }
-.g-btns .btn.sm { padding: 8px 12px; }
-.g-bar { height: 4px; border-radius: 2px; background: var(--s3); margin-top: 12px; overflow: hidden; }
-.g-bar i { display: block; height: 100%; background: var(--green); border-radius: 2px; transition: width .3s linear; }
-.g-next { margin-top: 8px; font-size: 14px; color: var(--text2); line-height: 1.4; }
-.g-next b { color: var(--text); font-weight: 600; }
-
-.g-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
-.g-nav-btn {
-  display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 56px; padding: 8px 12px;
-  background: var(--s1); border: 1px solid var(--hair); border-radius: var(--r-lg);
-  color: var(--text); font: inherit; text-align: left; cursor: pointer;
-  transition: background var(--dur-fast);
-}
-.g-nav-btn:active { background: var(--s2); }
-.g-nav-btn.next { text-align: right; }
-.g-nav-btn .grow { display: block; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.g-nav-btn small { display: block; font-size: 12px; font-weight: 500; color: var(--text3); }
-.g-nav-btn svg { flex: none; color: var(--text2); }
-
-.g-done { text-align: center; padding: 28px 20px 20px; margin-top: 4px; }
-.g-done-ic { width: 52px; height: 52px; margin: 0 auto 12px; }
-.g-done .muted { margin: 4px 0 18px; }
-.g-list .ex-row:last-child { border-bottom: none; }
-.g-list .ex-row .badge { flex: none; }
-
-/* váha při startu tréninku: stepper s polem, do kterého jde i psát */
-.wp-stepper { margin: 22px 0 6px; }
-.wp-val { display: flex; align-items: baseline; justify-content: center; min-width: 0; }
-.wp-in { width: 4.2ch; min-width: 0; text-align: right; cursor: text; }
-.wp-val small { font-size: 17px; color: var(--text2); font-weight: 600; margin-left: 6px; }
-.wp-in::placeholder { color: var(--text4); }
-.wp-in:focus { outline: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

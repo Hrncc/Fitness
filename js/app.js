@@ -70,7 +70,6 @@ function render(opts = {}) {
 
   wireViewInputs();
   Dock.sync();
-  Moves.sync();
   const changed = key !== _lastRouteKey;
   if (opts.top || changed) window.scrollTo(0, 0);
   if (changed) {   // jemný nájezd nové obrazovky
@@ -407,41 +406,9 @@ const ACTIONS = {
     const order = list.map((_, k) => k).filter(k => k > i).concat(list.map((_, k) => k).filter(k => k < i));
     const next = order.find(k => !list[k].done);
     WV.openIdx = next == null ? null : next;
-    save();
-    if (gymGuided(S.activeSession)) { render({ top: true }); return; }
-    render();
+    save(); render();
     const el = next == null ? null : document.getElementById("exblock-" + next);
     if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
-  },
-  /* vedený režim: přechod na cvik (šipky, přehled cviků) a přepnutí režimu */
-  "w-g-go": d => {
-    closeModal();
-    WV.openIdx = Number(d.i);
-    WV.editSet = null;
-    render({ top: true });
-  },
-  "w-g-list": () => openGuidedList(),
-  "w-mode": d => {
-    Settings.set({ gymMode: d.v === "list" ? "list" : "guided" });
-    WV.editSet = null;
-    closeModal();
-    render();
-  },
-  /* váha při startu tréninku */
-  "w-wp-step": d => {
-    const el = document.getElementById("wpVal");
-    const cur = parseDec(el.value);
-    const last = lastBodyWeight(todayStr());
-    const base = Number.isFinite(cur) ? cur : last ? kgOut(last.weightKg) : 75;
-    el.value = fmtFixed(Math.max(20, Math.round((base + Number(d.d)) * 10) / 10), 1);
-  },
-  "w-wp-save": () => {
-    const kg = kgIn(document.getElementById("wpVal").value);
-    if (kg == null || kg < 20 || kg > 400) { toast("Zadej platnou váhu", "err"); return; }
-    logBodyWeight(kg, todayStr());
-    TV.wDraft = null;
-    save(); closeModal(); render();
-    toast("Váha zapsána ✓", "ok");
   },
   "w-add-ex": () => openExercisePicker(null),
   /* filtr partie ve výběru cviku */
@@ -468,7 +435,7 @@ const ACTIONS = {
         old.target !== undefined ? { target: old.target } : {}, old.link ? { link: true } : {});
       WV.openIdx = WV.pickerIndex;
     }
-    save(); closeModal(); render({ top: gymGuided(a) });
+    save(); closeModal(); render();
   },
   "w-finish": () => finishWorkout(),
   "w-rate-chip": d => {
@@ -721,18 +688,6 @@ const ACTIONS = {
     t.classList.toggle("on", on);
     t.setAttribute("aria-checked", on);
     Dock.sync();
-  },
-  "set-askw": (d, t) => {
-    const on = Settings.get().askWeight === false;
-    Settings.set({ askWeight: on });
-    t.classList.toggle("on", on);
-    t.setAttribute("aria-checked", on);
-  },
-  "set-guided": (d, t) => {
-    const on = Settings.get().gymMode === "list";
-    Settings.set({ gymMode: on ? "guided" : "list" });
-    t.classList.toggle("on", on);
-    t.setAttribute("aria-checked", on);
   },
   "set-sync-now": async () => {
     const inp = document.getElementById("setGas");
