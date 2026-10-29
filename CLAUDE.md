@@ -215,7 +215,7 @@ ať uživateli nezůstanou testovací data. Reálná data jdou stáhnout z jeho 
 `catCounterHtml()` (`view-workout.js`) drží nad cviky po celou dobu tréninku.
 Sbalený je **pruh** se sériemi (v posilovně je místo na obrazovce nejcennější);
 partie bez série je obrys s **písmenem partie** a barevnou linkou dole (v4.1 —
-dřív prázdné „0", rozlišené jen barvou), každá buňka má `aria-label`. Rozbalený
+dřív šedá „0" bez barvy, partie šla poznat jen podle pozice), každá buňka má `aria-label`. Rozbalený
 má při velkém textu jeden sloupec.
 klepnutím (`w-counter`) se rozbalí na **cviky · série** u každé partie —
 série samy nerozliší „tři série na jednom cviku" od „tři cviky po jedné".
