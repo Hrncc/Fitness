@@ -2,6 +2,8 @@
 
 Osobní PWA pro zápis silových a kardio tréninků a stravy. **Jeden uživatel** (Martin),
 žádná registrace, žádný vlastní backend. UI je celé česky.
+Produktový záznam (uživatel, účel, zásady — pro skill Impeccable) je v `PRODUCT.md`;
+technika, konvence a vzhled zůstávají tady.
 
 ## Tech a zásady
 
@@ -183,8 +185,12 @@ ať uživateli nezůstanou testovací data. Reálná data jdou stáhnout z jeho 
   tvarování postavy**.
 - **Trénuje sám — od ~července 2026 už nemá trenéra** (dřív online coaching).
   Plán A/B/C po trenérovi jede dál, ale nikdo ho neaktualizuje. Části appky
-  postavené kolem trenéra (check-in, „report pro trenéra") tím ztratily
-  adresáta — než na ně sáhneš, ověř s ním, čemu mají sloužit teď.
+  postavené kolem trenéra ztratily adresáta: check-in a fotky teď slouží jemu
+  samému (viz níž) a **„Report pro Clauda" vkládá do chatu s Claudem** — je to
+  jeho kanál pro rady k tréninku a stravě, takže se má dál zlepšovat (potvrzeno
+  ve v4.1). AI kouč *uvnitř* appky zůstává vyloučený (viz Záměrně neimplementováno).
+- Appku používá **jen na iPhonu** (potvrzeno ve v4.1) — rozložení pro iPad
+  a počítač nemá prioritu.
 - Kalorický cíl (původně od trenéra, jede dál): **2 200 kcal, B 180 / S 230 / T 60**,
   kardio „chůze, začátečnický běh do 5 km".
 - Check-in a fotky (v1.24 sloučené, ve v2.0 v **Pokrok → Tělo**) slouží teď jemu samému

@@ -1,6 +1,6 @@
 # Fitness Log — PWA
 
-Osobní deník silových a kardio tréninků a stravy (kalorie + makra). Jeden uživatel, bez registrace, bez vlastního backendu. Dark mode, mobile-first, funguje offline.
+Osobní deník silových a kardio tréninků a stravy (kalorie + makra). Jeden uživatel, bez registrace, bez vlastního backendu. Tmavý i světlý režim podle systému, mobile-first, funguje offline.
 
 ## Spuštění
 
@@ -38,7 +38,7 @@ Podrobný návod krok za krokem: **[SETUP_SYNC.md](SETUP_SYNC.md)**. Ve zkratce:
 1. Vytvoř nový Google Sheet.
 2. **Rozšíření → Apps Script**, vlož obsah `apps-script/Code.gs`, ulož.
 3. **Nasadit → Nové nasazení → Webová aplikace**: Spustit jako **Já**, přístup **Kdokoli**.
-4. Zkopíruj URL webové aplikace (`…/exec`) a vlož ji v appce do **Více → Export & Backup → Cloud sync**.
+4. Zkopíruj URL webové aplikace (`…/exec`) a vlož ji v appce do **Více → Záloha a export → Cloud sync**.
 
 Data se ukládají při každé změně a načítají při startu. Změny z více zařízení se **slévají podle záznamů** (nic se nepřepíše), smazané položky hlídají tombstony. Skript navíc drží **denní zálohy** za posledních 7 dní (skryté listy `SNAP_…`). Indikátor stavu je tečka v horní liště: volt = ok, šedá blikající = probíhá, červená = offline/chyba.
 
@@ -53,4 +53,4 @@ Data se ukládají při každé změně a načítají při startu. Změny z víc
 
 ## Zálohy
 
-Více → **Export & Backup**: JSON (kompletní data, lze importovat zpět) + Markdown souhrn, včetně systémového sdílení.
+Více → **Záloha a export**: JSON (kompletní data, lze importovat zpět) + Markdown souhrn, včetně systémového sdílení.
