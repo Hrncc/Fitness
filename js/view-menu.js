@@ -1,7 +1,7 @@
 /* ===== Více: sheet s nabídkou a stránky z něj ===== */
 "use strict";
 
-const APP_VERSION = "4.0";
+const APP_VERSION = "4.1";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -27,12 +27,12 @@ function renderMore() {
       lgLink("body", "Postava a check-in", `data-act="go-progress" data-seg="body"`)
     ], { head: "Záznamy" })
     + listGroup([
-      link("book", "Exercise Library", "exlib", String(S.exercises.length)),
-      link("list", "Workout Templates", "templates", String(S.templates.length)),
-      link("star", "Food Library", "foodlib")
+      link("book", "Knihovna cviků", "exlib", String(S.exercises.length)),
+      link("list", "Šablony tréninků", "templates", String(S.templates.length)),
+      link("star", "Knihovna jídel", "foodlib")
     ], { head: "Knihovny" })
     + listGroup([
-      link("share", "Export & Backup", "export", lastSync),
+      link("share", "Záloha a export", "export", lastSync),
       link("sliders", "Nastavení", "settings"),
       link("info", "O aplikaci", "about")
     ], { head: "Data a aplikace" })
@@ -74,7 +74,7 @@ function elListHtml() {
             ? `<div class="name-en">${esc(exNameEn(e))}</div>`
             : `<div class="li-sub">${esc(e.category)}</div>`}
         </div>
-        ${e.isCustom ? `<span class="badge">vlastní</span>` : ""}
+        ${isOwnExercise(e) ? `<span class="badge">vlastní</span>` : ""}
       </div>`).join("");
   return list || `<div class="empty-note">Nic nenalezeno</div>`;
 }
@@ -88,7 +88,7 @@ function openExerciseDetail(id) {
     ${en ? `<p class="modal-sub">${esc(en)}</p>` : ""}
     <div class="row" style="margin-bottom:14px;gap:8px;flex-wrap:wrap">
       <span class="badge cat-badge"><i class="p-dot" style="background:${catColor(e.category)}"></i>${esc(e.category)}</span>
-      ${e.isCustom ? `<span class="badge">vlastní</span>` : ""}
+      ${isOwnExercise(e) ? `<span class="badge">vlastní</span>` : ""}
       ${pr ? `<span class="badge yellow">${ic("trophy", 12, 2.2)} ${fmtWeight(pr.weight)} × ${pr.reps}</span>` : ""}
     </div>
     <p class="muted" style="margin:0 0 ${e.pin ? 12 : 20}px;line-height:1.55">${esc(e.description || "Bez popisu")}</p>
@@ -204,19 +204,20 @@ function openPlanModal(tplId, exId) {
   const pl = tplPlan(t, exId) || { sets: 3, lo: null, hi: null, rest: null, link: false };
   const idx = t.exercises.indexOf(exId);
   const time = exKind(exId) === "time";
-  MV.plan = { tpl: tplId, exId, rest: pl.rest || null, link: !!pl.link };
   const def = Settings.get().restSeconds || 0;
-  const chips = [[null, `výchozí ${fmtClock(def)}`]].concat(PLAN_RESTS.map(r => [r, fmtClock(r)])).map(([r, l]) =>
-    `<button class="chip planrest${(MV.plan.rest || null) === r ? " on" : ""}" data-act="plan-rest" data-r="${r == null ? "" : r}">${l}</button>`).join("");
+  // pauza rovná výchozí je totéž co „výchozí" — nenabízí se podruhé a uloží se jako výchozí
+  MV.plan = { tpl: tplId, exId, rest: pl.rest && pl.rest !== def ? pl.rest : null, link: !!pl.link };
+  const chips = [[null, `výchozí ${fmtClock(def)}`]].concat(PLAN_RESTS.filter(r => r !== def).map(r => [r, fmtClock(r)])).map(([r, l]) =>
+    `<button class="chip planrest${MV.plan.rest === r ? " on" : ""}" data-act="plan-rest" data-r="${r == null ? "" : r}">${l}</button>`).join("");
   openModal(`${modalTitle(exName(exId))}
     <p class="modal-sub">Plán v šabloně ${esc(t.name)}</p>
     <div class="set-input" style="margin-top:0">
       ${stepperHtml("planSets", pl.sets || 3, 1, "Série")}
       <div class="set-field"><span class="set-lbl">${time ? "Výdrž (s)" : "Opakování"} od – do</span>
         <div class="row" style="gap:6px">
-          <input class="input" id="planLo" type="text" inputmode="numeric" value="${pl.lo || ""}" placeholder="8" style="text-align:center">
+          <input class="input" id="planLo" type="text" inputmode="numeric" value="${pl.lo || ""}" placeholder="od" aria-label="Od" style="text-align:center">
           <span class="small">–</span>
-          <input class="input" id="planHi" type="text" inputmode="numeric" value="${pl.hi || ""}" placeholder="12" style="text-align:center">
+          <input class="input" id="planHi" type="text" inputmode="numeric" value="${pl.hi || ""}" placeholder="do" aria-label="Do" style="text-align:center">
         </div></div>
     </div>
     <div class="set-lbl" style="margin-top:18px">Pauza po sérii</div>
@@ -481,7 +482,7 @@ function renderExport() {
     <div class="card">
       <p class="muted" style="margin:0 0 16px">JSON je kompletní záloha pro pozdější import, Markdown čitelný souhrn.
         Fotky součástí nejsou — stahují se jednotlivě v Postavě.</p>
-      <button class="btn primary full" data-act="exp-share">${ic("share", 18, 2.2)} Export &amp; Share</button>
+      <button class="btn primary full" data-act="exp-share">${ic("share", 18, 2.2)} Exportovat a sdílet</button>
       <div class="btn-row mt">
         <button class="btn" data-act="exp-json">JSON</button>
         <button class="btn" data-act="exp-md">Markdown</button>
@@ -654,10 +655,8 @@ function importBackup() {
     try {
       const data = JSON.parse(reader.result);
       if (!data || !Array.isArray(data.sessions)) throw new Error("neplatný formát");
-      replaceState(data);
-      save();
-      render();
-      toast("Záloha importována ✓", "ok");
+      // přepíše všechna data — Vrátit vydrží 12 s
+      withUndo("Záloha importována", () => replaceState(data), 12000);
     } catch (e) {
       toast("Import selhal: " + e.message, "err");
     }
@@ -718,7 +717,8 @@ function saveSettings() {
 
 /* ================= Fotky postupu ================= */
 /* Stav fotek pro stránku Postava (renderBody ve view-checkin.js) */
-const PV = { items: null, loading: false, urls: [], modalUrl: null, cmpA: null, cmpB: null, pendingFile: null };
+const PV = { items: null, loading: false, urls: [], modalUrl: null, cmpA: null, cmpB: null, pendingFile: null,
+  pendingDel: null, delTimer: null };  // fotka čekající na smazání (Vrátit)
 
 function photoUrl(rec) {
   const u = URL.createObjectURL(rec.blob);
@@ -770,16 +770,36 @@ function openPhotoDetail(id) {
     </div>`);
 }
 
-async function deletePhoto(id) {
-  try {
-    await Photos.remove(id);
-    PV.items = null;
-    closeModal();
-    render();
-    toast("Fotka smazána");
-  } catch (e) {
-    toast("Smazání selhalo: " + e.message, "err");
-  }
+/* Fotka se smaže až po vypršení „Vrátit" — do té doby je jen schovaná
+   (fotky nejsou v S, takže withUndo je vrátit neumí). Když se appka zavře
+   dřív, fotka zůstane: bezpečnější než ztratit nenahraditelný snímek. */
+function deletePhoto(id) {
+  const p = (PV.items || []).find(x => x.id === id);
+  if (!p) return;
+  if (PV.pendingDel) commitPhotoDelete();     // předchozí čekající smazání dokonči
+  PV.pendingDel = p;
+  PV.items = PV.items.filter(x => x.id !== id);
+  clearTimeout(PV.delTimer);
+  PV.delTimer = setTimeout(commitPhotoDelete, 8000);
+  closeModal();
+  render();
+  toast("Fotka smazána", "", { label: "Vrátit", act: "ph-undo" }, 8000);
+}
+async function commitPhotoDelete() {
+  const p = PV.pendingDel;
+  PV.pendingDel = null;
+  clearTimeout(PV.delTimer);
+  if (!p) return;
+  try { await Photos.remove(p.id); }
+  catch (e) { toast("Smazání selhalo: " + e.message, "err"); PV.items = null; render(); }
+}
+function undoPhotoDelete() {
+  clearTimeout(PV.delTimer);
+  if (!PV.pendingDel) return;
+  PV.pendingDel = null;
+  PV.items = null;          // načte se znovu i se schovanou fotkou
+  render();
+  toast("Fotka vrácena ✓", "ok");
 }
 
 function downloadPhoto(id) {
@@ -841,7 +861,7 @@ async function importQrFile(file) {
 function renderAbout() {
   return `
     <div class="card">
-      <div class="about-logo">Fitness<span style="color:var(--green-ink)">Log</span></div>
+      <div class="about-logo">Fitness<wbr><span style="color:var(--green-ink)">Log</span></div>
       <p class="muted" style="margin:0 0 16px">Verze ${APP_VERSION}</p>
       <p class="muted" style="margin:0 0 12px;line-height:1.55">
         Osobní deník silových a kardio tréninků, postavy a stravy.

@@ -10,8 +10,8 @@ const App = {
 const TITLES = {
   today: "Dnes", workout: "Trénink", progress: "Pokrok",
   food: "Jídlo", history: "Historie", records: "Rekordy", checkin: "Check-in",
-  exlib: "Exercise Library", templates: "Workout Templates", foodlib: "Food Library",
-  export: "Export & Backup", settings: "Nastavení", about: "O aplikaci", more: "Více"
+  exlib: "Knihovna cviků", templates: "Šablony tréninků", foodlib: "Knihovna jídel",
+  export: "Záloha a export", settings: "Nastavení", about: "O aplikaci", more: "Více"
 };
 
 /* Velký titulek stránky (iOS large title) — nad obsahem každé obrazovky.
@@ -22,16 +22,15 @@ function pageHead(key) {
   if (key === "workout") return workoutHead();
   if (key === "progress") return progressHead();
   if (key === "checkin") return { title: CV.editId ? "Upravit check-in" : "Nový check-in" };
-  if (key === "records") return { title: "Rekordy", sub: "Osobní maxima podle odhadu 1RM" };
+  if (key === "records") return { title: "Rekordy", sub: "Odhad 1RM, nejtěžší váha, opakování a nejlepší série" };
   if (key === "history") return { title: "Historie", sub: "Tréninky po měsících" };
   return { title: TITLES[key] || "Fitness Log" };
 }
 
 function pageHeadHtml(h) {
   return `
-    <header class="page-head">
+    <header class="page-head${h.cls ? " " + h.cls : ""}">
       <div class="grow">
-        ${h.eyebrow ? `<div class="eyebrow">${h.eyebrow}</div>` : ""}
         <h1>${esc(h.title)}</h1>
         ${h.sub ? `<p class="sub">${h.sub}</p>` : ""}
         ${h.below || ""}
@@ -69,6 +68,7 @@ function render(opts = {}) {
     b.classList.toggle("on", !!b.dataset.tab && b.dataset.tab === tab));
 
   wireViewInputs();
+  a11yActs(view);
   Dock.sync();
   const changed = key !== _lastRouteKey;
   if (opts.top || changed) window.scrollTo(0, 0);
@@ -139,13 +139,25 @@ function wireViewInputs() {
 /* ===== Undo — mazání bez potvrzovacích dialogů =====
    Před destruktivní operací se uloží snapshot stavu; toast nabídne Vrátit. */
 let UNDO_SNAP = null;
-function withUndo(msg, fn) {
+const UNDO_KEY = "fitapp_undo";
+function withUndo(msg, fn, ms = 6000) {
   const snap = JSON.stringify(S);
   fn();
   save();
   render();
   UNDO_SNAP = snap;
-  toast(msg, "", { label: "Vrátit", act: "app-undo" });
+  // záloha pro Vrátit přežije i obnovení stránky — po dobu hlášky (sessionStorage)
+  try { sessionStorage.setItem(UNDO_KEY, JSON.stringify({ snap, msg, until: Date.now() + ms })); } catch (e) { /* plno: Vrátit jen v paměti */ }
+  toast(msg, "", { label: "Vrátit", act: "app-undo" }, ms);
+}
+/* po obnovení stránky nabídne Vrátit znovu, pokud jeho čas ještě neuplynul */
+function restorePendingUndo() {
+  try {
+    const u = JSON.parse(sessionStorage.getItem(UNDO_KEY) || "null");
+    if (!u || u.until <= Date.now() + 500) { sessionStorage.removeItem(UNDO_KEY); return; }
+    UNDO_SNAP = u.snap;
+    toast(u.msg, "", { label: "Vrátit", act: "app-undo" }, u.until - Date.now());
+  } catch (e) { /* bez sessionStorage nic */ }
 }
 
 /* Trénink k jinému dni (kalendář, detail dne) — šablona se spustí rovnou
@@ -179,6 +191,7 @@ const ACTIONS = {
     if (!UNDO_SNAP) return;
     replaceState(JSON.parse(UNDO_SNAP));
     UNDO_SNAP = null;
+    try { sessionStorage.removeItem(UNDO_KEY); } catch (e) { /* nic */ }
     save();
     render();
     toast("Obnoveno ✓", "ok");
@@ -490,15 +503,34 @@ const ACTIONS = {
   "rest-plus": () => Rest.adjust(30),
   "rest-minus": () => Rest.adjust(-30),
   "rest-stop": () => Rest.stop(),
-  "w-cancel": () => withUndo(S.activeSession && S.activeSession.editOf ? "Úpravy zahozeny" : "Trénink zrušen",
-    () => { S.activeSession = null; WV.openIdx = null; WV.editSet = null; }),
+  /* Zrušit je hned pod Dokončit: se zapsanými sériemi chce druhé klepnutí
+     (bez dialogu — tlačítko se na 4 s přepíše) a Vrátit vydrží 12 s */
+  "w-cancel": (d, t) => {
+    const a = S.activeSession;
+    if (!a) return;
+    const n = a.editOf ? 0 : sessionSets(a);
+    if (n && t.dataset.armed !== "1") {
+      t.dataset.armed = "1";
+      t.classList.add("armed");
+      t.textContent = `Klepni znovu — zahodí ${n} ${plural(n, "sérii", "série", "sérií")}`;
+      setTimeout(() => {
+        if (!t.isConnected || t.dataset.armed !== "1") return;
+        delete t.dataset.armed;
+        t.classList.remove("armed");
+        t.textContent = "Zrušit trénink";
+      }, 4000);
+      return;
+    }
+    withUndo(a.editOf ? "Úpravy zahozeny" : "Trénink zrušen",
+      () => { S.activeSession = null; WV.openIdx = null; WV.editSet = null; }, 12000);
+  },
   "w-pr-history": d => openPRHistory(d.exid),
   "w-detail": d => openSessionDetail(d.id),
   "w-del-session": d => withUndo("Trénink smazán", () => {
     S.sessions = S.sessions.filter(s => s.id !== d.id);
     markDeleted(d.id);
     closeModal();
-  }),
+  }, 12000),
 
   /* ---- Jídlo ---- */
   "f-day-nav": d => {
@@ -602,14 +634,12 @@ const ACTIONS = {
     [t.exercises[i], t.exercises[j]] = [t.exercises[j], t.exercises[i]];
     save(); render();
   },
-  "tpl-rm": d => {
+  "tpl-rm": d => withUndo("Cvik odebrán ze šablony", () => {
     const t = getTemplate(d.tpl);
-    if (t) {
-      const [exId] = t.exercises.splice(Number(d.i), 1);
-      if (t.plan && exId && !t.exercises.includes(exId)) delete t.plan[exId];
-    }
-    save(); render();
-  },
+    if (!t) return;
+    const [exId] = t.exercises.splice(Number(d.i), 1);
+    if (t.plan && exId && !t.exercises.includes(exId)) delete t.plan[exId];
+  }),
   /* plán cviku v šabloně: série × rozsah × pauza, superset s dalším */
   "tpl-plan": d => openPlanModal(d.tpl, d.exid),
   "plan-rest": (d, t) => {
@@ -663,6 +693,7 @@ const ACTIONS = {
   "ph-save": () => savePhoto(),
   "ph-detail": d => openPhotoDetail(d.id),
   "ph-del": d => deletePhoto(d.id),
+  "ph-undo": () => undoPhotoDelete(),
   "ph-download": d => downloadPhoto(d.id),
 
   /* ---- Týdenní check-in ---- */
@@ -747,6 +778,21 @@ document.addEventListener("click", e => {
   if (!t) return;
   const fn = ACTIONS[t.dataset.act];
   if (fn) fn(t.dataset, t, e);
+});
+
+/* Klávesnice: Escape zavře sheet; Enter a mezerník spustí klikací prvek,
+   který není tlačítko (řádky s data-act — fokus jim dává a11yActs v ui.js) */
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && document.getElementById("modal").classList.contains("open")) {
+    e.preventDefault();
+    closeModal();
+    return;
+  }
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const t = e.target;
+  if (!(t instanceof Element) || !t.matches("[data-act]") || t.matches("button, a, input, select, textarea, label")) return;
+  e.preventDefault();
+  t.click();
 });
 
 /* Přetahování cviků v tréninku (Drag ve view-workout.js) */
@@ -848,6 +894,7 @@ document.addEventListener("syncstatus", () => {
 render();
 Sync.init();
 Rest.init();
+restorePendingUndo();
 
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
   navigator.serviceWorker.register("sw.js").then(reg => {

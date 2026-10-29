@@ -32,7 +32,8 @@ function bodyPhotos() {
     if (!PV.loading) {
       PV.loading = true;
       Photos.list().then(list => {
-        PV.items = list;
+        // fotka čekající na smazání (Vrátit) zůstává schovaná
+        PV.items = PV.pendingDel ? list.filter(x => x.id !== PV.pendingDel.id) : list;
         PV.loading = false;
         if (bodyVisible()) render();
       }).catch(e => {

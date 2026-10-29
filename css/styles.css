@@ -38,7 +38,7 @@
 
   /* ===== Vrstva 1 — STAV ===== */
   --green: #CDFB51;   /* volt */
-  --yellow: #F7C948;  /* zlatá — rekordy a varování */
+  --yellow: #F7C948;  /* zlatá — jen rekordy (od v4.1; varování jsou neutrální s ikonou) */
   --red: #FF4D5E;     /* jen chyby, mazání, překročení */
   --on-green: #0A0B07;
   --green-bg: rgba(205,251,81,.13);
@@ -103,6 +103,7 @@
   --sticky-shadow: 0 14px 24px -14px rgba(0,0,0,.9);
   --hm1: rgba(205,251,81,.3); --hm2: rgba(205,251,81,.6); --hm3: var(--green);
   --band: rgba(255,255,255,.07); --band-key: rgba(255,255,255,.14);
+  --select-bg: rgba(205,251,81,.3);
 }
 
 /* ===== v4.0 — světlý režim podle systému =====
@@ -161,6 +162,7 @@
     --shadow-float: 0 12px 32px -12px rgba(0,0,0,.25), 0 1px 4px rgba(0,0,0,.08);
     --hm1: rgba(63,110,10,.22); --hm2: rgba(63,110,10,.5); --hm3: #3F6E0A;
     --band: rgba(0,0,0,.05); --band-key: rgba(0,0,0,.1);
+    --select-bg: rgba(63,110,10,.22);
   }
 }
 body.has-dock { --dock-h: 62px; }
@@ -246,10 +248,6 @@ b, strong { font-weight: 600; }
   display: flex; align-items: flex-end; gap: 12px;
   padding: 6px 0 20px;
 }
-.page-head .eyebrow {
-  font-size: .7941rem; font-weight: 600; color: var(--text2);
-  margin-bottom: 3px;
-}
 .page-head h1 {
   font-size: 2rem; font-weight: 700; line-height: 1.04;
   margin: 0;
@@ -307,7 +305,9 @@ b, strong { font-weight: 600; }
 .mt2 { margin-top: 20px; }
 .center { text-align: center; }
 .big-num { font-size: min(2.3529rem, 11vw); font-weight: 700; line-height: 1; }
-.warn-text { color: var(--yellow); }
+/* varování „něco ti utíká" — od v4.1 neutrálně (zlatá patří jen rekordům) */
+.warn-text { color: var(--text); font-weight: 600; }
+.warn-text svg { color: var(--text2); vertical-align: -2px; margin-right: 2px; }
 
 /* ===== Tlačítka (kapsle) ===== */
 .btn {
@@ -411,7 +411,7 @@ b, strong { font-weight: 600; }
 /* ===== Volba hodnoty (rychlý zápis: jídlo, bílkoviny) — vybraná je bílá ===== */
 .opts { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
 .opt {
-  height: 42px; border-radius: 999px; border: 0; background: var(--s2);
+  min-height: 44px; border-radius: 999px; border: 0; background: var(--s2);
   color: var(--text2); font-size: .8529rem; font-weight: 600; cursor: pointer;
   transition: background var(--dur-fast), color var(--dur-fast), transform var(--dur-fast);
 }
@@ -450,7 +450,7 @@ b, strong { font-weight: 600; }
   display: inline-flex; align-items: center; gap: 5px; flex: none;
   min-height: 32px; padding: 0 6px; margin: 0 -2px;
   background: none; border: none; color: var(--text3);
-  font: 600 .7059rem/1 var(--font); cursor: pointer; opacity: .8;
+  font: 600 .7059rem/1 var(--font); cursor: pointer;
   transition: color var(--dur-fast), opacity var(--dur-fast), transform var(--dur-fast);
 }
 .fail-chip:active { transform: scale(.92); }
@@ -767,10 +767,10 @@ body.modal-open .dock.show {
 .td-open { padding: 18px; }
 .td-open-h { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
 .td-open-h .td-t { flex: 1; }
-.td-eyebrow { font-size: .7059rem; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--text3); }
 .td-title { font-size: 1.5294rem; font-weight: 700; line-height: 1.1; margin: 4px 0 4px; }
 .td-meta { font-size: .8235rem; color: var(--text2); }
-.td-warn { display: flex; align-items: center; gap: 7px; font-size: .7941rem; color: var(--yellow); margin-top: 12px; }
+.td-warn { display: flex; align-items: center; gap: 7px; font-size: .7941rem; font-weight: 600; color: var(--text); margin-top: 12px; }
+.td-warn svg { color: var(--text2); flex: none; }
 .food-q { margin-bottom: 14px; }
 .food-q > span { display: block; font-size: .7647rem; color: var(--text2); font-weight: 600; margin: 0 0 8px 2px; }
 
@@ -788,7 +788,8 @@ body.modal-open .dock.show {
   font-size: min(3.0588rem, 15vw); font-weight: 700; line-height: 1;
   font-variant-numeric: tabular-nums; padding: 0; min-width: 0;
 }
-.step-val small { font-size: 1rem; color: var(--text2); font-weight: 600; margin-left: 5px; }
+/* jednotky u velkých čísel v em: číslo má strop ve vw, jednotka v rem by ho při velkém textu přerostla */
+.step-val small { font-size: .33em; color: var(--text2); font-weight: 600; margin-left: 5px; }
 .step-note { text-align: center; font-size: .7941rem; color: var(--text2); margin: 12px 0 16px; line-height: 1.5; }
 .step-note b { color: var(--text); }
 
@@ -812,7 +813,8 @@ body.modal-open .dock.show {
 }
 .wk-d.today .wk-n { box-shadow: inset 0 0 0 1.5px var(--text); color: var(--text); }
 .wk-d.today.trained .wk-n { box-shadow: 0 0 0 2px var(--s1), 0 0 0 3.5px var(--green-ink); }
-.wk-d.future { opacity: .3; }
+.wk-d.future .wk-n { color: var(--text3); font-weight: 500; }
+.wk-d.future .wk-dots { visibility: hidden; }
 .wk-dots { display: flex; gap: 3px; height: 4px; }
 .wk-dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--s3); display: block; }
 .wk-dots i.on { background: var(--text2); }
@@ -833,7 +835,7 @@ body.modal-open .dock.show {
 .wk-month .wk-d { gap: 4px; }
 .wk-month .wk-n { width: 34px; height: 34px; font-size: .8235rem; }
 .wk-legend span { display: inline-flex; align-items: center; gap: 5px; }
-.wk-legend i { width: 7px; height: 7px; border-radius: 50%; display: block; }
+.wk-legend i { width: 7px; height: 7px; border-radius: 50%; display: block; box-shadow: inset 0 0 0 1px var(--hair2); }
 
 /* čísla (stat tiles) */
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); }
@@ -843,7 +845,7 @@ body.modal-open .dock.show {
 .stats.four > .stat:nth-child(odd) { border-left: none; padding-left: 0; }
 .stat { min-width: 0; }
 .stat-v { font-size: min(1.6471rem, 7.5vw); font-weight: 700; line-height: 1.05; white-space: nowrap; }
-.stat-v small { font-size: .8824rem; font-weight: 600; color: var(--text2); margin-left: 3px; }
+.stat-v small { font-size: .54em; font-weight: 600; color: var(--text2); margin-left: 3px; }
 .stat-v.pr { color: var(--yellow); }
 .stat-l { font-size: .7647rem; color: var(--text2); font-weight: 500; margin-top: 5px; line-height: 1.25; }
 .delta {
@@ -853,7 +855,7 @@ body.modal-open .dock.show {
 .delta.up { color: var(--green-ink); }
 .delta.down { color: var(--text2); }
 .hero-fig { font-size: min(3.0588rem, 15vw); font-weight: 700; line-height: 1; }
-.hero-fig small { font-size: 1.0588rem; font-weight: 600; color: var(--text2); margin-left: 5px; }
+.hero-fig small { font-size: .35em; font-weight: 600; color: var(--text2); margin-left: 5px; }
 
 /* dlaždice pokroku na Dnes */
 .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -865,7 +867,7 @@ body.modal-open .dock.show {
 .tile:active { transform: scale(.97); background: var(--s2); }
 .tile-l { font-size: .7353rem; font-weight: 600; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tile-v { font-size: min(1.4118rem, 6.5vw); font-weight: 700; margin-top: 8px; line-height: 1; white-space: nowrap; }
-.tile-v small { font-size: .7647rem; color: var(--text2); font-weight: 600; margin-left: 2px; letter-spacing: 0; }
+.tile-v small { font-size: .54em; color: var(--text2); font-weight: 600; margin-left: 2px; letter-spacing: 0; }
 .tile-s { font-size: .7059rem; color: var(--text3); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tile-s.up { color: var(--green-ink); font-weight: 600; }
 
@@ -936,11 +938,12 @@ body.modal-open .dock.show {
   padding: 18px 16px 16px; margin: 10px 0;
 }
 .ex-head { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
-.ex-cat {
+/* partie a pořadí pod názvem cviku (dřív verzálky nad ním) */
+.ex-meta {
   display: flex; align-items: center; gap: 7px;
-  font-size: .7059rem; font-weight: 600; letter-spacing: .07em; text-transform: uppercase;
-  color: var(--text2); margin-bottom: 5px;
+  font-size: .7941rem; font-weight: 500; color: var(--text2); margin-top: 6px;
 }
+.ex-meta + .ex-plan { margin-top: 2px; }
 .ex-title { font-size: 1.2941rem; font-weight: 700; line-height: 1.15; }
 .ex-tools { display: flex; gap: 6px; flex: none; }
 .ex-desc { margin: 12px 0 0; }
@@ -953,7 +956,7 @@ body.modal-open .dock.show {
 .ex-desc p { font-size: .8235rem; color: var(--text2); margin: 8px 0 0; line-height: 1.5; }
 .ex-hints { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
 .hint { display: flex; align-items: flex-start; gap: 8px; font-size: .7941rem; color: var(--text2); line-height: 1.4; }
-.hint svg { margin-top: 1px; }
+.hint svg { margin-top: 1px; width: 1.1em; height: 1.1em; }
 .hint b { color: var(--text); font-weight: 600; }
 .hint.pr, .hint.pr b { color: var(--yellow); }
 .hint.prog { color: var(--green-ink); }
@@ -966,7 +969,7 @@ body.modal-open .dock.show {
   padding: 7px 0; font-size: .9118rem; border-bottom: 1px solid var(--hair);
 }
 .set-row:last-child { border-bottom: none; }
-.set-row .set-val { font-weight: 600; font-variant-numeric: tabular-nums; }
+.set-row .set-val { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .set-row .set-val span { color: var(--text3); font-weight: 500; margin: 0 3px; }
 .set-num {
   width: 24px; height: 24px; border-radius: 50%; background: var(--s2);
@@ -996,11 +999,12 @@ body.modal-open .dock.show {
   background: var(--s2); border-radius: 999px; padding: 4px;
   border: 1px solid transparent; transition: border-color var(--dur-fast);
 }
+.set-step.err { border-color: var(--red); }
 .set-step:focus-within { border-color: var(--hair2); }
 .step-btn.sm { width: 40px; height: 44px; border-radius: 999px; background: transparent; }
 .step-btn.sm:active { background: var(--s3); }
 .step-in {
-  text-align: center; font-size: 1.2941rem; font-weight: 700; padding: 8px 0;
+  text-align: center; font-size: min(1.4118rem, 6.2vw); font-weight: 700; padding: 8px 0;
   font-variant-numeric: tabular-nums;
   background: transparent !important; border: none !important; box-shadow: none !important;
 }
@@ -1052,10 +1056,10 @@ body.modal-open .dock.show {
 .cat-bar { display: flex; gap: 4px; }
 .cat-bar i {
   flex: 1; min-height: 30px; border-radius: 9px; display: flex; font-style: normal;
-  align-items: center; justify-content: center; position: relative;
+  align-items: center; justify-content: center; position: relative; background: var(--c);
 }
 .cat-bar i b { font-size: .7941rem; font-weight: 700; color: var(--on-green); font-variant-numeric: tabular-nums; }
-.cat-bar i.zero { background: transparent !important; box-shadow: inset 0 0 0 1px var(--hair2); }
+.cat-bar i.zero { background: transparent; box-shadow: inset 0 0 0 1px var(--hair2), inset 0 -3px 0 var(--c); }
 .cat-bar i.zero b { color: var(--text3); }
 .cat-bar-meta { display: flex; justify-content: space-between; margin-top: 8px; font-size: .7647rem; color: var(--text2); }
 .cat-bar-meta b { color: var(--text); }
@@ -1063,14 +1067,14 @@ body.modal-open .dock.show {
 .cat-counter { cursor: pointer; }
 .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .cat-cell {
-  display: grid; grid-template-columns: 3px 1fr auto;
+  display: grid; grid-template-columns: 3px minmax(0, 1fr) auto;
   align-items: center; gap: 9px; overflow: hidden;
   background: var(--s2); border-radius: 12px; padding: 9px 11px 9px 0;
 }
 /* poslední partie (Nohy) přes celou šířku — 7 buněk se do dvou sloupců nerozdělí */
 .cat-cell:last-child { grid-column: 1 / -1; }
 .cat-cell i { width: 3px; align-self: stretch; min-height: 22px; border-radius: 0 2px 2px 0; }
-.cat-cell .cat-n { font-size: .8235rem; font-weight: 600; }
+.cat-cell .cat-n { font-size: .8235rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cat-cell .cat-v { font-size: .8824rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cat-cell .cat-v b { font-weight: 600; color: var(--text2); font-size: .7647rem; }
 .cat-cell .cat-v s { text-decoration: none; color: var(--text3); margin: 0 3px; font-weight: 400; font-size: .7059rem; }
@@ -1078,8 +1082,7 @@ body.modal-open .dock.show {
 .cat-cell.zero .cat-n, .cat-cell.zero .cat-v { color: var(--text3); }
 .cat-cell.zero i { opacity: .4; }
 
-.pr-flash { animation: prflash 1.4s ease 2; border-color: var(--yellow) !important; }
-@keyframes prflash { 50% { box-shadow: 0 0 34px rgba(247,201,72,.35); } }
+.pr-flash { border-color: var(--yellow) !important; }
 
 /* ===== Grafy ===== */
 .chart-wrap { width: 100%; position: relative; touch-action: pan-y; }
@@ -1120,7 +1123,7 @@ body.modal-open .dock.show {
 .cw-bars i.tick { height: 5px; width: 5px; flex: 0 0 5px; margin: 0 auto 2px; border-radius: 50%; background: var(--p-core); }
 .cw-avg { font-size: .8235rem; font-weight: 700; text-align: right; align-self: center; font-variant-numeric: tabular-nums; }
 .cw-last { font-size: .7353rem; color: var(--text3); text-align: right; align-self: center; white-space: nowrap; }
-.cw-last.stale { color: var(--yellow); font-weight: 600; }
+.cw-last.stale { color: var(--text); font-weight: 700; }
 .cw-head { display: grid; grid-template-columns: 68px 1fr 30px 66px; gap: 10px; font-size: .7059rem; color: var(--text3); font-weight: 600; padding-bottom: 4px; }
 .cw-head span:nth-child(3), .cw-head span:nth-child(4) { text-align: right; }
 /* pravidelnost: 16 týdnů × 7 dní */
@@ -1161,7 +1164,7 @@ body.modal-open .dock.show {
   width: 100%; aspect-ratio: 3/4; object-fit: cover; cursor: pointer;
   border-radius: 16px; display: block; background: var(--s2); margin-bottom: 8px;
 }
-.scale-row { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; }
+.scale-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
 .scale-chip {
   background: var(--s2); border: 0; color: var(--text2);
   border-radius: 10px; min-height: 38px; padding: 0; font-size: min(.7941rem, 4.2vw); font-weight: 600;
@@ -1181,7 +1184,7 @@ body.modal-open .dock.show {
   border: 1px solid var(--hair2);
   padding: 11px 18px; border-radius: 999px; font-size: .8529rem; font-weight: 600;
   opacity: 0; pointer-events: none; transition: opacity .25s, transform .35s var(--ease);
-  max-width: 88vw; text-align: center; box-shadow: var(--shadow-float);
+  width: max-content; max-width: 88vw; text-align: center; box-shadow: var(--shadow-float);
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
 /* při otevřeném sheetu nahoře, ať nezakrývá jeho tlačítka (pod zamčeným timerem) */
@@ -1417,17 +1420,66 @@ button.lg-row:active { background: var(--tint); }
 .pl { flex: none; border-radius: 4px; background: var(--chart); }
 .pl-txt { text-align: center; margin: 6px 0 0; font-size: .9412rem; color: var(--text2); }
 .pl-txt b { color: var(--text); font-weight: 600; }
-.pl-warn { display: flex; gap: 6px; justify-content: center; align-items: flex-start; margin: 8px 0 0; font-size: .8235rem; color: var(--yellow); }
+.pl-warn { display: flex; gap: 6px; justify-content: center; align-items: flex-start; margin: 8px 0 0; font-size: .8235rem; color: var(--text); font-weight: 600; }
+.pl-warn svg { flex: none; color: var(--text2); }
 .pl-bar-h { margin: 22px 4px 8px; }
 
-.fr { display: grid; grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)); gap: 10px 2px; padding: 14px 6px; }
+.fr-wrap { container: fr / inline-size; padding: 14px 6px; }
+.fr { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px 2px; }
+@container fr (max-width: 19rem) { .fr { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 14px; } }
 .fr-c { min-width: 0; text-align: center; }
 .fr-c i { display: block; height: 4px; border-radius: 2px; margin: 0 4px 8px; }
-.fr-c b { display: block; font-family: var(--font-num); font-size: .9412rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fr-c b { display: flex; justify-content: center; align-items: center; gap: 2px; font-family: var(--font-num); font-size: .9412rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+.fr-c b svg { flex: none; width: .8em; height: .8em; color: var(--text2); }
 .fr-c span { display: block; font-size: .7059rem; color: var(--text3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fr-c.rest b { color: var(--text3); }
-.fr-c.stale b { color: var(--yellow); }
+.fr-c.stale b { color: var(--text); }
 .fr-c.none b { color: var(--text3); }
+
+/* ===== v4.1 — polish podle kritiky (Impeccable) ===== */
+/* během tréninku (dock na obrazovce) hlášky shora — dole by přikryly Přidat sérii a steppery */
+body.has-dock:not(.modal-open) .toast {
+  bottom: auto; top: calc(env(safe-area-inset-top) + var(--top-h) + 6px);
+  transform: translate(-50%, -16px) scale(.96);
+}
+body.has-dock:not(.modal-open) .toast.show { transform: translate(-50%, 0) scale(1); }
+/* se sheetem je dock nahoře — hláška přes dock, ne přes titulek a křížek sheetu */
+body.modal-open.has-dock .toast { top: calc(env(safe-area-inset-top) + 10px); }
+
+/* živý trénink: název je štítek, hlavní jsou čísla série */
+.page-head.live h1 { font-size: 1.5294rem; }
+
+/* Zrušit trénink dál od Dokončit; po prvním klepnutí čeká na druhé */
+.w-cancel-btn { margin-top: 28px; }
+.btn.text.w-cancel-btn.armed { background: var(--red-bg); }
+
+/* velký text: rozbalený counter partií do jednoho sloupce, kroužek týdenního cíle
+   nad čísla — vedle sebe by se při Velikosti textu AX nevešly a vylezly z karty */
+.cat-counter { container: catc / inline-size; }
+@container catc (max-width: 15rem) { .cat-grid { grid-template-columns: minmax(0, 1fr); } }
+.period-stats { container: pstats / inline-size; }
+@container pstats (max-width: 12rem) { .goal-stat { flex-direction: column; align-items: flex-start; gap: 6px; } }
+
+/* shrnutí: rekord jako hlavní moment konce tréninku */
+.sum-rec { display: flex; gap: 14px; align-items: flex-start; border-color: var(--yellow-bg); }
+.sum-rec-ic {
+  flex: none; width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--yellow-bg); color: var(--yellow);
+}
+.sum-rec-t { font-size: 1rem; font-weight: 600; line-height: 1.3; }
+.sum-rec-v {
+  font-family: var(--font-num); font-size: min(2.1176rem, 9vw); font-weight: 700; line-height: 1.1;
+  color: var(--yellow); font-variant-numeric: tabular-nums; margin-top: 2px; white-space: nowrap;
+}
+.sum-rec-v span { font-weight: 600; margin: 0 4px; opacity: .75; }
+.sum-rec-s { font-size: .8235rem; color: var(--text2); margin-top: 4px; }
+.sum-rec-more { margin-top: -4px; }
+
+/* povrchy prohlížeče z palety: výběr textu, kurzor, nativní prvky */
+::selection { background: var(--select-bg); }
+input, textarea { caret-color: var(--green-ink); }
+:root { accent-color: var(--green-ink); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

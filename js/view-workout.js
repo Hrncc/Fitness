@@ -44,6 +44,7 @@ function workoutHead() {
     const pct = total ? done / total * 100 : 0;
     return {
       title: sessionLabel(a),
+      cls: "live",   // v posilovně mají přednost čísla série, ne název tréninku
       sub: `${dateInfo}<b>${done}/${total}</b> cviků · <b>${sets}</b> ${setWordTop(sets)}`,
       below: `<div class="page-prog"><i style="width:${pct.toFixed(0)}%"></i></div>`
     };
@@ -82,16 +83,15 @@ function renderWorkoutStart() {
       opt(`data-act="w-cardio"`, "Kardio", `<i class="p-dot" style="background:var(--p-cardio)"></i>`)).join("");
   let hero = "";
   if (next) {
-    const last = lastWeightsSession();
+    const last = lastTemplateSession(next.id);
     const n = next.exercises.filter(getExercise).length;
     const g = lastSessionGaps();
     const gaps = g ? [...g.missed.map(m => m.cat), ...g.low.map(l => l.cat)] : [];
     hero = `
       <div class="next-row">
         <div class="grow">
-          <div class="td-eyebrow">Na řadě${day !== today ? ` · ${fmtShort(day)}` : ""}</div>
           <div class="next-name">${esc(next.name)}</div>
-          <div class="next-meta">${n} ${plural(n, "cvik", "cviky", "cviků")}${last ? ` · naposledy ${relDay(last.date)}` : ""}</div>
+          <div class="next-meta">Na řadě${day !== today ? ` ${fmtShort(day)}` : ""} · ${n} ${plural(n, "cvik", "cviky", "cviků")}${last ? ` · naposledy ${relDay(last.date)}` : ""}</div>
         </div>
         <button class="btn primary next-go" data-act="w-begin" data-template="${next.id}">${ic("play", 14)} Začít</button>
       </div>
@@ -111,8 +111,8 @@ function renderWorkoutStart() {
 
   out.push(`<div class="quick-links">
       <button class="start-opt" data-act="menu" data-page="records">${ic("trophy", 15)}<span>Rekordy</span></button>
-      <button class="start-opt" data-act="menu" data-page="templates">${ic("list", 15)}<span>Templates</span></button>
-      <button class="start-opt" data-act="menu" data-page="exlib">${ic("book", 15)}<span>Library</span></button>
+      <button class="start-opt" data-act="menu" data-page="templates">${ic("list", 15)}<span>Šablony</span></button>
+      <button class="start-opt" data-act="menu" data-page="exlib">${ic("book", 15)}<span>Cviky</span></button>
     </div>`);
   return out.join("");
 }
@@ -131,9 +131,11 @@ function freshnessHtml() {
     const d = last[c] ? daysBetween(last[c], today) : null;
     const cls = d == null ? " none" : d <= 1 ? " rest" : d > 14 ? " stale" : "";
     const val = d == null ? "—" : d <= 0 ? "dnes" : d === 1 ? "včera" : `${d} d`;
-    return `<div class="fr-c${cls}"><i style="background:${catColor(c)}"></i><b>${val}</b><span>${c}</span></div>`;
+    return `<div class="fr-c${cls}"><i style="background:${catColor(c)}"></i><b>${cls === " stale" ? ic("alert", 12, 2.2) : ""}${val}</b><span>${c}</span></div>`;
   }).join("");
-  return sec("Čerstvost partií", `<div class="card fr">${cells}</div>`, { sub: "dny od poslední série · šedě regeneruje" });
+  // obal nese container query: při větším textu se 7 sloupců zalomí na 4 + 3
+  return sec("Čerstvost partií", `<div class="card fr-wrap"><div class="fr">${cells}</div></div>`,
+    { sub: "dny od poslední série · šedě regeneruje" });
 }
 
 /* Řádek tréninku v seznamu: datum, název, čísla, pokrytí partií, rekordy */
@@ -303,13 +305,23 @@ function renderActiveSession() {
     }
 
     // předvyplnění další série podle minulého tréninku (stejný index, jinak poslední)
-    const pf = last ? (last.sets[setCount] || last.sets[last.sets.length - 1]) : null;
+    const lastAt = j => last ? (last.sets[j] || last.sets[last.sets.length - 1]) : null;
+    const pf = lastAt(setCount);
     // návrh progrese a „blízko rekordu" patří živému tréninku, ne opravě
     // uloženého (rekord by se navíc porovnával sám se sebou)
     const prog = a.editOf ? null : progressionSuggestion(target, last, kind);
     // při splněné progresi předvyplň vyšší váhu a spodek rozsahu
     let pfReps = prog ? prog.lo : (pf ? pf.reps : (target && target.lo) || "");
     let pfWeight = prog ? fmtNum(kgOut(prog.next), 1) : (pf ? fmtNum(kgOut(pf.weight), 1) : (kind === "bw" ? "0" : ""));
+    /* od 2. série váha jede podle dneška: minulá stejná série + o kolik je dnešní
+       předchozí série jinde než minule. Po těžší 1. sérii je těžší i 2., rovné
+       série zůstanou rovné a pyramida pyramidou. (Dřív se vracela na minulou váhu.) */
+    const prevNow = setCount ? entry.sets[setCount - 1] : null;
+    if (prevNow && kind !== "time") {
+      const base = lastAt(setCount - 1);
+      const w = pf && base ? pf.weight + (prevNow.weight - base.weight) : prevNow.weight;
+      pfWeight = fmtNum(kgOut(Math.max(0, w)), 1);
+    }
     let pfNote = "";
     let pfRir = null;
     const started = setCount > 0;
@@ -378,9 +390,9 @@ function renderActiveSession() {
     <div class="ex-open${entry.prHit ? " pr-flash" : ""}${ss}" id="exblock-${i}" data-i="${i}">
       <div class="ex-head" data-act="w-ex-close">
         <div class="grow">
-          <div class="ex-cat"><i class="p-dot" style="background:${pcol}"></i>${esc((ex && ex.category) || "—")} · ${i + 1}. cvik${target && target.sets ? ` · ${progress}` : ""}</div>
           <div class="ex-title">${esc(exName(exId))}</div>
           ${exNameEn(ex) ? `<div class="name-en">${esc(exNameEn(ex))}</div>` : ""}
+          <div class="ex-meta"><i class="p-dot" style="background:${pcol}"></i>${esc((ex && ex.category) || "—")} · ${i + 1}. cvik${target && target.sets ? ` · ${progress}` : ""}</div>
           ${planBits.length ? `<div class="ex-plan">${planBits.join(" · ")}</div>` : ""}
         </div>
         <div class="ex-tools">
@@ -426,7 +438,7 @@ function renderActiveSession() {
     <button class="btn ghost full" data-act="w-add-ex">${ic("plus", 18, 2.2)} Přidat cvik</button>
     <div class="mt2">${coreCardHtml(a)}</div>
     <button class="btn primary full mt" data-act="w-finish">${ic("check", 18, 2.6)} ${a.editOf ? "Uložit změny" : "Dokončit trénink"}</button>
-    <button class="btn text danger full" data-act="w-cancel">${a.editOf ? "Zahodit úpravy" : "Zrušit trénink"}</button>`;
+    <button class="btn text danger full w-cancel-btn" data-act="w-cancel">${a.editOf ? "Zahodit úpravy" : "Zrušit trénink"}</button>`;
 }
 
 /* ---- Nabídka cviku (⋯): superset, poznámka, progres, video, odebrání ---- */
@@ -775,9 +787,12 @@ function catCounterHtml(session) {
 
   /* Sbalený je pruh — v posilovně je nejcennější místo na obrazovce.
      Klepnutím se rozbalí na cviky · série u každé partie. */
+  /* nulová buňka: písmeno partie (R H Z B T C N) a proužek v její barvě —
+     prázdný obrys sám říká „zatím nic", písmeno řekne „čeho" bez pamatování pořadí */
   const bar = CAT_ORDER.map(c => `
-    <i class="${sets[c] || ticked(c) ? "" : "zero"}" style="background:${catColor(c)}" title="${c}">
-      <b>${ticked(c) ? ic("check", 13, 3) : sets[c]}</b>
+    <i class="${sets[c] || ticked(c) ? "" : "zero"}" style="--c:${catColor(c)}" role="img"
+      aria-label="${c}: ${ticked(c) ? "odškrtnuto" : `${sets[c] || 0} ${plural(sets[c] || 0, "série", "série", "sérií")}`}">
+      <b aria-hidden="true">${ticked(c) ? ic("check", 13, 3) : sets[c] || c[0]}</b>
     </i>`).join("");
 
   if (!WV.counterOpen) {
@@ -896,6 +911,18 @@ function refreshEntryRecords(a, entry) {
   entry.prHit = entry.sets.some(st => st.isPR);
 }
 
+/* chyba u pole: červený okraj stepperu (a aria-invalid), dokud se v poli nezačne psát */
+function flagField(id) {
+  const inp = document.getElementById(id);
+  const box = inp && inp.closest(".set-step");
+  if (!box) return;
+  box.classList.add("err");
+  inp.setAttribute("aria-invalid", "true");
+  const clear = () => { box.classList.remove("err"); inp.removeAttribute("aria-invalid"); };
+  inp.addEventListener("input", clear, { once: true });
+  setTimeout(clear, 4000);
+}
+
 /* Hodnoty série z polí podle druhu cviku; null = chyba (už ohlášená toastem) */
 function readSetInputs(i, kind) {
   const reps = parseInt(document.getElementById(`reps-${i}`).value, 10);
@@ -903,8 +930,8 @@ function readSetInputs(i, kind) {
   const wRaw = wEl ? wEl.value.trim() : "";
   const weight = kind === "time" ? 0 : (wRaw === "" && kind === "bw" ? 0 : kgIn(wRaw));
   const note = document.getElementById(`note-${i}`).value.trim();
-  if (!reps || reps <= 0) { toast(kind === "time" ? "Zadej délku výdrže" : "Zadej počet opakování", "err"); return null; }
-  if (weight == null || weight < 0) { toast("Zadej váhu", "err"); return null; }
+  if (!reps || reps <= 0) { flagField(`reps-${i}`); toast(kind === "time" ? "Zadej délku výdrže" : "Zadej počet opakování", "err"); return null; }
+  if (weight == null || weight < 0) { flagField(`weight-${i}`); toast("Zadej váhu", "err"); return null; }
   // RIR (v4.0): vybraná volba pod poli; 0 = do selhání
   const rEl = document.querySelector(`.rir-opts[data-i="${i}"] .rir-opt.on`);
   const rir = rEl ? Number(rEl.dataset.v) : null;
@@ -1292,15 +1319,34 @@ function openWorkoutSummary(sid) {
   const counts = sessionCatSets(s);
   const zero = CAT_ORDER.filter(c => !counts[c] && !(c === "Core" && s.core === true));
   const recs = sessionRecordEvents(s);
-  const recRows = recs.slice(0, 8).map(ev => `
+  /* nejlepší rekord jde nahoru jako hlavní blok: nejdřív podle druhu (1RM,
+     váha, opakování, série), pak podle odhadu 1RM; ostatní pod ním řádky */
+  const rank = ev => Math.min(...ev.types.map(t => REC_ORDER.indexOf(t)));
+  const ordered = recs.slice().sort((x, y) => rank(x) - rank(y) || est1RM(y.weight || 0, y.reps) - est1RM(x.weight || 0, x.reps));
+  const top = ordered[0];
+  const topE1 = top && exKind(top.exerciseId) === "weight" && top.weight ? est1RM(top.weight, top.reps) : 0;
+  const recHero = top ? `
+    <div class="card sum-rec">
+      <span class="sum-rec-ic">${ic("trophy", 22, 2)}</span>
+      <div class="grow">
+        <div class="sum-rec-t">${esc(exName(top.exerciseId))}</div>
+        <div class="sum-rec-v">${setValHtml(top.exerciseId, top)}</div>
+        <div class="sum-rec-s">${esc(capFirst(top.types.map(t => REC_LABEL[t]).join(", ")))}${topE1 ? ` · odhad 1RM ${fmtWeight(topE1)}` : ""}</div>
+      </div>
+    </div>` : "";
+  /* jako seznam rekordů v Pokroku: druh šedě, hodnota zlatě; „a 1 další"
+     by zabralo stejně místa jako ten řádek, takže se ukáže rovnou */
+  const cut = ordered.length > 8 ? 7 : ordered.length;
+  const recRows = ordered.slice(1, cut).map(ev => `
     <div class="list-item">
       <i class="p-stripe" style="background:${exColor(ev.exerciseId)}"></i>
       <div class="grow">
         <div class="name">${esc(exName(ev.exerciseId))}</div>
-        <div class="li-sub" style="color:var(--yellow)">${ev.types.map(t => REC_LABEL[t]).join(", ")}</div>
+        <div class="li-sub">${ev.types.map(t => REC_LABEL[t]).join(", ")}</div>
       </div>
-      <span class="li-val">${setShort(ev.exerciseId, ev)}</span>
+      <span class="li-val" style="color:var(--yellow)">${setShort(ev.exerciseId, ev)}</span>
     </div>`).join("");
+  const more = ordered.length - cut;
 
   /* změny proti šabloně: jiné cviky, pořadí nebo supersety → nabídka uložit */
   let tplCard = "";
@@ -1341,8 +1387,10 @@ function openWorkoutSummary(sid) {
   WV.rateVal = null;
   const chips = Array.from({ length: 10 }, (_, k) => k + 1).map(n =>
     `<button class="scale-chip ratechip" data-act="w-rate-chip" data-val="${n}">${n}</button>`).join("");
-  openModal(`${modalTitle("Trénink uložen")}
-    <p class="modal-sub">${esc(sessionLabel(s))} · ${relDay(s.date)}${s.startedAt ? ` · začátek ${fmtTime(s.startedAt)}` : ""}</p>
+  openModal(`${modalTitle(`Hotovo · ${sessionLabel(s)}`)}
+    <p class="modal-sub">${capFirst(relDay(s.date))}${s.startedAt ? ` · začátek ${fmtTime(s.startedAt)}` : ""}${recs.length ? ` · ${recs.length} ${plural(recs.length, "rekord", "rekordy", "rekordů")}` : ""}</p>
+    ${recHero}
+    ${recRows ? `<div class="card rows sum-rec-more">${recRows}</div>${more ? `<p class="small" style="margin:-4px 4px 12px">a ${more} ${plural(more, "další", "další", "dalších")}</p>` : ""}` : ""}
     <div class="card">
       <div class="stats">
         ${statHtml(s.entries.length, plural(s.entries.length, "cvik", "cviky", "cviků"), prev ? deltaHtml(s.entries.length, prev.entries.length) : "")}
@@ -1356,10 +1404,8 @@ function openWorkoutSummary(sid) {
         <span class="cap"><b style="color:var(--text)">${CAT_ORDER.length - zero.length}</b> ze ${CAT_ORDER.length}</span>
       </div>
       ${catPipsHtml(counts, s.core === true)}
-      ${zero.length ? `<div class="small warn-text" style="margin-top:9px">Bez série: ${zero.join(", ")}</div>` : ""}
+      ${zero.length ? `<div class="small warn-text" style="margin-top:9px">${ic("alert", 13)} Bez série: ${zero.join(", ")}</div>` : ""}
     </div>
-    ${recs.length ? `<div class="h3" style="margin-top:20px">${recs.length} ${plural(recs.length, "rekord", "rekordy", "rekordů")}</div>
-      <div class="card rows">${recRows}</div>${recs.length > 8 ? `<p class="small" style="margin:-4px 4px 10px">a ${recs.length - 8} dalších</p>` : ""}` : ""}
     ${tplCard}
     <div class="h3" style="margin-top:20px">Jak ti trénink sedl?</div>
     <div class="scale-row" style="margin-bottom:14px">${chips}</div>
@@ -1439,7 +1485,7 @@ function sessionDetailHtml(s) {
       <b style="font-size:17px">${esc(sessionLabel(s))}</b>
       ${s.startedAt ? `<span class="badge neutral">${ic("timer", 12, 2.2)} ${fmtTime(s.startedAt)}</span>` : ""}
       ${s.rating ? `<span class="badge">${s.rating}/10</span>` : ""}
-      ${recSet.size ? `<span class="badge yellow">${ic("trophy", 12, 2.2)} ${recSet.size}</span>` : ""}
+      ${recSet.size ? `<span class="badge yellow">${ic("trophy", 12, 2.2)} ${sessionPRCount(s)}</span>` : ""}
     </div>
     <div class="card">
       <div class="stats">

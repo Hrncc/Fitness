@@ -122,6 +122,13 @@ function lastWeightsSession() {
     .sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id)))[0] || null;
 }
 
+/* „naposledy" u šablony na řadě — datum té šablony, ne posledního tréninku vůbec */
+function lastTemplateSession(tplId) {
+  return [...S.sessions]
+    .filter(s => s.type === "weights" && s.templateUsed === tplId && s.date <= todayStr())
+    .sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id)))[0] || null;
+}
+
 /* Rotuje jen přes šablony, které se reálně jedou (posledních 6 týdnů).
    Opuštěný plán jinak navrhuje tréninky, které uživatel nedělá — a když
    jede jedinou šablonu, „na řadě" je pořád ona. */
@@ -346,6 +353,10 @@ function applyExerciseNamesEn() {
    + volitelná zátěž (pole váhy = přidaná zátěž), time = výdrž na čas (sekundy
    se ukládají do reps — stejně jako dřív u planku, takže stará data sedí). */
 const EX_KINDS = [["weight", "Váha × opakování"], ["bw", "Vlastní váha (+ zátěž)"], ["time", "Výdrž na čas"]];
+/* vlastní cvik = přidaný ručně; cviky z plánu trenéra (cp-*) se importovaly
+   s isCustom: true, ale „vlastní" nejsou */
+function isOwnExercise(e) { return !!e && e.isCustom === true && !String(e.id).startsWith("cp-"); }
+
 const KIND_DEFAULTS = {
   time: ["ex-plank", "xd-side-plank", "xd-hollow-hold"],
   bw: ["ex-pushup", "ex-pullup", "ex-dips", "xd-pushup-feet-up", "xd-pushup-diamond",
@@ -367,6 +378,20 @@ applyCoachPlan();
 applyExerciseDb();
 applyExerciseNamesEn();
 applyExerciseKinds();
+
+/* v4.1: cviky z plánu trenéra s vlastní vahou neměly druh, takže se ukazovaly
+   jako „9 × 0 kg". Doplní se jednou (flag kindsV2), ručně změněný druh zůstane. */
+const KIND_DEFAULTS_V2 = { bw: ["cp-a1", "cp-b1"] };
+function applyExerciseKindsV2() {
+  if (S.kindsV2) return;
+  for (const [kind, ids] of Object.entries(KIND_DEFAULTS_V2)) {
+    for (const id of ids) { const e = getExercise(id); if (e && !e.kind) e.kind = kind; }
+  }
+  S.kindsV2 = true;
+  S.updatedAt = Date.now();
+  persist();
+}
+applyExerciseKindsV2();
 /* backfill milníků je až na konci souboru — MILESTONES je const níž */
 
 function loadState() {

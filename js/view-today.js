@@ -16,7 +16,7 @@ function capFirst(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
 function todayHead() {
   const now = new Date();
-  return { eyebrow: capFirst(`${CZ_DAYS_FULL[now.getDay()]} ${now.getDate()}. ${CZ_MONTHS_GEN[now.getMonth()]}`), title: "Dnes" };
+  return { title: "Dnes", sub: capFirst(`${CZ_DAYS_FULL[now.getDay()]} ${now.getDate()}. ${CZ_MONTHS_GEN[now.getMonth()]}`) };
 }
 
 function renderToday() {
@@ -199,7 +199,7 @@ function workoutOpenHtml() {
       <button class="btn primary full" data-act="nav" data-tab="workout">Otevřít trénink</button>
     </div>`;
   }
-  const last = lastWeightsSession();
+  const last = lastTemplateSession(next.id);
   const tplCounts = {};
   for (const id of next.exercises) { const c = exCategory(id); if (c) tplCounts[c] = (tplCounts[c] || 0) + 1; }
   const g = lastSessionGaps();
@@ -316,7 +316,7 @@ function periodBodyHtml(cur, prev, { goal = 0, cap = "" } = {}) {
   const hit = CAT_ORDER.length - zero.length;
   return `
       <hr class="hair">
-      <div class="stats">
+      <div class="stats period-stats">
         ${goal ? goalStatHtml(cur, prev, goal) : statHtml(cur.weights, plural(cur.weights, "trénink", "tréninky", "tréninků") + (cur.cardio ? ` + ${cur.cardio}× kardio` : ""), deltaHtml(cur.weights, prev.weights))}
         ${statHtml(fmtNum(cur.sets), plural(cur.sets, "série", "série", "sérií"), deltaHtml(cur.sets, prev.sets, true))}
         ${statHtml(`${vol.val}<small>${vol.unit}</small>`, "objem", deltaHtml(cur.volume, prev.volume, true))}
@@ -329,7 +329,7 @@ function periodBodyHtml(cur, prev, { goal = 0, cap = "" } = {}) {
       </div>
       ${catPipsHtml(cur.counts, cur.core)}
       ${cur.weights ? (zero.length
-        ? `<div class="small warn-text" style="margin-top:9px">Bez série: ${zero.join(", ")}</div>`
+        ? `<div class="small warn-text" style="margin-top:9px">${ic("alert", 13)} Bez série: ${zero.join(", ")}</div>`
         : `<div class="small" style="margin-top:9px">Všech ${CAT_ORDER.length} partií pokryto</div>`) : ""}`;
 }
 
@@ -448,7 +448,7 @@ function weeklyRecapHtml() {
   const vol = fmtVolume(w.volume);
   const volPct = prev.volume > 0 ? Math.round((w.volume / prev.volume - 1) * 100) : null;
   const parts = [`<b>${w.weights}</b> ${plural(w.weights, "trénink", "tréninky", "tréninků")}`];
-  if (w.volume) parts.push(`<b>${vol.val} ${vol.unit}</b>${volPct != null ? ` (${volPct >= 0 ? "+" : ""}${volPct} %)` : ""}`);
+  if (w.volume) parts.push(`<b>${vol.val} ${vol.unit}</b>${volPct != null ? ` (${volPct > 0 ? "+" : volPct === 0 ? "±" : ""}${volPct} %)` : ""}`);
   if (w.prs) parts.push(`<b style="color:var(--yellow)">${w.prs}×</b> rekord`);
   return `<div class="note-row" data-act="td-week" data-dir="-1">
     <div class="grow">

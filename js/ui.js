@@ -176,7 +176,7 @@ function fmtClock(sec) {
 
 /* ---- Toast (volitelně s akčním tlačítkem, např. Vrátit) ---- */
 let _toastTimer;
-function toast(msg, kind = "", action = null) {
+function toast(msg, kind = "", action = null, ms = 0) {
   const t = document.getElementById("toast");
   // potvrzení nese SVG fajfku místo znaku ✓ (v3.0)
   const clean = String(msg).replace(/\s*✓\s*$/, "");
@@ -187,7 +187,7 @@ function toast(msg, kind = "", action = null) {
   t.style.pointerEvents = action ? "auto" : "none";
   clearTimeout(_toastTimer);
   // schovaný toast nesmí dál chytat klepnutí (tlačítko „Vrátit" zapíná pointer-events)
-  _toastTimer = setTimeout(() => { t.classList.remove("show"); t.style.pointerEvents = "none"; }, action ? 6000 : 2600);
+  _toastTimer = setTimeout(() => { t.classList.remove("show"); t.style.pointerEvents = "none"; }, ms || (action ? 6000 : 2600));
 }
 
 /* ---- Rest timer — pauza mezi sériemi ----
@@ -377,22 +377,44 @@ function startedLabel(s) {
 }
 
 /* ---- Modal (bottom sheet) ---- */
+let _modalReturn = null;   // prvek, na který se po zavření sheetu vrátí fokus
 function openModal(html) {
   const m = document.getElementById("modal");
+  if (!m.classList.contains("open")) _modalReturn = document.activeElement;
   m.innerHTML = html;
   m.scrollTop = 0;
   m.classList.remove("scrolled");
   m.classList.add("open");
   document.getElementById("modalBackdrop").classList.add("open");
   document.body.classList.add("modal-open");
+  a11yActs(m);
+  // fokus do sheetu (čtečka i klávesnice začnou v něm) — jen když si ho
+  // nevzalo pole, které volající otevřel s klávesnicí
+  requestAnimationFrame(() => {
+    if (m.contains(document.activeElement)) return;
+    (m.querySelector('[data-act="modal-close"]') || m).focus({ preventScroll: true });
+  });
 }
 function closeModal() {
-  document.getElementById("modal").classList.remove("open");
+  const m = document.getElementById("modal");
+  const wasOpen = m.classList.contains("open");
+  m.classList.remove("open");
   document.getElementById("modalBackdrop").classList.remove("open");
   document.body.classList.remove("modal-open");
+  if (wasOpen && _modalReturn && _modalReturn.isConnected) _modalReturn.focus({ preventScroll: true });
+  _modalReturn = null;
+}
+/* Klikací prvky, které nejsou tlačítka (řádky cviků, sérií, dnů, counter…),
+   dostanou fokus z klávesnice a roli tlačítka; Enter a mezerník je spustí
+   (app.js). Řádek s vnořenými tlačítky dostane jen fokus — role by je schovala. */
+function a11yActs(root) {
+  root.querySelectorAll("[data-act]:not(button):not(a):not(input):not(select):not(textarea):not(label)").forEach(el => {
+    if (!el.hasAttribute("tabindex")) el.tabIndex = 0;
+    if (!el.hasAttribute("role") && !el.querySelector("button, a, input, select, textarea")) el.setAttribute("role", "button");
+  });
 }
 function modalTitle(text) {
-  return `<div class="modal-title"><span>${esc(text)}</span>
+  return `<div class="modal-title"><span id="modalTitle">${esc(text)}</span>
     <button class="iconbtn" data-act="modal-close" aria-label="Zavřít">${ic("x", 18, 2.3)}</button></div>`;
 }
 /* ---- Sheet jde zavřít stažením dolů (iOS, v4.0) ----
@@ -507,7 +529,7 @@ function pickerListHtml() {
             ${exNameEn(e) ? `<div class="name-en">${esc(exNameEn(e))}</div>` : ""}
           </div>
           ${used ? `<span class="badge">${esc(used)}</span>`
-            : e.isCustom ? `<span class="badge">vlastní</span>` : ""}
+            : isOwnExercise(e) ? `<span class="badge">vlastní</span>` : ""}
         </div>`;
       }).join("");
     if (!items) return "";
@@ -540,7 +562,9 @@ function dayNavHtml(day, act, changeAct, todayAct) {
   const d = parseDate(day);
   const label = day === today ? "Dnes" : day === addDays(today, -1) ? "Včera"
     : day === addDays(today, 1) ? "Zítra" : `${CZ_DAYS_FULL[d.getDay()]} ${d.getDate()}. ${d.getMonth() + 1}.`;
-  const hint = day > today ? "plánování" : fmtDate(day);
+  // u starších dnů je datum už v popisku — pod ním jen jak dávno to bylo
+  const ago = daysBetween(day, today);
+  const hint = day > today ? "plánování" : ago <= 1 ? fmtDate(day) : `před ${ago} dny`;
   return `
     <div class="daynav">
       <button class="iconbtn soft" data-act="${act}" data-dir="-1" aria-label="Předchozí den">${ic("chevL")}</button>

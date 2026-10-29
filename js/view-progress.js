@@ -32,7 +32,8 @@ function renderProgress() {
   if (PG.seg === "food") return foodProgressHtml();
   if (!S.sessions.some(s => s.type === "weights")) {
     return `<div class="card"><div class="empty-note">Zatím žádný silový trénink.<br>
-      Po prvních trénincích tu uvidíš, jak se ti daří.</div></div>`;
+      Po prvních trénincích tu uvidíš, jak se ti daří.</div>
+      <button class="btn primary full mt" data-act="nav" data-tab="workout">${ic("play", 14)} Začít trénink</button></div>`;
   }
   return strengthHtml() + progressKpiHtml() + weeklyHtml() + consistencyHtml() + partsHtml() + recordsTeaserHtml();
 }
@@ -285,7 +286,7 @@ function weeklyHtml() {
     <div class="card">
       ${segHtml([["sets", "Série"], ["volume", "Objem"]], PG.metric, "pg-metric", "m", "sm")}
       <div class="mt2">${columnChart(data, { unit, fmt })}</div>
-      <div class="chart-cap">${avg != null ? `Ø ${fmt(avg)}${unit} za uzavřený týden · ` : ""}světlý sloupec je tento týden</div>
+      <div class="chart-cap">${avg != null ? `Ø ${fmt(avg)}${unit} za uzavřený týden · ` : ""}zvýrazněný sloupec je tento týden</div>
     </div>`, { sub: `posledních ${PG_WEEKS} týdnů` });
 }
 

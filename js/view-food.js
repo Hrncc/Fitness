@@ -155,7 +155,7 @@ function wireFoodSearch() {
         ${sourceBadge(r.source)}
       </div>`).join("");
     if (!results.length) html = `<div class="empty-note">Nic nenalezeno — zkus jiný výraz nebo zadej ručně</div>`;
-    if (errors.length) html += `<div class="small" style="color:var(--yellow);margin-top:8px">⚠ ${errors.map(esc).join("<br>⚠ ")}</div>`;
+    if (errors.length) html += errors.map(er => `<div class="small warn-text" style="margin-top:8px">${ic("alert", 13)} ${esc(er)}</div>`).join("");
     out.innerHTML = html;
   }, 450);
   inp.addEventListener("input", () => {
@@ -192,7 +192,7 @@ function foodFavHtml() {
       ${sourceBadge(f.source)}
     </div>`).join("");
   if (!recipes && !favs) {
-    return `<div class="empty-note">Zatím žádné oblíbené ani recepty.<br>Hvězdička a recepty se spravují ve Food Library.</div>`;
+    return `<div class="empty-note">Zatím žádné oblíbené ani recepty.<br>Hvězdička a recepty se spravují v Knihovně jídel.</div>`;
   }
   return (recipes ? `<div class="h3">Recepty</div>${recipes}` : "")
     + (favs ? `<div class="h3" style="margin-top:${recipes ? "14px" : "0"}">Oblíbené potraviny</div>${favs}` : "");
@@ -273,7 +273,7 @@ async function runLabelScan(mealMode = false) {
     // přepnutí na ruční formulář s předvyplněnými hodnotami ke kontrole
     document.getElementById("foodModalBody").innerHTML = `
       <div class="card2" style="margin-bottom:12px">
-        <span class="badge${mealMode ? " yellow" : ""}">${mealMode ? "Odhad z fotky — orientační" : "Přečteno z fotky"}</span>
+        <span class="badge">${mealMode ? "Odhad z fotky — orientační" : "Přečteno z fotky"}</span>
         ${r.note ? `<div class="small mt">${esc(r.note)}</div>` : ""}
         ${mealMode && FV.scanGrams ? `<div class="small mt">Odhad porce: ~${fmtNum(FV.scanGrams)} g (předvyplní se v dalším kroku)</div>` : ""}
         <div class="small mt">Zkontroluj hodnoty, případně je uprav, a pokračuj.</div>

@@ -33,7 +33,7 @@ Osobní PWA pro zápis silových a kardio tréninků a stravy. **Jeden uživatel
 | `js/view-checkin.js` | Pokrok → **Tělo** (váha, check-in, fotky, obvody, historie) + stránka formuláře check-inu |
 | `js/view-summary.js` | Pokrok → **Strava**, detail dne `openDaySummary()`, `movingAvgAt()`, stav kalendáře `SV` |
 | `js/view-food.js` | stránka **Jídlo** (denní log) + přidání jídla (hledání, foto, oblíbené, ručně) |
-| `js/view-menu.js` | stránka **Více** (`renderMore()`) + stránky Exercise Library, Workout Templates (+ editor plánu `openPlanModal()`), Food Library, Export & Backup (+ CSV sérií `buildSetsCsv()`), Nastavení, O aplikaci; fotky (`PV`) |
+| `js/view-menu.js` | stránka **Více** (`renderMore()`) + stránky Knihovna cviků, Šablony tréninků (+ editor plánu `openPlanModal()`), Knihovna jídel, Záloha a export (+ CSV sérií `buildSetsCsv()`), Nastavení, O aplikaci; fotky (`PV`) |
 | `js/report.js` | `buildCoachReport(range)` — textový report pro Clauda |
 | `js/app.js` | router + velký titulek (`pageHead()`), delegace akcí (`ACTIONS`), `withUndo()`, start |
 | `apps-script/Code.gs` | backend syncu v Google Sheetu + 7 denních záloh |
@@ -46,14 +46,18 @@ Osobní PWA pro zápis silových a kardio tréninků a stravy. **Jeden uživatel
   kontroluje milníky a plánuje sync.
 - **Mazání bez potvrzovacích dialogů** — používej `withUndo("Hláška", () => {…})`,
   které udělá snapshot a nabídne v toastu „Vrátit". U záznamů volej `markDeleted(id)`,
-  jinak se smazaná věc vrátí ze syncu z druhého zařízení.
+  jinak se smazaná věc vrátí ze syncu z druhého zařízení. Od v4.1 snapshot přežije
+  i obnovení stránky (`sessionStorage`, `restorePendingUndo()`) a velké ztráty
+  (zrušení i smazání tréninku, import zálohy) mají okno 12 s (`withUndo(msg, fn, 12000)`).
 - **Desetinná čísla:** vstupy jsou `type="text" inputmode="decimal"` a parsují se
   přes `parseDec()`. `type="number"` na iOS zahazuje českou desetinnou čárku.
 - **Barevná logika — dvě vrstvy** (v1.16, ve v2.0 zúžená; nesahat bez důvodu):
   - **Stav** = co se právě děje. Vždy jako *výplň* nebo plný text.
     volt = **hlavní akce obrazovky** (jedno volt tlačítko na obrazovku), splněno
     (fajfky, odcvičený den) a zlepšení (šipka nahoru, progres k cíli),
-    zlatá = rekordy a varování „něco ti utíká", červená = chyby, mazání,
+    zlatá = **jen rekordy** (od v4.1 — varování „něco ti utíká" jako Minule uteklo,
+    Bez série, dlouho netrénovaná partie nebo kotouče jsou bílý text se šedou
+    ikonou ⚠, `.warn-text` / `.td-warn`), červená = chyby, mazání,
     překročení, **bílá = výběr** (chip, segment, navigace, zvolená odpověď),
     bílá/šedá = data a grafy, neutrální štítek = typové popisky a pending stavy.
     Makra jsou odstíny `--mac1` (bílkoviny) → `--mac3` (tuky).
@@ -162,7 +166,9 @@ nasadit **novou verzi stávajícího nasazení**, ne nové nasazení (jinak se z
 
 Od v4.0 testuj **v obou režimech** (`prefers-color-scheme` light i dark) a s **větším
 textem** (`document.documentElement.style.fontSize = "23px"` / `"28px"` simuluje iOS
-Velikost textu) — nic nesmí přetékat do strany. SF Pro mimo Apple zařízení
+Velikost textu, až `"34px"`) — nic nesmí přetékat do strany **ani z karty či sheetu**
+(od v4.1 se kontroluje i vnitřní přetečení — prvek proti nejbližší kartě, seznamu
+nebo sheetu —, samotné `scrollWidth` ho nepozná). SF Pro mimo Apple zařízení
 není; na Linuxu podobné metriky dává Inter (v testech se podstrčí přes `--font`).
 
 Preview server je v `.claude/launch.json` (`preview_start` s `name: "fitness-app"`).
@@ -207,7 +213,10 @@ ať uživateli nezůstanou testovací data. Reálná data jdou stáhnout z jeho 
 ## Pokrytí partií
 
 `catCounterHtml()` (`view-workout.js`) drží nad cviky po celou dobu tréninku.
-Sbalený je **pruh** se sériemi (v posilovně je místo na obrazovce nejcennější),
+Sbalený je **pruh** se sériemi (v posilovně je místo na obrazovce nejcennější);
+partie bez série je obrys s **písmenem partie** a barevnou linkou dole (v4.1 —
+dřív prázdné „0", rozlišené jen barvou), každá buňka má `aria-label`. Rozbalený
+má při velkém textu jeden sloupec.
 klepnutím (`w-counter`) se rozbalí na **cviky · série** u každé partie —
 série samy nerozliší „tři série na jednom cviku" od „tři cviky po jedné".
 Pořadí je pevné podle těla (`CAT_ORDER`), ať se buňky pod prstem nepřeskupují.
@@ -217,7 +226,7 @@ Pořadí je pevné podle těla (`CAT_ORDER`), ať se buňky pod prstem nepřesku
   tréninků, šablony, detail tréninku)
 - `lastSessionGaps()` — co uteklo v posledním tréninku; 0 sérií = vynechaná,
   1 série = odbytá, u tréninku ze šablony i porovnání cviků proti plánu.
-  Zobrazuje se zlatým řádkem „Minule uteklo" v kartě šablony na řadě (Dnes
+  Zobrazuje se řádkem s ikonou ⚠ „Minule uteklo" v kartě šablony na řadě (Dnes
   i Trénink).
 - `nextTemplate()` — rotace jen přes `activeTemplates()`, tedy šablony použité
   za posledních 42 dní; volný trénink rotaci neposouvá. Martin jede vlastní
@@ -226,6 +235,49 @@ Pořadí je pevné podle těla (`CAT_ORDER`), ať se buňky pod prstem nepřesku
 
 Všechny tři šablony trenéra pokrývají všech 7 partií, takže „N ze 7" je reálný
 cíl každého tréninku, ne teoretické skóre.
+
+## v4.1 — kritika a polish podle skillu Impeccable
+
+Martin chtěl „critique a polish" skillem **Impeccable**.
+Kritika = dva nezávislé posudky (designová recenze + detektor a prohlížeč),
+skóre 28/40; snapshot leží lokálně v `.impeccable/critique/` (v `.git/info/exclude`,
+do repa nepatří). Martin vybral všechny čtyři oblasti (váha série a nevratné
+ztráty, gym mód, přístupnost a kontrast, drobnosti), **rekord jako hlavní moment**
+konce tréninku, zrušení tréninku **druhým klepnutím + delší Vrátit** a **české
+názvy stránek** (Knihovna cviků, Šablony tréninků, Knihovna jídel, Záloha a export).
+
+- **Zlatá jen pro rekordy**, varování jsou neutrální s ikonou ⚠ (viz Barevná logika).
+- **Žádný štítek nad nadpisem** (eyebrow / kicker): `.td-eyebrow`, `.page-head .eyebrow`
+  i `.ex-cat` jsou pryč, doplňující údaj jde **pod** nadpis (Dnes: datum pod „Dnes",
+  šablona na řadě: „Na řadě · …" pod názvem, cvik: partie pod anglickým názvem).
+- **Nevratné ztráty:** Vrátit přežije obnovení stránky (`fitapp_undo` v `sessionStorage`),
+  12 s u zrušení / smazání tréninku a importu; odebrání cviku ze šablony (`tpl-rm`)
+  jde přes `withUndo`; **fotka se maže měkce** — `deletePhoto()` ji schová
+  (`PV.pendingDel`), z IndexedDB ji smaže až po 8 s, `ph-undo` ji vrátí.
+- **Přístupnost:** sheet je `role="dialog"` + `aria-modal` + `aria-labelledby="modalTitle"`,
+  při otevření jde fokus do sheetu (křížek) a po zavření zpět (`_modalReturn`),
+  Escape zavře. Toast je `role="status"` `aria-live="polite"`. `a11yActs(root)`
+  (volá ho `render()` i `openModal()`) dá prvkům s `data-act` bez nativní role
+  `tabIndex = 0` + `role="button"`, Enter / mezerník je spustí. Prstenec fokusu
+  jen z klávesnice (`:focus-visible`) — po klepnutí prstem nesvítí.
+- **Kontrast:** budoucí dny týdne bez `opacity` (dřív 1,5:1), štítek „selhání" bez
+  `opacity`, tečky legendy s obrysem `--hair2` (volt na bílé zmizel).
+- **Velký text:** toast má `width: max-content` (s `left: 50%` měl strop na půlce
+  obrazovky a lámal „42,5 / kg"), jednotky čísel v `em`, container queries:
+  čerstvost partií 4 sloupce, rozbalený counter 1 sloupec, kroužek týdenního cíle
+  nad čísly (`.period-stats`), logo v O aplikaci se láme (`<wbr>`).
+- **Gym mód:** živý titulek menší (`.page-head.live`), hlášky nahoře, chyba u pole,
+  písmena v counteru, váha další série podle dneška (viz Gym mód).
+- **Drobnosti:** editor plánu nabízí výchozí pauzu jen jednou („výchozí 2:00")
+  a prázdný rozsah ukazuje „od" / „do"; navigátor dne „před N dny" místo
+  opakovaného data; `isOwnExercise(e)` — štítek „vlastní" jen u Martinových cviků
+  (`cp-*` mají `isCustom` z importu); migrace `applyExerciseKindsV2()` (flag
+  `kindsV2`) dá cvikům trenéra `cp-a1`, `cp-b1` druh vlastní váha; pohár v detailu
+  tréninku ukazuje stejný počet jako seznam (`sessionPRCount()`).
+- **Plochy prohlížeče** z palety: `::selection` (`--select-bg`), `caret-color`
+  a `accent-color` = `--green-ink`.
+- Detektor po polish hlásí jen `pulsing-dot` — tečka živého tréninku v docku.
+  **Záměrná výjimka**: ukazuje skutečně živý stav a s omezeným pohybem stojí.
 
 ## Vzhled v4.0 — Apple (HIG) podle skillů apple-design a swiftui-pro
 
@@ -247,7 +299,10 @@ sérií ve stylu Strong/Hevy, nativní SwiftUI appku — viz Záměrně neimplem
   velikosti písma jsou v `rem`** (px ÷ 17), takže při výchozí velikosti vypadají
   stejně jako dřív v px. Pole `max(16px, …)` (kvůli zoomu iOS). Textové prvky mají
   `min-height` místo `height`, mřížky `minmax(0, 1fr)`, velká čísla `min(…rem, …vw)`.
-  Ověřeno bez přetečení až do 34 px základu.
+  Ověřeno bez přetečení až do 34 px základu — přes okraj obrazovky i uvnitř karet
+  a sheetů (to druhé až od v4.1; dřív se hlídal jen okraj a uvnitř se věci tloukly).
+  **Jednotky u velkých čísel v `em`** (`.stat-v small` …): číslo má strop ve `vw`,
+  jednotka v `rem` by ho při velkém textu přerostla a vylezla z karty.
 - **Světlý režim** (`@media (prefers-color-scheme: light)`, výchozí zůstává tmavý):
   iOS plochy `--bg #F2F2F7`, karty bílé. Volt zůstává **výplní** s tmavým textem;
   jako **text nebo tenká čára** je `--green-ink` (tmavý režim = volt, světlý
@@ -324,7 +379,7 @@ silné jako dřív — a hlavně **super přehled o tréninku a progresu**.
 - Výběr = bílá: `.chip.on`, `.seg-btn.on` (palec segmentu), `.opt.on` (rychlá
   odpověď), `.scale-chip.on`, aktivní položka navigace.
 - **Velký titulek** (iOS large title) — `pageHead()` v `app.js`, obrazovka může
-  dodat `{eyebrow, title, sub, right, below}`. Top bar je průhledný; po odscrollování
+  dodat `{title, sub, right, below, cls}` (štítek nad titulkem je od v4.1 pryč). Top bar je průhledný; po odscrollování
   zesklovatí a ukáže malý titulek. Stránky mají v top baru šipku zpět (`page-back`).
 - **Ikony** jsou inline SVG přes `ic(name)` (tah 1,9) — žádné znaky ✕ ✎ ⇄ ‹ ›.
 - Grafy podle dataviz pravidel: sloupce ≤ 22 px se zaobleným vrcholem, čára 2 px,
@@ -365,7 +420,7 @@ Shora dolů od nejbližšího k nejširšímu:
   Buňka: volt kolečko = silový trénink, červený prstenec = kardio, dvě tečky =
   váha · jídlo, klepnutí → detail dne. Týdenní pás:
   čísla tréninky · série · objem se změnou a pokrytí partií za týden („Bez série:
-  …" zlatě). Šipkami se listuje do minulých týdnů (`TV.weekOff`). Probíhající týden
+  …" s ikonou ⚠). Šipkami se listuje do minulých týdnů (`TV.weekOff`). Probíhající týden
   se srovnává **se stejnou dobou minulého týdne**, uzavřený s celým předchozím.
   Rekap minulého týdne je řádek nad kartou (klepnutí = ukáže minulý týden,
   křížek = schovat do dalšího pondělí, `recapDismissed`).
@@ -379,13 +434,15 @@ Shora dolů od nejbližšího k nejširšímu:
 ### Trénink (`view-workout.js`)
 
 - **Start** (v2.1.2 — na Martinovo „kompaktnější, víc minimalismu"): jedna nízká
-  karta `.next-card` — šablona na řadě v jednom řádku (Na řadě · název · „N cviků ·
-  naposledy …") s volt **Začít** vpravo, případně zlatý řádek „Minule uteklo",
+  karta `.next-card` — název šablony na řadě a pod ním „Na řadě · N cviků ·
+  naposledy …" (`lastTemplateSession()` — datum **té šablony**, do v4.1 to bylo
+  datum posledního tréninku vůbec) s volt **Začít** vpravo, případně řádek ⚠ „Minule uteklo",
   pod linkou ostatní volby jako malé kapsle `.start-opt` bez ikon (ostatní
   šablony, Volný, Kardio s tečkou). Seznam cviků šablony na startu záměrně není.
   Pod ní **Čerstvost partií** (v4.0, `freshnessHtml()` z `partLastTrained()`):
   dny od poslední série na partii v pořadí `CAT_ORDER` — dnes/včera šedě
-  (regeneruje), přes 14 dní zlatě. Záměrně jen dny, žádné % regenerace (jako
+  (regeneruje), přes 14 dní bíle s ikonou ⚠; při velkém textu 4 sloupce místo 7
+  (container query na `.fr-wrap`). Záměrně jen dny, žádné % regenerace (jako
   Fitbod) — předstíralo by přesnost, kterou z dat neznáme.
   Kalendář tu od v2.2 není (je na Dnes). Pak **Naposledy** — 3 tréninky (`sessionRowHtml()` — datum,
   čísla, partie, počet rekordů `sessionPRCount()`) s odkazem Historie, a dole
@@ -418,7 +475,8 @@ konci pauzy byl ve v2.1 nabídnutý a Martin ho nechtěl. Klepnutí vrací na Tr
 (`dock-open`). Při otevřeném sheetu (`body.modal-open`) se přesune nahoru, aby ho
 sheet nezakryl — proto má `.modal` max. výšku `100dvh − 76 px`. Stav se odvozuje
 z `Rest` a `S.activeSession`; `render()` volá `Dock.sync()`.
-`body.has-dock` přidá `--dock-h` do spodního odsazení stránky i pozice toastu.
+`body.has-dock` přidá `--dock-h` do spodního odsazení stránky. Hlášky (toast) jsou
+během tréninku **nahoře** pod top barem (v4.1) — dole by kryly steppery a Přidat sérii.
 **Obrazovka nezhasne** během živého silového tréninku (`KeepAwake` — Screen Wake
 Lock, synchronizuje ho `Dock.sync()`; ne v úpravě uloženého tréninku). Zámek drží
 jen viditelná stránka, po návratu do appky se vyžádá znovu. Vypínač je v Nastavení
@@ -443,7 +501,7 @@ na Dnes a „Postava a check-in" ve Více skáčou rovnou na segment přes `go-p
   tečka = kardio, klepnutí na den → `openDaySummary()`.
 - **Partie** — přepínač (`PG.parts`): Po týdnech = small multiples (každá partie
   vlastní řádek, společné měřítko, Ø za týden a **naposledy** z celé historie,
-  zlatě přes 14 dní — `partLastTrained()`), Souhrn = série a objem za rozsah
+  přes 14 dní bíle tučně — `partLastTrained()`), Souhrn = série a objem za rozsah
   Týden / Měsíc / Vše / Vlastní (`SV.catRange`). Záměrně ne skládaný sloupec:
   sedm barev partií od sebe v jednom sloupci spolehlivě rozeznat nejde.
   Za sloupci je šedé **pásmo 10–20 sérií týdně** (`.cw-band`, měřítko aspoň do 22),
@@ -465,11 +523,11 @@ i podrobného zápisu, bílkoviny, váha Ø a změna), posledních 30 dní (Ø k
 v cíli, Ø makra, graf kalorií s cílem), bilance po týdnech (Ø příjem vs změna
 7denního průměru váhy) a vstup do jídelníčku.
 
-**Export & Backup** má i **CSV sérií** (`exp-csv`, `buildSetsCsv()`) — jedna série
+**Záloha a export** má i **CSV sérií** (`exp-csv`, `buildSetsCsv()`) — jedna série
 na řádek (sloupec `zacatek` = čas začátku tréninku), středník a desetinná čárka (česká tabulka ho otevře rovnou do sloupců),
 BOM kvůli diakritice.
 
-**Cloud sync** je v Export & Backup (ne v Nastavení): URL se ukládá hned po
+**Cloud sync** je v Záloze a exportu (ne v Nastavení): URL se ukládá hned po
 změně pole (`data-change="set-gas"`), stav syncu překresluje jen štítek
 `#syncBadge`, aby se nesmazala rozepsaná URL.
 
@@ -483,7 +541,7 @@ a překryla první řádek seznamu. **Výměna cviku otevře rovnou jeho partii.
 Hledá se v českém i anglickém názvu bez diakritiky (`norm()`, `exMatches()`);
 když ve vybrané partii nic není, nabídne „Hledat ve všech partiích". Cviky,
 které v tréninku/šabloně už jsou, jsou vidět ztlumeně bez akce (`used(id)`).
-Exercise Library má totéž hledání v lepkavém panelu pod top barem (`.sticky-bar`,
+Knihovna cviků má totéž hledání v lepkavém panelu pod top barem (`.sticky-bar`,
 sklo dostane až po přilepení — třída `.stuck` z `updateTopbar()`).
 
 ## Gym mód (aktivní trénink)
@@ -492,8 +550,8 @@ sklo dostane až po přilepení — třída `.stuck` z `updateTopbar()`).
   tenký volt pruh). Nad cviky counter partií (viz Pokrytí partií).
 - Sbalené cviky jsou **řádky na pozadí** oddělené linkou (proužek partie, číslo /
   volt fajfka, souhrn sérií, „do selhání N×", úchyt); otevřený cvik je karta.
-  V kartě: partie (tečka + šedý text) · pořadí, název, anglický název, výměna
-  a menu ⋯, **Technika** jako `<details>` (popis cviku), nápovědy jako řádky
+  V kartě: název, anglický název, pod nimi partie (tečka + šedý text) · pořadí
+  (`.ex-meta`; do v4.1 štítek nad názvem), výměna a menu ⋯, **Technika** jako `<details>` (popis cviku), nápovědy jako řádky
   s ikonou — rekord (zlatě), minule, návrh progrese (volt), blízko rekordu (zlatě).
   Série: číslo, hodnota, PR štítek, mini check „do selhání", křížek. Steppery
   opakování a váhy, **poznámka k sérii** schovaná v `<details>` (rozbalí se sama,
@@ -519,7 +577,7 @@ sklo dostane až po přilepení — třída `.stuck` z `updateTopbar()`).
   `PLATE_RE`/`NO_PLATE_RE` nad názvem, jednoručky a kladky ne) je u pole Váha
   odkaz Kotouče → sheet (`openPlatesModal()`): váha s ± (mění i pole v tréninku),
   nákres jedné strany osy a „Na každou stranu 20 + 1,25 kg", co složit nejde,
-  zlatě. Kotouče kg 25…1,25 / lb 45…2,5, hladově. Osa 20/15/10/bez (lb 45/35/25)
+  neutrálně s ikonou ⚠. Kotouče kg 25…1,25 / lb 45…2,5, hladově. Osa 20/15/10/bez (lb 45/35/25)
   se pamatuje u cviku jen v zařízení (`Settings.plateBars`).
 - **RIR** (v4.0, Nastavení → Zapisovat RIR, výchozí vypnuto): pod poli řada
   0 · 1 · 2 · 3 · 4+; volba se přepíná na místě (`w-rir`, bez překreslení —
@@ -528,13 +586,25 @@ sklo dostane až po přilepení — třída `.stuck` z `updateTopbar()`).
   přepočtou (`refreshEntryRecords()`). Pozor: schovaný toast musí vrátit
   `pointer-events: none` — jinak neviditelné „Vrátit" blokuje tlačítka pod sebou.
 - **Shrnutí po dokončení** (`openWorkoutSummary()`, místo samotného hodnocení):
+  titulek „Hotovo · šablona" (v4.1), **nejlepší rekord jako hlavní blok** (pohár,
+  hodnota zlatě velkým číslem; pořadí podle druhu `REC_ORDER`, pak e1RM), ostatní
+  rekordy jako řádky stejně jako v Pokroku (druh šedě, hodnota zlatě; „a N dalších"
+  až od dvou — jeden by zabral stejně místa jako jeho řádek), pak
   cviky · série · objem se změnou proti minulému tréninku **stejné šablony**,
-  pokrytí partií, padlé rekordy, karta „Trénink se lišil od šablony" (přidané /
+  pokrytí partií, karta „Trénink se lišil od šablony" (přidané /
   vyřazené cviky, pořadí, supersety → `updateTemplateFromFinish()` z `WV.lastFinish`),
   u volného tréninku „Uložit jako šablonu" přímo v kartě, pak hodnocení 1–10
   a poznámka. **Délka tréninku záměrně ne** — časovač v appce není (v1.26).
 - Pod cviky Přidat cvik, přepínač **Core ano/ne** (`coreCardHtml()`; se zapsanými
-  sériemi core je zapnutý sám), Dokončit trénink (volt) a Zrušit (textově červeně).
+  sériemi core je zapnutý sám), Dokončit trénink (volt) a Zrušit (textově červeně,
+  odsazené od Dokončit). Se zapsanými sériemi chce Zrušit **druhé klepnutí**
+  (v4.1 — „Klepni znovu — zahodí N sérií", červeně podbarvené, po 4 s se vrátí)
+  a pak nabídne Vrátit na 12 s, i po obnovení stránky. Bez sérií zruší hned.
+- **Předvyplnění další série** (v4.1): váha jde podle dneška — když dnešní série
+  šla o +5 kg nad minulou, další dostane minulou hodnotu *té* série + 5 kg (dřív
+  minulou váhu, takže po těžší první sérii nabízela lehčí). Opakování z minula.
+- Chybějící opakování / váha při zápisu = červený rámeček pole + `aria-invalid`
+  (`flagField()`), zmizí psaním nebo po 4 s; hláška jde nahoru (viz Dock).
 - **Zpětná úprava tréninku** (v1.25) — v detailu tréninku (`sessionDetailHtml()`,
   i z kalendáře a seznamů) je **Upravit**: `beginEditSession(id)` otevře uložený
   trénink ve stejném editoru jako živý — `S.activeSession` se stejným id
@@ -600,3 +670,8 @@ navigace a docku, zmenší se do lišty), tabulka sérií ve stylu Strong/Hevy
 zamčené obrazovce / Dynamic Island, vibrace, Apple Health, widget, Watch — za
 cenu přepisu, Xcode a vývojářského účtu). Webová appka na iPhonu nevibruje
 (`navigator.vibrate` Safari nemá), takže konec pauzy je jen vizuální.
+**Z kritiky v4.1 zatím neudělané** (Martin je nevybral nebo patří jinam): tečka
+stavu syncu bez popisku, dvě různá kódování v kalendářích (proužky vs tečky),
+přeskupení cviků jen tažením (bez alternativy), víc způsobů zobrazení pokrytí
+partií, „Nedávné" ve výběru cviku, zopakování série jedním klepnutím, výraznější
+stav po konci pauzy, stupně rekordů (malý vs velký).
