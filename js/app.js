@@ -11,7 +11,8 @@ const TITLES = {
   today: "Dnes", workout: "Trénink", progress: "Pokrok",
   food: "Jídlo", history: "Historie", records: "Rekordy", checkin: "Check-in",
   exlib: "Knihovna cviků", templates: "Šablony tréninků", foodlib: "Knihovna jídel",
-  export: "Záloha a export", settings: "Nastavení", about: "O aplikaci", more: "Více"
+  export: "Záloha a export", settings: "Nastavení", about: "O aplikaci", more: "Více",
+  block: "Silový blok"
 };
 
 /* Velký titulek stránky (iOS large title) — nad obsahem každé obrazovky.
@@ -24,6 +25,7 @@ function pageHead(key) {
   if (key === "checkin") return { title: CV.editId ? "Upravit check-in" : "Nový check-in" };
   if (key === "records") return { title: "Rekordy", sub: "Odhad 1RM, nejtěžší váha, opakování a nejlepší série" };
   if (key === "history") return { title: "Historie", sub: "Tréninky po měsících" };
+  if (key === "block") return blockHead();
   return { title: TITLES[key] || "Fitness Log" };
 }
 
@@ -43,7 +45,8 @@ const PAGES = {
   food: () => renderFood(), history: () => renderHistory(), records: () => renderPRList(),
   checkin: () => renderCheckinForm(),
   exlib: () => renderExLib(), templates: () => renderTemplates(), foodlib: () => renderFoodLib(),
-  export: () => renderExport(), settings: () => renderSettings(), about: () => renderAbout()
+  export: () => renderExport(), settings: () => renderSettings(), about: () => renderAbout(),
+  block: () => renderBlock()
 };
 const TABS = {
   today: () => renderToday(), workout: () => renderWorkout(), progress: () => renderProgress(), more: () => renderMore()
@@ -275,6 +278,9 @@ const ACTIONS = {
   /* ---- Trénink ---- */
   "w-date-today": () => { WV.date = todayStr(); render(); },
   "w-begin": d => beginWorkout(d.template === "custom" ? null : d.template),
+  /* silový blok: ukončit (s Vrátit) a pokračovat, dokud trvají jeho data */
+  "blk-end": () => withUndo("Blok ukončen", () => { S.block.ended = todayStr(); }),
+  "blk-resume": () => { S.block.ended = null; save(); render(); toast("Blok pokračuje", "ok"); },
   "w-cardio": () => openCardioModal(),
   "w-cardio-edit": d => openCardioModal(d.id),
   "w-cardio-save": () => saveCardio(),

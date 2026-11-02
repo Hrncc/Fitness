@@ -44,6 +44,9 @@ a váhy je dost rychlý na to, aby se opravdu dělal.
 - **Rady si bere od Clauda v chatu.** „Report pro Clauda" (Záloha a export) zkopíruje
   přehled tréninků, progrese, váhy a stravy za zvolené období. Martin ho vkládá do chatu
   s Claudem a je to jeho kanál pro rady k tréninku i stravě, takže se má dál zlepšovat.
+- **Silový blok listopad–prosinec 2026** (Full body 3×, 7 týdnů do 20. 12., deload
+  před Vánoci) z Claudova rozboru jeho dat. Appka vede týden, cílové RIR, série
+  navíc a deload. Další blok naváže s vahami z týdne 6.
 - **Check-in a fotky postupu** slouží jemu samému ke sledování změny postavy; adresát
   z doby trenéra odpadl.
 - Kalorický cíl a makra z doby trenéra platí dál (hodnoty jsou v Nastavení).

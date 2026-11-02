@@ -47,6 +47,13 @@ function buildCoachReport(rangeId = "month") {
   L.push(`## Cíl a nastavení`);
   L.push(`- Denní cíl: **${fmtNum(g.dailyCalories)} kcal** · bílkoviny ${fmtNum(g.proteinGrams)} g · sacharidy ${fmtNum(g.carbsGrams)} g · tuky ${fmtNum(g.fatGrams)} g`);
   L.push(`- Tréninkové šablony: ${S.templates.map(t => `${t.name} (${t.exercises.length} cviků)`).join(", ") || "žádné"}`);
+  if (S.block) {
+    const bw = blockWeek(today);
+    const bn = blockSessions().filter(s => blockWeek(s.date) < BLOCK.weeks.length).length;
+    L.push(`- Silový blok ${BLOCK.plan} (${fmtDate(S.block.start)} – ${fmtDate(blockEnd())}, 7 týdnů včetně deloadu): `
+      + (S.block.ended ? `ukončen ${fmtDate(S.block.ended)}` : bw ? `týden ${bw}/7, ${BLOCK.weeks[bw - 1].rir} — ${BLOCK.weeks[bw - 1].note}` : today < S.block.start ? "ještě nezačal" : "skončil")
+      + ` · tréninky v bloku ${bn} z ${BLOCK.sessionsGoal}`);
+  }
   L.push("");
 
   /* --- souhrn období --- */

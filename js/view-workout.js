@@ -77,7 +77,8 @@ function renderWorkoutStart() {
      pod linkou ostatní volby jako malé kapsle (šablony, volný trénink, kardio) */
   const opt = (attrs, label, dot = "") =>
     `<button class="start-opt" ${attrs}>${dot}<span>${esc(label)}</span></button>`;
-  const opts = S.templates.filter(t => !next || t.id !== next.id)
+  // během silového bloku jen jeho šablony — staré zůstávají ve Šablonách tréninků
+  const opts = S.templates.filter(t => (!next || t.id !== next.id) && (!blockOn(day) || blockDayKey(t.id)))
     .map(t => opt(`data-act="w-begin" data-template="${t.id}"`, t.name))
     .concat(opt(`data-act="w-begin" data-template="custom"`, "Volný"),
       opt(`data-act="w-cardio"`, "Kardio", `<i class="p-dot" style="background:var(--p-cardio)"></i>`)).join("");
@@ -95,7 +96,9 @@ function renderWorkoutStart() {
         </div>
         <button class="btn primary next-go" data-act="w-begin" data-template="${next.id}">${ic("play", 14)} Začít</button>
       </div>
-      ${gaps.length ? `<div class="td-warn">${ic("alert", 14)}Minule uteklo: ${gaps.join(", ")}</div>` : ""}`;
+      ${gaps.length ? `<div class="td-warn">${ic("alert", 14)}Minule uteklo: ${gaps.join(", ")}</div>` : ""}
+      ${blockOn(day) && blockDayKey(next.id) ? `<button class="next-blk" data-act="menu" data-page="block">${ic("target", 15)}
+        <span class="grow">Silový blok · ${blockWeekLine(day)}</span>${ic("chevR", 15, 2.2)}</button>` : ""}`;
   }
   out.push(`<div class="card next-card">${hero}<div class="start-opts${next ? "" : " solo"}">${opts}</div></div>`);
 
@@ -309,10 +312,14 @@ function renderActiveSession() {
     const pf = lastAt(setCount);
     // návrh progrese a „blízko rekordu" patří živému tréninku, ne opravě
     // uloženého (rekord by se navíc porovnával sám se sebou)
-    const prog = a.editOf ? null : progressionSuggestion(target, last, kind);
+    // první trénink cviku v silovém bloku jede od start váhy z plánu; v deloadu se váha nezvedá
+    const blkNew = !a.editOf && !!(target && target.week) && blockFirstUse(exId, a.id);
+    const blkStart = blkNew && target.startW != null;
+    const prog = a.editOf || blkStart || (target && target.deload) ? null : progressionSuggestion(target, last, kind);
     // při splněné progresi předvyplň vyšší váhu a spodek rozsahu
     let pfReps = prog ? prog.lo : (pf ? pf.reps : (target && target.lo) || "");
     let pfWeight = prog ? fmtNum(kgOut(prog.next), 1) : (pf ? fmtNum(kgOut(pf.weight), 1) : (kind === "bw" ? "0" : ""));
+    if (blkStart && !setCount) pfWeight = fmtNum(kgOut(target.startW), 1);
     /* od 2. série váha jede podle dneška: minulá stejná série + o kolik je dnešní
        předchozí série jinde než minule. Po těžší 1. sérii je těžší i 2., rovné
        série zůstanou rovné a pyramida pyramidou. (Dřív se vracela na minulou váhu.) */
@@ -363,12 +370,14 @@ function renderActiveSession() {
       ex && ex.pin ? `<div class="hint pin" data-act="w-pin" data-i="${i}">${ic("pin", 15)}<span>${esc(ex.pin)}</span></div>` : "",
       pr ? `<div class="hint pr">${ic("trophy", 15)}<span>Rekord <b>${fmtWeight(pr.weight)} × ${pr.reps}</b> · e1RM ${fmtWeight(pr.e1rm)}</span></div>`
         : bestR ? `<div class="hint pr">${ic("trophy", 15)}<span>Rekord <b>${setShort(exId, bestR)}</b>${kind === "bw" ? " opak." : ""}</span></div>` : "",
+      blkNew ? `<div class="hint">${ic("target", 15)}<span>Start bloku ${target.startW != null ? `<b>${blockStartLabel(target)}</b>` : `<b>najdi váhu</b> na RIR ${target.rir}`} · ${esc(target.src)}</span></div>`
+        : target && target.deload ? `<div class="hint">${ic("target", 15)}<span>Deload — stejné váhy, méně sérií</span></div>` : "",
       last ? `<div class="hint">${ic("history", 15)}<span>Minule ${relDay(last.date)}: <b>${setsSummary(exId, last.sets)}</b></span></div>` : "",
       prog ? `<div class="hint prog">${ic("trend", 15)}<span>Progrese — minule vše ≥ ${prog.topReps} opak., zkus <b>${fmtWeight(prog.next)}</b></span></div>` : "",
       near ? `<div class="hint near">${ic("target", 15)}<span>${near}</span></div>` : ""
     ].join("");
 
-    const planBits = [planText(target, exId), target && target.rest ? `pauza ${fmtClock(target.rest)}` : "",
+    const planBits = [planText(target, exId), target && target.rir ? `RIR ${target.rir}` : "", target && target.rest ? `pauza ${fmtClock(target.rest)}` : "",
       linkNext ? "superset s dalším" : linkPrev ? "superset" : ""].filter(Boolean);
     const doneEnough = target && target.sets && setCount >= target.sets;
     const sw = WV.sw && WV.sw.i === i;
@@ -402,6 +411,7 @@ function renderActiveSession() {
       </div>
       <details class="ex-desc"><summary>Technika ${ic("chevD", 14, 2.2)}</summary>
         ${ex && ex.description ? `<p>${esc(ex.description)}</p>` : ""}
+        ${target && target.alt ? `<p>Obsazeno? ${esc(target.alt)}</p>` : ""}
         <a class="video-link" href="${youtubeUrl(exId)}" target="_blank" rel="noopener">${ic("play", 12)} Video na YouTube</a>
       </details>
       ${hints ? `<div class="ex-hints">${hints}</div>` : ""}
@@ -830,7 +840,8 @@ function progressionSuggestion(target, last, kind) {
   if (!last.sets.every(st => st.reps >= target.hi)) return null;
   const maxW = Math.max(...last.sets.map(st => st.weight || 0));
   if (!maxW) return null;
-  return { lo: target.lo || target.hi, topReps: target.hi, next: maxW + 2.5 };
+  // krok váhy podle stroje ze silového bloku (multipress +5, leg press +10…), jinak +2,5
+  return { lo: target.lo || target.hi, topReps: target.hi, next: maxW + (target.inc || 2.5) };
 }
 
 /* „Blízko rekordu" — po zapsané sérii spočítá, co chybí k PR.
@@ -867,7 +878,8 @@ function beginWorkout(templateId) {
     startedAt: WV.date === todayStr() ? Date.now() : null,
     // cíl (série × rozsah × pauza) a superset z plánu šablony
     entries: tpl ? tpl.exercises.filter(getExercise).map(exId => {
-      const t = tplPlan(tpl, exId);
+      // v silovém bloku cíl podle týdne (série navíc, deload, RIR, start váha)
+      const t = blockTarget(tpl.id, exId, tplPlan(tpl, exId), WV.date);
       return Object.assign({ exerciseId: exId, sets: [], target: t || null }, t && t.link ? { link: true } : {});
     }) : []
   };
@@ -891,7 +903,8 @@ function repeatSession(id) {
     id: uid(), date: WV.date, type: "weights", startedAt: Date.now(),
     templateUsed: s.templateUsed || "custom", templateName: s.templateName || null,
     entries: s.entries.filter(e => getExercise(e.exerciseId)).map(e => {
-      const t = tplPlan(tpl, e.exerciseId) || ((e.sets || []).length ? { sets: e.sets.length, lo: null, hi: null, rest: null } : null);
+      const t = blockTarget(s.templateUsed, e.exerciseId, tplPlan(tpl, e.exerciseId), WV.date)
+        || ((e.sets || []).length ? { sets: e.sets.length, lo: null, hi: null, rest: null } : null);
       return Object.assign({ exerciseId: e.exerciseId, sets: [], target: t }, e.link ? { link: true } : {});
     })
   };

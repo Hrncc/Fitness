@@ -209,6 +209,7 @@ function workoutOpenHtml() {
     ${tdOpenHead("dumbbell", "Trénink", "workout", `<span class="badge">na řadě</span>`)}
     <div class="td-title">${esc(next.name)}</div>
     <div class="td-meta">${n} ${plural(n, "cvik", "cviky", "cviků")}${last ? ` · naposledy ${relDay(last.date)}` : ""}</div>
+    ${blockOn() && blockDayKey(next.id) ? `<div class="td-meta">Silový blok · ${blockWeekLine()}</div>` : ""}
     <div class="mt">${catPipsHtml(tplCounts)}</div>
     ${gaps.length ? `<div class="td-warn">${ic("alert", 15)}Minule uteklo: ${gaps.join(", ")}</div>` : ""}
     <button class="btn primary full mt2" data-act="t-begin-next" data-template="${next.id}">${ic("play", 15)} Začít trénink</button>

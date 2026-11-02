@@ -26,6 +26,7 @@ technika, konvence a vzhled zůstávají tady.
 | `js/qr.js` | QR generátor (ISO 18004, byte mode, EC L, v1–13, výběr masky) |
 | `js/photos.js` | fotky postupu v IndexedDB + zmenšení na JPEG |
 | `js/data.js` | stav `S`, `save()`, `replaceState()`, PR logika a **rekordy čtyř druhů** (`exerciseRecords()`), plán cviku v šabloně (`tplPlan()`), druhy cviků (`exKind()`), milníky, plán trenéra, barvy partií (`CAT_COLOR`, `CAT_ORDER`, `sessionCatSets()`, `dayCatColors()`) |
+| `js/block.js` | **silový blok** (v4.2): definice `BLOCK`, migrace `applyBlockV1()`, týden `blockWeek()`, cíl cviku `blockTarget()`, rotace `blockNextTemplate()`, stránka `renderBlock()` |
 | `js/sync.js` | cloud sync + `mergeStates()` (slévání podle id) |
 | `js/foodapi.js` | OFF (cz → world), USDA, Claude vision (etiketa / jídlo), čárový kód |
 | `js/ui.js` | ikony `ic()`, sekce `sec()`/`secHead()`/`secLink()`, iOS seznam `listGroup()`/`lgLink()`/`lgField()`/`lgSwitch()`, segmenty `segHtml()`, čísla `statHtml()`, české tvary `plural()`, data `fmtShort()`/`relDay()`, `fmtVolume()`, `fmtFixed()`, toast (i s akcí), sheet (+ zavření stažením `SheetDrag`), výběr cviku `openExPicker()`, kalendář, SVG grafy (`lineChart`, `columnChart`, `sparklineHtml`) + dotykový readout `ChartTip`, rest timer `Rest` + zamčený timer `Dock`, nezhasínání obrazovky `KeepAwake`, `dayNavHtml()` |
@@ -241,6 +242,45 @@ Pořadí je pevné podle těla (`CAT_ORDER`), ať se buňky pod prstem nepřesku
 
 Všechny tři šablony trenéra pokrývají všech 7 partií, takže „N ze 7" je reálný
 cíl každého tréninku, ne teoretické skóre.
+
+## Silový blok (v4.2, `js/block.js`)
+
+Martin dostal od Clauda rozbor „Silový blok listopad–prosinec" (HTML, data
+6.–26. 10.) a chtěl ho mít v appce „tak, aby to nerozbilo aplikaci". Vybral
+**blok jako vrstvu nad šablonami**, staré šablony **schovat ze startu**
+a **zapnout RIR**. Plán A = Full body 3× (Po A · St B · Pá C, Út a Ne lehký běh),
+**7 týdnů 2. 11. – 20. 12. 2026**: T1 zavedení RIR 3, T2–T3 RIR 2 / 1, T4–T5
+RIR 1 / 0–1, T6 RIR 1 / 0, T7 deload (−40 % sérií, stejné váhy). Série navíc:
+leg press a RDL od T3, předkopávání a pendulum od T5.
+
+- **Data jsou v kódu** (`BLOCK`: týdny, RIR podle druhu cviku `c` vícekloubový /
+  `i` izolace / `t` technika — RDL a pendulum celý blok ≥ 2, dny A/B/C s cviky,
+  sériemi, rozsahem, pauzou, start váhou `w`, zdrojem `src`, alternativami `alt`,
+  krokem váhy `inc` — leg press, hip thrust, belt squat 10, multipress 5, jinak 2,5).
+- **Ve stavu jen** `S.block = {id, start, days: {A: [exerciseId…]}, ended}` + flag
+  `S.blockV1` + šablony `blk-A/B/C` („Blok A/B/C") s plánem. `S.block` je skalár
+  (sync bere novější stav), šablony a cviky se slévají podle id.
+- **Migrace** `applyBlockV1()` (jednou, jen do konce bloku) hledá cvik podle
+  známého id, pak podle názvu (při shodě vyhraje ten s nejvíc zápisy) a teprve
+  pak založí nový — na Martinových datech navázalo 25 z 26 cviků, nový je jen
+  `bk-calf-standing` (seedový `ex-calf` má tombstone). Zapne `rirMode`.
+- **Za běhu** (`blockOn()` = v datech bloku a neukončený): `nextTemplate()` rotuje
+  A → B → C podle posledního tréninku bloku; start Tréninku nabízí jen šablony
+  bloku (+ Volný, Kardio) a řádek „Silový blok · týden N ze 7 · RIR …" → stránka.
+  `beginWorkout()` / `repeatSession()` dají cviku `blockTarget()` — série podle
+  týdne, `rir`, `deload`, `startW`, `inc`, `alt`. V gym módu: „RIR N" v řádku
+  plánu, při **prvním tréninku cviku v bloku** předvyplněná start váha a nápověda
+  „Start bloku 110 kg · log …" (místo návrhu progrese), v deloadu „stejné váhy"
+  a žádná progrese, v Technice „Obsazeno? alternativy". Návrh progrese bere
+  krok `inc` místo pevných +2,5 kg.
+- **Stránka `block`** (Více → Silový blok, řádek na startu): týden a RIR, tréninky
+  v bloku z 18, Začít; plán do konce roku (7 týdnů + další blok od 21. 12.),
+  týdenní rozvrh, tréninky A/B/C s cíli týdne, pravidla dvojité progrese,
+  „Pozor" a **Ukončit blok** (`withUndo`; „Pokračovat v bloku" do jeho konce).
+  Report pro Clauda má řádek s týdnem a počtem tréninků bloku.
+- Po 20. 12. se nic neděje samo: appka jede jako dřív, šablony Blok A/B/C zůstanou.
+  Další blok = nová definice v `block.js` (nové `id`, nový flag migrace).
+- Testy: seed blok ukončí a RIR vypne, pokud nedostane `{ block: true }`.
 
 ## v4.1 — kritika a polish podle skillu Impeccable
 

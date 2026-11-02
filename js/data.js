@@ -145,6 +145,9 @@ function activeTemplates() {
 
 function nextTemplate() {
   if (!S.templates.length) return null;
+  // během silového bloku (block.js) jde rotace Blok A → B → C
+  const blk = typeof blockNextTemplate === "function" ? blockNextTemplate() : null;
+  if (blk) return blk;
   const pool = activeTemplates();
   const last = lastWeightsSession();
   if (!last) return pool[0];

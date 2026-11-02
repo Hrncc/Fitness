@@ -1,7 +1,7 @@
 /* ===== Více: sheet s nabídkou a stránky z něj ===== */
 "use strict";
 
-const APP_VERSION = "4.1";
+const APP_VERSION = "4.2";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -24,6 +24,7 @@ function renderMore() {
   return listGroup([
       link("food", "Jídlo", "food"),
       link("calendar", "Kalendář a historie", "history"),
+      S.block ? link("target", "Silový blok", "block", blockOn() ? `týden ${blockWeek()}/${BLOCK.weeks.length}` : "") : "",
       lgLink("body", "Postava a check-in", `data-act="go-progress" data-seg="body"`)
     ], { head: "Záznamy" })
     + listGroup([
