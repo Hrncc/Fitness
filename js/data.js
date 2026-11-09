@@ -395,6 +395,13 @@ function applyExerciseKindsV2() {
   persist();
 }
 applyExerciseKindsV2();
+
+/* Migrace znovu po načtení cizího stavu (cloud do nové instalace) — každá má
+   svůj flag, takže na už převedených datech nic neudělá */
+function runMigrations() {
+  applyCoachPlan(); applyExerciseDb(); applyExerciseNamesEn(); applyExerciseKinds(); applyExerciseKindsV2();
+  if (typeof applyBlockV1 === "function") applyBlockV1();
+}
 /* backfill milníků je až na konci souboru — MILESTONES je const níž */
 
 function loadState() {
@@ -406,7 +413,8 @@ function loadState() {
       return Object.assign(defaultState(), st);
     }
   } catch (e) { console.warn("loadState:", e); }
-  return defaultState();
+  // nová instalace: dokud se nic neuloží, nesmí přebít data v cloudu (sync.js)
+  return Object.assign(defaultState(), { pristine: true });
 }
 
 /* revize dat — každý zápis ji zvedne; cache rekordů podle ní pozná změnu
@@ -419,6 +427,7 @@ function persist() {
 
 /* Každá mutace stavu jde přes save() → uloží lokálně a naplánuje cloud sync */
 function save() {
+  delete S.pristine;
   S.updatedAt = Date.now();
   persist();
   checkMilestones();

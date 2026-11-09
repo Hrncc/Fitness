@@ -860,8 +860,9 @@ document.addEventListener("change", e => {
   /* sync URL (Export & Backup) se ukládá hned po změně pole */
   if (t.dataset.change === "set-gas") {
     Settings.set({ gasWebAppUrl: t.value.trim() });
-    if (!Sync.url()) Sync.setStatus("off");
-    toast(Sync.url() ? "Sync URL uložena ✓" : "Sync vypnutý", "ok");
+    if (!Sync.url()) { Sync.setStatus("off"); toast("Sync vypnutý", "ok"); }
+    // po vložení URL se data rovnou stáhnou (nová instalace je tak dostane hned)
+    else Sync.cloudLoad().then(ok => { toast(ok ? "Sync URL uložena, data načtena ✓" : "Sync selhal: " + (Sync.lastError || ""), ok ? "ok" : "err"); render(); });
   }
   if (t.dataset.change === "f-unit") {
     // přepnutí jednotek znovu otevře krok množství se zachovanou volbou jídla dne

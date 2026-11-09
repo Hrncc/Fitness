@@ -145,6 +145,12 @@ Počty v Dnes / Pokrok / Rekordy / reportu jdou přes `recordEventsInRange()`.
 `currentPR()` (e1RM) zůstal pro nápovědy v gym módu a hodnoty v seznamu Rekordů.
 
 Sync slévá kolekce **podle `id`** (ne last-write-wins), tombstony v `deletedIds`.
+**Nová instalace (v4.2.1):** stav vzniklý bez dat má `S.pristine` (maže ho první
+`save()`). Takový stav při načtení z cloudu bere cloud celý a pak pustí
+`runMigrations()` — migrace mu totiž daly čerstvé `updatedAt`, takže by při slévání
+výchozí šablony, cíl a cviky přebily skutečná data. `cloudSave()` z pristine stavu
+místo nahrání stahuje (server `doPost` přepisuje Sheet celý) a vložení URL do pole
+v Záloze a exportu data rovnou stáhne.
 
 ## Nasazení
 

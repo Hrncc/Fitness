@@ -69,6 +69,9 @@ const Sync = {
   async cloudSave() {
     const url = this.url();
     if (!url) { this.setStatus("off"); return false; }
+    // nová instalace ještě nic nenačetla — server stav přepisuje celý, takže
+    // místo nahrání prázdné appky nejdřív stáhni data z cloudu
+    if (S.pristine) return this.cloudLoad();
     if (!navigator.onLine) { this.setStatus("error", "offline"); return false; }
     this.setStatus("pending");
     try {
@@ -96,9 +99,12 @@ const Sync = {
       if (!data.ok) throw new Error(data.error || "Server vrátil chybu");
       const cloud = data.state;
       if (cloud) {
-        const merged = mergeStates(S, cloud);
-        const changedVsCloud = JSON.stringify(merged) !== JSON.stringify(Object.assign(defaultState(), cloud));
-        replaceState(merged);
+        /* nová instalace bere cloud celý: migrace jí daly čerstvé updatedAt,
+           takže by při slévání výchozí šablony, cíl a cviky přebily skutečná data */
+        const fresh = !!S.pristine;
+        replaceState(fresh ? cloud : mergeStates(S, cloud));
+        if (fresh) runMigrations();
+        const changedVsCloud = JSON.stringify(S) !== JSON.stringify(Object.assign(defaultState(), cloud));
         document.dispatchEvent(new CustomEvent("staterefresh"));
         if (changedVsCloud) this.scheduleSave(); // lokální novinky pošli zpět
       } else if ((S.updatedAt || 0) > 0) {
