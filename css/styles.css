@@ -1581,19 +1581,20 @@ body.live-full .bottomnav { display: none; }
 .lv-table { margin-top: 12px; }
 .lv-row {
   display: grid; grid-template-columns: 2.3rem minmax(0, 1fr) 4.5rem 3.6rem 2.7rem;
-  gap: 5px; align-items: center; min-height: 46px; padding: 0 3px; border-radius: 12px;
+  gap: 5px; align-items: center; min-height: 50px; padding: 0 3px; border-radius: 12px;
 }
-.has-rir .lv-row { grid-template-columns: 2.3rem minmax(0, 1fr) 4rem 3rem 1.9rem 2.6rem; }
+.has-rir .lv-row { grid-template-columns: 2.3rem minmax(0, 1fr) 4rem 3rem 2.6rem 2.6rem; }
 .lv-th { min-height: 0; padding-bottom: 4px; font-size: .7059rem; font-weight: 600; color: var(--text3); text-align: center; }
 .lv-th span:nth-child(2) { text-align: left; }
 .lv-no, .lv-chk, .lv-rir, .lv-sw { position: relative; border: 0; cursor: pointer; font-family: var(--font-num); }
 .lv-no::before, .lv-chk::before, .lv-rir::before, .lv-sw::before { content: ""; position: absolute; inset: -4px 0; }
-.lv-no { height: 36px; border-radius: 10px; background: var(--s2); color: var(--text); font-weight: 700; font-size: .8824rem; }
+.lv-no::before { inset: -4px -3px; }
+.lv-no { height: 38px; border-radius: 10px; background: var(--s2); color: var(--text); font-weight: 700; font-size: .8824rem; }
 .lv-row.warm .lv-no { color: var(--text2); background: none; box-shadow: inset 0 0 0 1px var(--hair2); }
 .lv-fail { position: absolute; right: 4px; top: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--text); }
 .lv-prev { font-size: .7941rem; letter-spacing: -.01em; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lv-in {
-  width: 100%; min-width: 0; height: 38px; padding: 0 4px; border-radius: 10px;
+  width: 100%; min-width: 0; height: 44px; padding: 0 4px; border-radius: 11px;
   border: 1.5px solid transparent; background: var(--s2); color: var(--text);
   text-align: center; font: 650 max(16px, 1rem)/1 var(--font-num); font-variant-numeric: tabular-nums;
   -webkit-appearance: none; appearance: none;
@@ -1605,21 +1606,21 @@ body.live-full .bottomnav { display: none; }
 .lv-row.done .lv-in, .lv-row.done .lv-no { background: transparent; box-shadow: none; }
 .lv-row.done .lv-prev { color: var(--text2); }
 .lv-row.done.pr { background: var(--yellow-bg); }
-.lv-chk { height: 38px; border-radius: 10px; background: var(--s3); color: var(--text3); display: grid; place-items: center; transition: background var(--dur-fast), transform var(--dur-fast); }
+.lv-chk { height: 44px; border-radius: 10px; background: var(--s3); color: var(--text3); display: grid; place-items: center; transition: background var(--dur-fast), transform var(--dur-fast); }
 .lv-chk:active { transform: scale(.92); }
 .lv-chk.on { background: var(--green); color: var(--on-green); }
 .lv-row.pr .lv-chk.on { background: var(--yellow); color: #201800; }
-.lv-rir { height: 38px; border-radius: 10px; background: none; color: var(--text3); font-weight: 600; font-size: .8824rem; }
+.lv-rir { height: 44px; min-width: 44px; border-radius: 10px; background: none; color: var(--text3); font-weight: 600; font-size: .8824rem; }
 .lv-rir.set { color: var(--text); }
 .lv-rir s { text-decoration: none; }
 .lv-rir:disabled { cursor: default; }
-.lv-sw { height: 38px; border-radius: 10px; background: var(--s2); color: var(--text2); font-weight: 650; font-size: .8235rem; display: grid; place-items: center; }
+.lv-sw { height: 44px; border-radius: 10px; background: var(--s2); color: var(--text2); font-weight: 650; font-size: .8235rem; display: grid; place-items: center; }
 .lv-sw.on { background: var(--sel); color: var(--on-sel); }
 .lv-prline { display: flex; align-items: center; gap: 6px; padding: 3px 4px 5px 3.2rem; font-size: .7647rem; font-weight: 600; color: var(--yellow); }
 .lv-note { display: flex; align-items: center; gap: 6px; padding: 2px 4px 5px 3.2rem; font-size: .7647rem; color: var(--text2); }
 .lv-ask { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 6px 4px 8px; font-size: .8235rem; color: var(--text2); }
 .lv-ask span { margin-right: auto; }
-.lv-foot { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.lv-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
 .lv-count { margin-left: auto; font-size: .8235rem; font-weight: 600; color: var(--text2); font-variant-numeric: tabular-nums; }
 .lv-done {
   display: flex; align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer;
@@ -1763,7 +1764,35 @@ body.live-full .bottomnav { display: none; }
 .pf-stat:active { background: var(--s2); }
 
 @media (prefers-reduced-motion: reduce) { .co-wait i { animation: none; opacity: .6; } }
-.lv-ask .rir-opt { min-width: 42px; padding: 0 10px; }
+.lv-ask .rir-opt { min-width: 44px; min-height: 40px; padding: 0 10px; }
 .sum-next { display: grid; gap: 2px; padding: 14px 16px; margin-top: 12px; }
 .sum-next .lv-hint { margin-top: 8px; }
 .sum-next .lv-hint b { font-weight: 650; color: var(--text); }
+
+/* ---- v5: větší text (Dynamic Type) ----
+   Tabulka sérií má sloupce v rem, takže s větším písmem rostou. Když se
+   do karty nevejdou, jde pryč nejdřív „Minule", pak i RIR (ten zůstává
+   v dotazu pod sérií a v sheetu série). Šířka se měří v rem = podle písma. */
+.lv-list { grid-template-columns: minmax(0, 1fr); }
+.lv-table { container: lv / inline-size; }
+.lv-in { font-size: clamp(16px, 1rem, 22px); }
+.lv-done > .grow, .nx, .ready, .cp { min-width: 0; }
+@container lv (max-width: 18.5rem) {      /* s RIR je sloupců víc — „Minule" mizí dřív */
+  .has-rir .lv-row > :nth-child(2) { display: none; }
+  .has-rir .lv-row { grid-template-columns: 2.3rem minmax(0, 1fr) minmax(0, 1fr) 2.6rem 2.6rem; }
+}
+@container lv (max-width: 15rem) {
+  .lv-row > :nth-child(2) { display: none; }
+  .lv-row { grid-template-columns: 2rem minmax(0, 1fr) minmax(0, 1fr) 2.3rem; }
+  .has-rir .lv-row { grid-template-columns: 2rem minmax(0, 1fr) minmax(0, 1fr) 1.7rem 2.3rem; }
+  .lv-rir { min-width: 0; }
+  .lv-prline, .lv-note { padding-left: 4px; }
+}
+@container lv (max-width: 11.5rem) {
+  .has-rir .lv-row > :nth-child(5) { display: none; }
+  .lv-row, .has-rir .lv-row { grid-template-columns: 1.6rem minmax(0, 1fr) minmax(0, 1fr) 2rem; }
+  .lv-no { font-size: .7rem; }
+  .lv-chk svg { width: 1rem; height: 1rem; }
+}
+.co-chips .chip { flex: 0 1 auto; max-width: 100%; }
+.lv-head .lv-thumb .ex-th { width: min(58px, 3.4rem); height: min(58px, 3.4rem); }

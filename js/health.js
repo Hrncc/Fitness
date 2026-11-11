@@ -93,14 +93,14 @@ function healthIngest(payload) {
   }
   const ids = new Set(old.workouts.map(w => w.id));
   n += inc.workouts.filter(w => !ids.has(w.id)).length;
-  if (JSON.stringify(merged) === before) return 0;
+  if (!n || JSON.stringify(merged) === before) return 0;   // stejná čísla znovu (jen novější čas) nejsou změna
   S.health = merged;
   /* váha ze Zdraví doplní dny, kdy v appce žádná není — ruční zápis nepřepisuje */
   for (const [date, d] of Object.entries(inc.days)) {
     if (d.weight != null && !S.bodyLog.some(b => b.date === date)) S.bodyLog.push({ date, weightKg: Math.round(d.weight * 10) / 10, at: d.at, src: "health" });
   }
   S.bodyLog.sort((x, y) => x.date.localeCompare(y.date));
-  return n || 1;
+  return n;
 }
 
 function healthDay(date) { return (S.health && S.health.days && S.health.days[date]) || null; }
