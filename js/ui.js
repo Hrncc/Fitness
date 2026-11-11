@@ -11,6 +11,14 @@ const CZ_MONTHS_SHORT = ["led", "úno", "bře", "dub", "kvě", "čvn", "čvc", "
    Tahy 24×24 v barvě textu. ic("x") místo znaků ✕ ✎ ⇄ — znaky se na každém
    systému vykreslí jinak, ikony drží jeden styl. */
 const ICONS = {
+  arrowDown: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+  heart: '<path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2Z"/>',
+  moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/>',
+  watch: '<rect x="6.5" y="6.5" width="11" height="11" rx="3.2"/><path d="M9 6.5 9.6 3h4.8l.6 3.5M9 17.5l.6 3.5h4.8l.6-3.5M12 10v2.2l1.4 1"/>',
+  send: '<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/>',
+  person: '<circle cx="12" cy="8" r="3.8"/><path d="M4.5 20.5c1.2-3.6 4-5.5 7.5-5.5s6.3 1.9 7.5 5.5"/>',
+  steps: '<path d="M8 4.5c1.7 0 2.6 1.8 2.6 4.2 0 2-.6 3.3-.6 4.6H6.2c0-1.300-.8-2.600-.8-4.600C5.400 6.300 6.300 4.500 8 4.500ZM6.300 15.800h3.600v1.200a1.800 1.800 0 0 1-3.600 0ZM16 8c1.700 0 2.600 1.800 2.600 4.200 0 2-.8 3.300-.8 4.600H14c0-1.300-.6-2.600-.6-4.600C13.400 9.800 14.300 8 16 8ZM14.100 19.300h3.600v.6a1.800 1.800 0 0 1-3.600 0Z"/>',
+  key: '<circle cx="8" cy="15.500" r="3.500"/><path d="m10.600 13 8.900-8.900M16 7.500l2.500 2.500M13.500 10l2 2"/>',
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   minus: '<path d="M5 12h14"/>',
@@ -523,7 +531,7 @@ function pickerListHtml() {
       .map(e => {
         const used = PK.used(e.id);
         return `<div class="list-item${used ? " used" : ""}"${used ? "" : ` data-act="${PK.act}" data-exid="${e.id}"`}>
-          <i class="p-stripe" style="background:${catColor(cat)}"></i>
+          ${exThumb(e.id)}
           <div class="grow">
             <div class="name">${esc(e.name)}</div>
             ${exNameEn(e) ? `<div class="name-en">${esc(exNameEn(e))}</div>` : ""}

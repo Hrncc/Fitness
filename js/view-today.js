@@ -16,12 +16,137 @@ function capFirst(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
 function todayHead() {
   const now = new Date();
-  return { title: "Dnes", sub: capFirst(`${CZ_DAYS_FULL[now.getDay()]} ${now.getDate()}. ${CZ_MONTHS_GEN[now.getMonth()]}`) };
+  return { title: "Přehled", sub: capFirst(`${CZ_DAYS_FULL[now.getDay()]} ${now.getDate()}. ${CZ_MONTHS_GEN[now.getMonth()]}`) };
 }
 
 function renderToday() {
-  return todayListHtml() + weekSectionHtml() + progressTeaserHtml();
+  return healthCardHtml() + nextCardHtml({ preview: 4 }) + adaptCardHtml() + todayListHtml() + watchTodayHtml()
+    + weekSectionHtml() + progressTeaserHtml();
 }
+
+/* ===== Trénink na řadě — společná karta Přehledu a startu Tréninku =====
+   Ukáže rovnou cviky s dnešním cílem z adaptivního plánu: váha, u které má
+   appka důvod přidat nebo ubrat, nese šipku. */
+function planRowHtml(t, id, date) {
+  const p = blockTarget(t.id, id, tplPlan(t, id), date);
+  const ns = nextSets(id, p, null);
+  const r0 = ns.rows[0];
+  const w = r0 && r0.weight ? fmtWeight(r0.weight) : r0 && r0.reps && exKind(id) !== "weight" ? `${r0.reps}${exKind(id) === "time" ? " s" : "×"}` : "";
+  const arrow = ns.kind === "up" || ns.kind === "easy" ? `<i class="pv-ar up" title="${esc(ns.text)}">${ic("arrowUp", 12, 3)}</i>`
+    : ns.kind === "down" ? `<i class="pv-ar down" title="${esc(ns.text)}">${ic("arrowDown", 12, 3)}</i>` : "";
+  return `<div class="pv-row" data-act="ex-detail" data-exid="${id}">${exThumb(id)}
+      <div class="grow"><div class="pv-name">${esc(exName(id))}</div>
+        <div class="pv-meta">${p ? esc(planText(p, id)) : exCategory(id) || ""}${p && p.rir != null ? ` · RIR ${esc(String(p.rir))}` : ""}</div></div>
+      <div class="pv-w num">${arrow}${w}</div></div>`;
+}
+function planRowsHtml(t, date, max) {
+  const ids = t.exercises.filter(getExercise);
+  const more = max && ids.length > max ? ids.length - max : 0;
+  return `<div class="pv-list">${ids.slice(0, more ? max : ids.length).map(id => planRowHtml(t, id, date)).join("")}</div>
+    ${more ? `<button class="pv-more" data-act="rt-open" data-id="${t.id}">a ${more} ${plural(more, "další cvik", "další cviky", "dalších cviků")}</button>` : ""}`;
+}
+function nextCardHtml({ preview = 0, day = todayStr() } = {}) {
+  const a = S.activeSession;
+  const today = todayStr();
+  if (a && a.type === "weights") {
+    ensureRows(a);
+    const rows = a.entries.reduce((n, e) => n + e.rows.filter(r => r.t === "n").length, 0);
+    const done = sessionSets(a);
+    return `<div class="card nx live">
+        <div class="nx-top"><div class="grow">
+          <div class="nx-name">${esc(sessionLabel(a))}</div>
+          <div class="nx-meta"><i class="live-dot"></i>${a.editOf ? "Úprava tréninku" : `Probíhá${a.startedAt ? " " + startedLabel(a) : ""}`} · ${done} z ${Math.max(rows, done)} ${plural(Math.max(rows, done), "série", "sérií", "sérií")} · ${a.entries.filter(e => e.done).length}/${a.entries.length} cviků</div>
+        </div></div>
+        <div class="page-prog"><i style="width:${rows ? Math.min(100, done / rows * 100).toFixed(0) : 0}%"></i></div>
+        <button class="btn primary full" data-act="nav" data-tab="workout">${a.editOf ? "Pokračovat v úpravě" : "Pokračovat v tréninku"}</button>
+      </div>`;
+  }
+  const doneToday = day === today ? sessionsOn(today).filter(s => s.type === "weights") : [];
+  const next = nextTemplate();
+  if (!next) {
+    return `<div class="card nx"><div class="nx-name">Začni první trénink</div>
+        <div class="nx-meta">Vyber cviky a appka si z nich příště sama poskládá cíle.</div>
+        <button class="btn primary full" data-act="t-begin-next" data-template="custom">${ic("play", 15)} Prázdný trénink</button></div>`;
+  }
+  const last = lastTemplateSession(next.id);
+  const n = next.exercises.filter(getExercise).length;
+  const g = lastSessionGaps();
+  const gaps = g ? [...g.missed.map(m => m.cat), ...g.low.map(l => l.cat)] : [];
+  const blk = blockOn(day) && blockDayKey(next.id);
+  return `<div class="card nx">
+      <div class="nx-top"><div class="grow">
+        <div class="nx-name next-name">${esc(next.name)}</div>
+        <div class="nx-meta next-meta">${doneToday.length ? "Dnes hotovo · příště" : `Na řadě${day !== today ? " " + fmtShort(day) : ""}`} · ${n} ${plural(n, "cvik", "cviky", "cviků")}${last ? ` · naposledy ${relDay(last.date)}` : ""}</div>
+      </div></div>
+      <button class="btn primary full next-go" data-act="t-begin-next" data-template="${next.id}" data-day="${day}">${ic("play", 15)} Začít trénink</button>
+      ${blk ? `<button class="next-blk" data-act="menu" data-page="block">${ic("target", 15)}
+        <span class="grow">Silový blok · ${blockWeekLine(day)}</span>${ic("chevR", 15, 2.2)}</button>` : ""}
+      ${gaps.length ? `<div class="td-warn">${ic("alert", 14)}Minule uteklo: ${gaps.join(", ")}</div>` : ""}
+      ${planRowsHtml(next, day, preview)}
+    </div>`;
+}
+
+/* ===== Plán se přizpůsobuje — návrhy z výsledků (engine.js) ===== */
+function adaptCardHtml() {
+  const all = planProposals();
+  if (!all.length) return "";
+  const props = all.slice(0, 2);     // nejvýš dva naráz — další se ukážou, až tyhle vyřídíš
+  return sec("Plán se přizpůsobuje", `<div class="card rows ad-card">${props.map(p => `
+      <div class="ad-row">
+        <div class="ad-title">${esc(p.title)}</div>
+        <p class="ad-why">${esc(p.why)}</p>
+        <div class="btn-row fit"><button class="btn sm ghost" data-act="ad-dismiss" data-key="${esc(p.key)}">Teď ne</button>
+          <button class="btn sm" data-act="ad-apply" data-key="${esc(p.key)}">${ic("check", 14, 2.8)} Upravit plán</button></div>
+      </div>`).join("")}</div>`, { sub: `Podle posledních tréninků · nic se nezmění bez tebe${all.length > 2 ? ` · ještě ${all.length - 2} ${plural(all.length - 2, "návrh", "návrhy", "návrhů")}` : ""}` });
+}
+function openPlanLog() {
+  const log = (S.planLog || []).slice().reverse();
+  openModal(`${modalTitle("Změny plánu")}
+    <p class="modal-sub">Co se v plánu změnilo na návrh appky nebo trenéra</p>
+    ${log.length ? `<div class="card rows">${log.map(l => `<div class="ad-row"><div class="ad-title">${esc(l.title)}</div>
+      <p class="ad-why">${fmtShort(l.date)} · ${esc(l.source)}</p><ul class="cp-ops">${(l.lines || []).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>`).join("")}</div>`
+      : `<div class="empty-note">Zatím žádná změna. Váhy a opakování se posouvají samy podle minulého tréninku; tady se zapisují jen úpravy plánu, které potvrdíš.</div>`}`);
+}
+/* Šablona jako sheet: cviky s dnešním cílem a Začít */
+function openRoutineSheet(id) {
+  const t = getTemplate(id);
+  if (!t) return;
+  const day = App.route.tab === "workout" ? WV.date : todayStr();
+  const last = lastTemplateSession(t.id);
+  openModal(`${modalTitle(t.name)}
+    <p class="modal-sub">${t.exercises.filter(getExercise).length} cviků${last ? ` · naposledy ${relDay(last.date)}` : ""}</p>
+    ${planRowsHtml(t, day, 0)}
+    <div class="btn-row">
+      <button class="btn" data-act="menu" data-page="templates">Upravit</button>
+      ${S.activeSession ? "" : `<button class="btn primary" data-act="t-begin-next" data-template="${t.id}" data-day="${day}">${ic("play", 15)} Začít</button>`}
+    </div>`);
+}
+/* tréninky z hodinek dnes a včera (Apple Health) */
+function watchTodayHtml() {
+  const today = todayStr();
+  const ws = healthWorkoutsOn(today).concat(healthWorkoutsOn(addDays(today, -1)));
+  if (!ws.length) return "";
+  return sec("Z hodinek", `<div class="card rows">${ws.map(w => `<div class="hw-row"><span class="hw-ic">${ic("watch", 18)}</span>
+      <div class="grow"><div class="name">${esc(w.type)}</div><div class="small">${w.date === today ? "dnes" : "včera"}${healthWatchLine(w) ? " · " + healthWatchLine(w) : ""}</div></div></div>`).join("")}</div>`);
+}
+
+const HOME_ACTIONS = {
+  "rt-open": d => openRoutineSheet(d.id),
+  "ad-apply": d => {
+    const p = planProposals().find(x => x.key === d.key);
+    if (!p) return;
+    withUndo("Plán upraven", () => {
+      applyPlanOps(p.ops, p.title, "appka");
+      S.adaptOff = Object.assign({}, S.adaptOff, { [p.key]: todayStr() });   // stejný návrh se hned nevrátí
+    });
+  },
+  "ad-dismiss": d => {
+    S.adaptOff = Object.assign({}, S.adaptOff, { [d.key]: todayStr() });
+    save(); render();
+    toast("Návrh schovaný na 3 týdny", "ok");
+  },
+  "ad-log": () => openPlanLog()
+};
 
 /* ---- Co dnes dlužíš ---- */
 function checkinDue() {
@@ -46,9 +171,8 @@ function todayStatus() {
 function todayOpenKey() {
   if (TV.open === "none") return null;
   if (TV.open) return TV.open;
-  if (S.activeSession) return "workout";
   const st = todayStatus();
-  return !st.weight ? "weight" : !st.workout ? "workout" : !st.food ? "food" : null;
+  return !st.weight ? "weight" : !st.food ? "food" : null;
 }
 
 function todayListHtml() {
@@ -57,7 +181,6 @@ function todayListHtml() {
   const nut = dayNutrition(todayStr());
   const rows = [
     open === "weight" && !st.weight ? weightOpenHtml() : weightRowHtml(st.weight),
-    open === "workout" && (S.activeSession || !st.workout) ? workoutOpenHtml() : workoutRowHtml(),
     open === "food" && !nut.count ? foodOpenHtml() : foodRowHtml(st.food)
   ];
   if (st.checkin) {
@@ -131,7 +254,7 @@ function weightOpenHtml() {
     return `<div class="td-open">
       ${tdOpenHead("scale", "Váha", "weight")}
       <p class="muted" style="margin:0 0 16px">Zatím žádný záznam — zapiš první vážení.</p>
-      <button class="btn primary full" data-act="bw-open" data-date="${today}">Zapsat váhu</button>
+      <button class="btn full" data-act="bw-open" data-date="${today}">Zapsat váhu</button>
     </div>`;
   }
   const avg = movingAvgAt(S.bodyLog, today);
@@ -150,73 +273,11 @@ function weightOpenHtml() {
     </div>
     <div class="step-note">${info.join(" · ") || "první záznam"}${existing != null
       ? `<br><span class="warn-text">K ${fmtShort(day)} už je ${fmtWeight(existing)} — potvrzením ji přepíšeš.</span>` : ""}</div>
-    <button class="btn primary full" data-act="t-w-save">Potvrdit ${fmtFixed(TV.wDraft, 1)} ${weightUnit()}${day !== today ? ` · ${relDay(day)}` : ""}</button>
+    <button class="btn full" data-act="t-w-save">Potvrdit ${fmtFixed(TV.wDraft, 1)} ${weightUnit()}${day !== today ? ` · ${relDay(day)}` : ""}</button>
   </div>`;
 }
 
 /* ---- Trénink: co je na řadě, co běží, co je hotové ---- */
-function workoutRowHtml() {
-  const a = S.activeSession;
-  if (a) {
-    return tdRow({ icon: "dumbbell", title: "Trénink", sub: `${a.editOf ? "Úprava" : `Probíhá${a.startedAt ? ` ${startedLabel(a)}` : ""}`} · ${esc(sessionLabel(a))}`,
-      state: "nav", act: "nav", attrs: `data-tab="workout"` });
-  }
-  const sessions = sessionsOn(todayStr());
-  if (sessions.length) {
-    const labels = sessions.map(s => s.type === "cardio" ? cardioLabel(s.entries[0]) : sessionLabel(s));
-    const sets = sessions.reduce((n, s) => n + (s.type === "weights" ? s.entries.reduce((k, e) => k + (e.sets || []).length, 0) : 0), 0);
-    return tdRow({ icon: "dumbbell", title: esc(labels.join(" + ")),
-      sub: sets ? `${sets} ${plural(sets, "série", "série", "sérií")} · hotovo` : "hotovo", state: "done",
-      act: sessions.length === 1 ? "w-detail" : "sum-cal-day",
-      attrs: sessions.length === 1 ? `data-id="${sessions[0].id}"` : `data-date="${todayStr()}"` });
-  }
-  const next = nextTemplate();
-  return tdRow({ icon: "dumbbell", title: "Trénink", sub: next ? `na řadě ${esc(next.name)}` : "zatím nic",
-    act: "td-open", attrs: `data-k="workout"` });
-}
-
-function workoutOpenHtml() {
-  const a = S.activeSession;
-  if (a) {
-    const sets = a.type === "weights" ? a.entries.reduce((n, e) => n + (e.sets || []).length, 0) : 0;
-    const counts = sessionCatSets(a);
-    const core = a.core === true;
-    const hit = CAT_ORDER.filter(c => counts[c] > 0 || (core && c === "Core")).length;
-    const done = a.entries.filter(e => e.done).length;
-    return `<div class="td-open">
-      ${tdOpenHead("dumbbell", "Trénink", "workout", `<span class="badge${a.editOf ? "" : " green"}">${a.editOf ? "úprava" : `probíhá${a.startedAt ? ` ${startedLabel(a)}` : ""}`}</span>`)}
-      <div class="td-title">${esc(sessionLabel(a))}</div>
-      <div class="td-meta">${done} z ${a.entries.length} cviků · ${sets} ${plural(sets, "série", "série", "sérií")} · ${hit} ze ${CAT_ORDER.length} partií</div>
-      ${a.type === "weights" ? `<div class="mt">${catPipsHtml(counts, core)}</div>` : ""}
-      <button class="btn primary full mt2" data-act="nav" data-tab="workout">${a.editOf ? "Pokračovat v úpravě" : "Pokračovat"}</button>
-    </div>`;
-  }
-  const next = nextTemplate();
-  if (!next) {
-    return `<div class="td-open">
-      ${tdOpenHead("dumbbell", "Trénink", "workout")}
-      <p class="muted" style="margin:0 0 16px">Dnes ještě nemáš zapsaný žádný trénink.</p>
-      <button class="btn primary full" data-act="nav" data-tab="workout">Otevřít trénink</button>
-    </div>`;
-  }
-  const last = lastTemplateSession(next.id);
-  const tplCounts = {};
-  for (const id of next.exercises) { const c = exCategory(id); if (c) tplCounts[c] = (tplCounts[c] || 0) + 1; }
-  const g = lastSessionGaps();
-  const gaps = g ? [...g.missed.map(m => m.cat), ...g.low.map(l => l.cat)] : [];
-  const n = next.exercises.length;
-  return `<div class="td-open">
-    ${tdOpenHead("dumbbell", "Trénink", "workout", `<span class="badge">na řadě</span>`)}
-    <div class="td-title">${esc(next.name)}</div>
-    <div class="td-meta">${n} ${plural(n, "cvik", "cviky", "cviků")}${last ? ` · naposledy ${relDay(last.date)}` : ""}</div>
-    ${blockOn() && blockDayKey(next.id) ? `<div class="td-meta">Silový blok · ${blockWeekLine()}</div>` : ""}
-    <div class="mt">${catPipsHtml(tplCounts)}</div>
-    ${gaps.length ? `<div class="td-warn">${ic("alert", 15)}Minule uteklo: ${gaps.join(", ")}</div>` : ""}
-    <button class="btn primary full mt2" data-act="t-begin-next" data-template="${next.id}">${ic("play", 15)} Začít trénink</button>
-    <button class="btn text full" data-act="nav" data-tab="workout">Jiná šablona nebo kardio</button>
-  </div>`;
-}
-
 /* ---- Jídlo: dvě klepnutí, nebo kalorie, když zapisuješ podrobně ---- */
 const FOOD_RATINGS = [["under", "pod"], ["ok", "v cíli"], ["over", "nad"]];
 

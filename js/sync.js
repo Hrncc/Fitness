@@ -35,6 +35,12 @@ function mergeStates(local, cloud) {
   out.checkins = byId("checkins").sort((a, b) => a.date.localeCompare(b.date));
   out.bodyLog = byId("bodyLog", x => x.date).sort((a, b) => a.date.localeCompare(b.date));
   out.dayLog = byId("dayLog", x => x.date).sort((a, b) => a.date.localeCompare(b.date));
+  /* data z hodinek po dnech; ruční zásahy do plánu jako mapy (novější klíč vyhrává) */
+  const hl = mergeHealth(older.health, newer.health);
+  if (hl) out.health = hl;
+  for (const k of ["overrides", "adaptOff"]) {
+    if (older[k] || newer[k]) out[k] = Object.assign({}, older[k], newer[k]);
+  }
   out.deletedIds = [...tomb].slice(-500);
   out.updatedAt = Math.max(local.updatedAt || 0, cloud.updatedAt || 0);
   return out;
@@ -104,10 +110,13 @@ const Sync = {
         const fresh = !!S.pristine;
         replaceState(fresh ? cloud : mergeStates(S, cloud));
         if (fresh) runMigrations();
+        // data ze Zkratky (list HEALTH) server přibaluje k načtení
+        if (data.health && healthIngest(data.health)) save();
         const changedVsCloud = JSON.stringify(S) !== JSON.stringify(Object.assign(defaultState(), cloud));
         document.dispatchEvent(new CustomEvent("staterefresh"));
         if (changedVsCloud) this.scheduleSave(); // lokální novinky pošli zpět
       } else if ((S.updatedAt || 0) > 0) {
+        if (data.health && !S.pristine && healthIngest(data.health)) persist();
         this.scheduleSave(); // v cloudu ještě nic není → nahraj lokální stav
       }
       if (!localStorage.getItem(DIRTY_KEY)) this.setStatus("ok");

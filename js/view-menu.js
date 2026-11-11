@@ -1,7 +1,7 @@
 /* ===== Více: sheet s nabídkou a stránky z něj ===== */
 "use strict";
 
-const APP_VERSION = "4.2.1";
+const APP_VERSION = "5.0";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -18,25 +18,50 @@ const MV = {
 
 /* ================= Více — sheet se seznamem ================= */
 /* ---- Více: běžná stránka se seznamem (v4.0) — záložka naviguje, ne otevírá sheet ---- */
+function profileHead() {
+  const n = S.sessions.length;
+  const first = n ? S.sessions.reduce((m, x) => x.date < m ? x.date : m, S.sessions[0].date) : null;
+  return { title: "Profil", sub: n ? `${n} ${plural(n, "trénink", "tréninky", "tréninků")} · od ${fmtShort(first)}` : "Zatím bez tréninku" };
+}
 function renderMore() {
   const link = (icon, label, page, value = "") => lgLink(icon, label, `data-act="menu" data-page="${page}"`, value);
   const lastSync = Settings.get().gasWebAppUrl ? `<span id="syncBadge">${syncBadgeHtml()}</span>` : "";
-  return listGroup([
-      link("food", "Jídlo", "food"),
+  const today = todayStr();
+  const w = S.sessions.filter(x => x.type === "weights");
+  const month = w.filter(x => x.date >= today.slice(0, 8) + "01").length;
+  const recs = recordEventsInRange(addDays(today, -29), today).length;
+  const sets = w.reduce((k, x) => k + sessionSets(x), 0);
+  const hl = healthLastDate();
+  return `<div class="pf-stats">
+      <button class="pf-stat" data-act="go-progress" data-seg="training"><b class="num">${fmtNum(w.length)}</b><span>silových tréninků</span></button>
+      <button class="pf-stat" data-act="menu" data-page="history"><b class="num">${month}</b><span>tento měsíc</span></button>
+      <button class="pf-stat" data-act="menu" data-page="records"><b class="num">${recs}</b><span>rekordů za 30 dní</span></button>
+      <button class="pf-stat" data-act="go-progress" data-seg="training"><b class="num">${fmtNum(sets)}</b><span>sérií celkem</span></button>
+    </div>`
+    + listGroup([
+      lgLink("trend", "Pokrok a statistiky", `data-act="go-progress" data-seg="training"`),
+      lgLink("body", "Tělo a check-in", `data-act="go-progress" data-seg="body"`),
+      lgLink("food", "Strava", `data-act="go-progress" data-seg="food"`),
       link("calendar", "Kalendář a historie", "history"),
+      link("trophy", "Rekordy", "records")
+    ], { head: "Přehledy" })
+    + listGroup([
+      link("list", "Rutiny a šablony", "templates", String(S.templates.length)),
+      link("book", "Cviky s ukázkami", "exlib", String(S.exercises.length)),
       S.block ? link("target", "Silový blok", "block", blockOn() ? `týden ${blockWeek()}/${BLOCK.weeks.length}` : "") : "",
-      lgLink("body", "Postava a check-in", `data-act="go-progress" data-seg="body"`)
-    ], { head: "Záznamy" })
+      lgLink("spark", "Změny plánu", `data-act="ad-log"`, (S.planLog || []).length ? String(S.planLog.length) : "")
+    ], { head: "Trénink" })
     + listGroup([
-      link("book", "Knihovna cviků", "exlib", String(S.exercises.length)),
-      link("list", "Šablony tréninků", "templates", String(S.templates.length)),
-      link("star", "Knihovna jídel", "foodlib")
-    ], { head: "Knihovny" })
+      link("watch", "Apple Health a hodinky", "health", hl ? relDay(hl) : "nepřipojeno"),
+      lgLink("spark", "Trenér Claude", `data-act="nav" data-tab="coach"`, Settings.get().anthropicApiKey ? "připojen" : "nepřipojen"),
+      link("share", "Záloha, sync a export", "export", lastSync)
+    ], { head: "Propojení" })
     + listGroup([
-      link("share", "Záloha a export", "export", lastSync),
+      link("food", "Jídelníček", "food"),
+      link("star", "Knihovna jídel", "foodlib"),
       link("sliders", "Nastavení", "settings"),
       link("info", "O aplikaci", "about")
-    ], { head: "Data a aplikace" })
+    ], { head: "Aplikace" })
     + `<p class="lg-foot center">Fitness Log ${APP_VERSION}</p>`;
 }
 
@@ -68,7 +93,7 @@ function elListHtml() {
       || a.name.localeCompare(b.name, "cs"))
     .map(e => `
       <div class="list-item" data-act="el-detail" data-id="${e.id}">
-        <i class="p-stripe" style="background:${catColor(e.category)}"></i>
+        ${exThumb(e.id)}
         <div class="grow">
           <div class="name">${esc(e.name)}</div>
           ${exNameEn(e)
@@ -87,6 +112,7 @@ function openExerciseDetail(id) {
   const en = exNameEn(e);
   openModal(`${modalTitle(e.name)}
     ${en ? `<p class="modal-sub">${esc(en)}</p>` : ""}
+    ${exAnim(id)}
     <div class="row" style="margin-bottom:14px;gap:8px;flex-wrap:wrap">
       <span class="badge cat-badge"><i class="p-dot" style="background:${catColor(e.category)}"></i>${esc(e.category)}</span>
       ${isOwnExercise(e) ? `<span class="badge">vlastní</span>` : ""}
@@ -692,9 +718,12 @@ function renderSettings() {
       `<label class="lg-row lg-stack"><span class="lg-l">USDA FoodData Central</span>
         <input class="lg-in full" id="setUsda" type="text" data-change="set-field" placeholder="prázdné = DEMO_KEY (30 dotazů/hod)"
           value="${esc(st.usdaApiKey)}" autocomplete="off" autocorrect="off" spellcheck="false"></label>`,
-      `<label class="lg-row lg-stack"><span class="lg-l">Claude API (etikety a jídlo z fotky)</span>
+      `<label class="lg-row lg-stack"><span class="lg-l">Claude API (trenér, etikety a jídlo z fotky)</span>
         <input class="lg-in full" id="setAnthropic" type="password" data-change="set-field" placeholder="sk-ant-…"
           value="${esc(st.anthropicApiKey)}" autocomplete="off"></label>`
+      ,`<label class="lg-row lg-stack"><span class="lg-l">Model trenéra</span>
+        <select class="lg-in full" data-change="set-coach-model" aria-label="Model trenéra">${COACH_MODELS.map(([id, lbl]) =>
+          `<option value="${id}"${coachModel() === id ? " selected" : ""}>${lbl}</option>`).join("")}</select></label>`
     ], { head: "API klíče", foot: "Klíče se ukládají jen v tomto zařízení. USDA klíč zdarma na fdc.nal.usda.gov, Claude klíč z console.anthropic.com — posílá se jen na api.anthropic.com." })
     + listGroup([
       `<button class="lg-row" data-act="set-qr-show"><span class="lg-ic">${ic("share", 20)}</span><span class="lg-l">Zobrazit QR kód</span><span class="lg-chev">${ic("chevR", 16, 2.2)}</span></button>`,

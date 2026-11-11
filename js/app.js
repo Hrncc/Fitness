@@ -8,10 +8,10 @@ const App = {
 };
 
 const TITLES = {
-  today: "Dnes", workout: "Trénink", progress: "Pokrok",
+  today: "Přehled", workout: "Trénink", progress: "Pokrok", coach: "Trenér", health: "Apple Health",
   food: "Jídlo", history: "Historie", records: "Rekordy", checkin: "Check-in",
   exlib: "Knihovna cviků", templates: "Šablony tréninků", foodlib: "Knihovna jídel",
-  export: "Záloha a export", settings: "Nastavení", about: "O aplikaci", more: "Více",
+  export: "Záloha a export", settings: "Nastavení", about: "O aplikaci", more: "Profil",
   block: "Silový blok"
 };
 
@@ -26,6 +26,9 @@ function pageHead(key) {
   if (key === "records") return { title: "Rekordy", sub: "Odhad 1RM, nejtěžší váha, opakování a nejlepší série" };
   if (key === "history") return { title: "Historie", sub: "Tréninky po měsících" };
   if (key === "block") return blockHead();
+  if (key === "coach") return coachHead();
+  if (key === "more") return profileHead();
+  if (key === "health") return { title: "Apple Health", sub: "Data z hodinek přes Zkratku na iPhonu" };
   return { title: TITLES[key] || "Fitness Log" };
 }
 
@@ -46,10 +49,10 @@ const PAGES = {
   checkin: () => renderCheckinForm(),
   exlib: () => renderExLib(), templates: () => renderTemplates(), foodlib: () => renderFoodLib(),
   export: () => renderExport(), settings: () => renderSettings(), about: () => renderAbout(),
-  block: () => renderBlock()
+  block: () => renderBlock(), progress: () => renderProgress(), health: () => renderHealth()
 };
 const TABS = {
-  today: () => renderToday(), workout: () => renderWorkout(), progress: () => renderProgress(), more: () => renderMore()
+  today: () => renderToday(), workout: () => renderWorkout(), coach: () => renderCoach(), more: () => renderMore()
 };
 
 /* Nahoru se skočí jen při přechodu na jinou obrazovku (nebo s {top: true}).
@@ -63,6 +66,9 @@ function render(opts = {}) {
   const head = pageHead(key);
   document.getElementById("topbarTitle").textContent = head.title;
   document.getElementById("topbar").classList.toggle("has-back", !!page);
+  /* živý trénink je přes celou obrazovku — navigace zmizí, zpět vede zmenšení do lišty */
+  document.body.classList.toggle("live-full", tab === "workout" && !page && !!S.activeSession && S.activeSession.type === "weights");
+  document.body.dataset.tab = page || tab;
 
   const view = document.getElementById("view");
   view.innerHTML = pageHeadHtml(head) + (page ? PAGES[page]() : TABS[tab]());
@@ -201,7 +207,7 @@ const ACTIONS = {
   },
   "app-reload": () => location.reload(),
   /* Pokrok s vybraným segmentem (z Dnes) */
-  "go-progress": d => { if (d.seg) PG.seg = d.seg; goTab("progress"); },
+  "go-progress": d => { if (d.seg) PG.seg = d.seg; goPage("progress"); },
 
   /* kalendář (Historie) */
   "cal-nav": d => {
@@ -267,11 +273,11 @@ const ACTIONS = {
     TV.open = "food";
   }),
   "t-begin-next": d => {
-    WV.date = todayStr();
+    WV.date = d.day || todayStr();
+    closeModal();
     App.route = { tab: "workout", page: null };
     if (S.activeSession) { render({ top: true }); toast("Nejdřív dokonči nebo zruš probíhající trénink", "err"); return; }
-    beginWorkout(d.template);
-    render({ top: true });
+    beginWorkout(d.template === "custom" ? null : d.template);
   },
   "recap-dismiss": d => { Settings.set({ recapDismissed: d.week }); render(); },
 
@@ -301,59 +307,6 @@ const ACTIONS = {
     // celá čísla u opakování, desetina u váhy
     el.value = Number.isInteger(step) ? String(Math.round(v)) : fmtNum(Math.round(v * 10) / 10, 1);
   },
-  "w-add-set": d => addSet(Number(d.i)),
-  "w-del-set": d => withUndo("Série smazána", () => {
-    const e = S.activeSession.entries[Number(d.i)];
-    e.sets.splice(Number(d.j), 1);
-    refreshEntryRecords(S.activeSession, e);
-    WV.editSet = null;
-  }),
-  /* oprava zapsané série — klepnutí na sérii ji načte do polí */
-  "w-set-edit": d => {
-    const i = Number(d.i), j = Number(d.j);
-    WV.editSet = WV.editSet && WV.editSet.i === i && WV.editSet.j === j ? null : { i, j };
-    render();
-  },
-  "w-set-save": d => saveSetEdit(Number(d.i)),
-  /* RIR: přepne volbu na místě (bez překreslení — rozepsaná pole zůstanou) */
-  "w-rir": (d, t) => {
-    const on = !t.classList.contains("on");
-    t.parentElement.querySelectorAll(".rir-opt").forEach(b => { b.classList.remove("on"); b.setAttribute("aria-pressed", "false"); });
-    if (on) { t.classList.add("on"); t.setAttribute("aria-pressed", "true"); }
-  },
-  /* kalkulačka kotoučů */
-  "w-plates": d => openPlatesModal(Number(d.i)),
-  "pl-step": d => {
-    const el = document.getElementById("plBody");
-    const inp = el && document.getElementById("weight-" + el.dataset.i);
-    if (!inp) return;
-    const cur = parseDec(inp.value);
-    inp.value = fmtNum(Math.max(0, (Number.isFinite(cur) ? cur : 0) + Number(d.d)), 2);
-    refreshPlates();
-  },
-  "pl-bar": d => {
-    const el = document.getElementById("plBody");
-    const a = S.activeSession;
-    if (!el || !a) return;
-    const exId = a.entries[Number(el.dataset.i)].exerciseId;
-    Settings.set({ plateBars: Object.assign({}, Settings.get().plateBars, { [exId]: Number(d.v) }) });
-    refreshPlates();
-  },
-  /* mini check „do selhání" u série */
-  "w-set-fail": d => {
-    const e = S.activeSession && S.activeSession.entries[Number(d.i)];
-    const st = e && e.sets[Number(d.j)];
-    if (!st) return;
-    // rozepsaná série v polích nesmí překreslením zmizet
-    const keep = ["reps", "weight", "note"].map(f => (document.getElementById(`${f}-${d.i}`) || {}).value);
-    if (st.failure) delete st.failure; else st.failure = true;
-    save(); render();
-    ["reps", "weight", "note"].forEach((f, k) => {
-      const el = document.getElementById(`${f}-${d.i}`);
-      if (el && keep[k] != null) el.value = keep[k];
-    });
-  },
-  "w-set-cancel": () => { WV.editSet = null; render(); },
   /* zpětná úprava uloženého tréninku (detail tréninku) */
   "w-edit-session": d => beginEditSession(d.id),
   "w-rate-open": d => openRatingModal(d.id, true),
@@ -379,8 +332,6 @@ const ACTIONS = {
     WV.sw = null;
     closeModal();
   }),
-  /* nabídka cviku (⋯), superset, připnutá poznámka, stopky */
-  "w-ex-menu": d => openExerciseMenu(Number(d.i)),
   "w-link": d => {
     const e = S.activeSession && S.activeSession.entries[Number(d.i)];
     if (!e) return;
@@ -401,7 +352,6 @@ const ACTIONS = {
     save(); closeModal(); render();
     toast(v ? "Poznámka připnuta ✓" : "Poznámka odepnuta", "ok");
   },
-  "w-sw": d => toggleStopwatch(Number(d.i)),
   /* detail tréninku: zopakovat, uložit jako šablonu */
   "w-repeat": d => repeatSession(d.id),
   "w-save-tpl": d => openSaveTemplateModal(d.id),
@@ -429,30 +379,8 @@ const ACTIONS = {
     toast("Šablona aktualizována ✓", "ok");
   },
   "w-swap-ex": d => openExercisePicker(Number(d.i)),
-  /* akordeon: rozbalený je vždy nejvýš jeden cvik */
-  "w-ex-open": d => {
-    const i = Number(d.i);
-    WV.openIdx = WV.openIdx === i ? null : i;
-    WV.editSet = null;
-    render();
-    const el = document.getElementById("exblock-" + i);
-    if (el && WV.openIdx === i) el.scrollIntoView({ block: "center", behavior: "smooth" });
-  },
-  "w-ex-close": () => { WV.openIdx = null; WV.editSet = null; render(); },
   /* Hotovo: cvik se sbalí a otevře se další neodcvičený (nejdřív za ním,
      pak od začátku) — v posilovně o klepnutí méně u každého cviku */
-  "w-ex-done": d => {
-    const i = Number(d.i);
-    const list = S.activeSession.entries;
-    WV.editSet = null;
-    list[i].done = true;
-    const order = list.map((_, k) => k).filter(k => k > i).concat(list.map((_, k) => k).filter(k => k < i));
-    const next = order.find(k => !list[k].done);
-    WV.openIdx = next == null ? null : next;
-    save(); render();
-    const el = next == null ? null : document.getElementById("exblock-" + next);
-    if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
-  },
   "w-add-ex": () => openExercisePicker(null),
   /* filtr partie ve výběru cviku */
   "pk-cat": d => {
@@ -777,9 +705,10 @@ const ACTIONS = {
   }
 };
 
+/* akce nových obrazovek v5 (živý trénink, přehled, trenér, Apple Health) */
+Object.assign(ACTIONS, LIVE_ACTIONS, HOME_ACTIONS, COACH_ACTIONS, HEALTH_ACTIONS);
+
 document.addEventListener("click", e => {
-  // úchyt přetahování klik nemá; klik těsně po puštění pošle iOS navíc
-  if (e.target.closest(".drag-handle") || Date.now() - Drag.justDropped < 350) return;
   const t = e.target.closest("[data-act]");
   if (!t) return;
   const fn = ACTIONS[t.dataset.act];
@@ -801,18 +730,10 @@ document.addEventListener("keydown", e => {
   t.click();
 });
 
-/* Přetahování cviků v tréninku (Drag ve view-workout.js) */
-document.addEventListener("pointerdown", e => {
-  const h = e.target.closest(".drag-handle");
-  if (h) Drag.start(e, h);
-});
-document.addEventListener("pointermove", e => Drag.move(e));
-document.addEventListener("pointerup", e => Drag.end(e));
-document.addEventListener("pointercancel", e => Drag.end(e));
-
 document.addEventListener("change", e => {
   const t = e.target.closest("[data-change]");
   if (!t) return;
+  if (liveChange(t) || coachChange(t) || healthChange(t)) return;
   if (t.dataset.change === "set-field") saveSettings();
   if (t.dataset.change === "f-date") {
     if (t.value) { FV.date = t.value; render(); }

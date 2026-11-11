@@ -23,7 +23,7 @@ function renderBody() {
 }
 
 function bodyVisible() {
-  return App.route.tab === "progress" && !App.route.page && PG.seg === "body";
+  return App.route.page === "progress" && PG.seg === "body";
 }
 
 /* Fotky se načítají asynchronně — do té doby null a stránka se překreslí sama */
