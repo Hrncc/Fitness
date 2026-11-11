@@ -25,11 +25,26 @@ js/data.js            datový model, localStorage, PR logika
 js/sync.js            cloud sync (Google Apps Script)
 js/foodapi.js         Open Food Facts + USDA FoodData Central
 js/ui.js              komponenty (modal, toast, kalendář, SVG grafy)
-js/view-*.js          obrazovky (Dnes, Trénink, Pokrok, Jídlo, Více)
+js/engine.js          adaptivní plán (cíle sérií, návrhy úprav)
+js/anim.js            animace cviků (vlastní kreslená figurka)
+js/health.js          Apple Health (data ze Zkratky)
+js/view-*.js          obrazovky (Přehled, Trénink, živý trénink, Trenér, Pokrok, Jídlo, Profil)
 js/app.js             router, akce, inicializace
 apps-script/Code.gs   backend pro cloud sync (vkládá se do Google Sheets)
 icons/                ikony PWA
 ```
+
+## Co umí (v5.0)
+
+- **Trénink jako tabulka sérií** (minule · kg · opakování · ✓) přes celou
+  obrazovku, zahřívací série, supersety, pauza, kotouče, RIR.
+- **Plán se přizpůsobuje výsledkům** — váhy a opakování na příště počítá appka
+  z minulého tréninku a vždy řekne proč; úpravy plánu navrhuje k potvrzení.
+- **Animace u každého cviku** — vlastní kreslená figurka, nic se nestahuje.
+- **Apple Health / Apple Watch** přes Zkratku na iPhonu — viz `SETUP_HEALTH.md`.
+- **Trenér** — Claude přímo v appce na tvém API klíči; vidí tréninky, plán
+  a data z hodinek, navrhuje změny, které potvrzuješ.
+- Strava, váha, check-in s fotkami, rekordy, statistiky, export.
 
 ## Cloud sync (Google Sheets)
 

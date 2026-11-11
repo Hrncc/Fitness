@@ -1,5 +1,9 @@
 # Fitness Log — kontext projektu
 
+> **Aktuální stav je v5.0** (sekce „v5.0 — tréninková appka"). Starší sekce
+> popisují, jak appka vznikala; kde se liší (záložky Dnes · Trénink · Pokrok ·
+> Více, gym mód se steppery a akordeonem, přetahování cviků), **platí v5.0**.
+
 Osobní PWA pro zápis silových a kardio tréninků a stravy. **Jeden uživatel** (Martin),
 žádná registrace, žádný vlastní backend. UI je celé česky.
 Produktový záznam (uživatel, účel, zásady — pro skill Impeccable) je v `PRODUCT.md`;
@@ -14,7 +18,7 @@ technika, konvence a vzhled zůstávají tady.
   (`js/qr.js`) psaný od nuly. Písmo je od v4.0 systémové (SF Pro / SF Pro
   Rounded) — žádné soubory písma (Barlow z v3.0 i složka `fonts/` jsou pryč).
 - Externí volání jen na: Google Apps Script (sync), Open Food Facts, USDA,
-  `api.anthropic.com` (čtení etiket a odhad jídla z fotky). Klíč je uživatelův,
+  `api.anthropic.com` (trenér, čtení etiket a odhad jídla z fotky). Klíč je uživatelův,
   v `localStorage` toho zařízení — každé volání jde z jeho kreditu.
 
 ## Mapa souborů
@@ -27,19 +31,24 @@ technika, konvence a vzhled zůstávají tady.
 | `js/photos.js` | fotky postupu v IndexedDB + zmenšení na JPEG |
 | `js/data.js` | stav `S`, `save()`, `replaceState()`, PR logika a **rekordy čtyř druhů** (`exerciseRecords()`), plán cviku v šabloně (`tplPlan()`), druhy cviků (`exKind()`), milníky, plán trenéra, barvy partií (`CAT_COLOR`, `CAT_ORDER`, `sessionCatSets()`, `dayCatColors()`) |
 | `js/block.js` | **silový blok** (v4.2): definice `BLOCK`, migrace `applyBlockV1()`, týden `blockWeek()`, cíl cviku `blockTarget()`, rotace `blockNextTemplate()`, stránka `renderBlock()` |
+| `js/engine.js` | **adaptivní plán** (v5.0): cíl dnešních sérií `nextSets()`, operace plánu `applyPlanOps()` / `planOpError()` / `describeOp()`, návrhy úprav `planProposals()` |
 | `js/sync.js` | cloud sync + `mergeStates()` (slévání podle id) |
+| `js/health.js` | **Apple Health** (v5.0): příjem dat ze Zkratky `healthIngest()`, slévání `mergeHealth()`, připravenost `healthReadiness()`, karta `healthCardHtml()`, stránka `renderHealth()` |
 | `js/foodapi.js` | OFF (cz → world), USDA, Claude vision (etiketa / jídlo), čárový kód |
 | `js/ui.js` | ikony `ic()`, sekce `sec()`/`secHead()`/`secLink()`, iOS seznam `listGroup()`/`lgLink()`/`lgField()`/`lgSwitch()`, segmenty `segHtml()`, čísla `statHtml()`, české tvary `plural()`, data `fmtShort()`/`relDay()`, `fmtVolume()`, `fmtFixed()`, toast (i s akcí), sheet (+ zavření stažením `SheetDrag`), výběr cviku `openExPicker()`, kalendář, SVG grafy (`lineChart`, `columnChart`, `sparklineHtml`) + dotykový readout `ChartTip`, rest timer `Rest` + zamčený timer `Dock`, nezhasínání obrazovky `KeepAwake`, `dayNavHtml()` |
-| `js/view-today.js` | **Dnes** — seznam dne (váha · trénink · jídlo · check-in), týden s listováním, pokrok v kostce |
-| `js/view-workout.js` | **Trénink** — start (šablona na řadě, ostatní, kardio, čerstvost partií, poslední tréninky), gym mód (plán, supersety, stopky, menu cviku ⋯, kotouče, RIR), shrnutí po tréninku, stránky Historie a Rekordy, detail tréninku |
-| `js/view-progress.js` | **Pokrok** — segmenty Trénink · Tělo · Strava; segment Trénink (index síly, 30 dní, týdny, pravidelnost, partie, rekordy) |
+| `js/anim.js` | **animace cviků** (v5.0): vlastní kreslená figurka — polohy `FIGS`, mapa `EX_FIG`, `figSvg()`, `exThumb()`, `exAnim()` |
+| `js/view-today.js` | **Přehled** (záložka `today`) — připravenost, trénink na řadě `nextCardHtml()`, návrhy `adaptCardHtml()`, seznam dne (váha · jídlo · check-in), týden s listováním, pokrok v kostce |
+| `js/view-workout.js` | **Trénink** — start (trénink na řadě s cíli, rutiny, prázdný trénink, kardio, čerstvost partií, poslední tréninky), začátek / dokončení / úprava tréninku, counter partií, shrnutí po tréninku, stránky Historie a Rekordy, detail tréninku |
+| `js/view-live.js` | **živý trénink** (v5.0) — tabulka sérií `renderLive()`, řádky `ensureRows()` / `syncEntry()`, zahřívací série, sheet série, menu cviku ⋯, kotouče, detail cviku `openExDetail()` |
+| `js/view-coach.js` | **Trenér** (v5.0) — chat s Claudem přes Messages API (stream, nástroje, návrhy úprav plánu ke schválení) |
+| `js/view-progress.js` | **Pokrok** (od v5.0 stránka `progress`, ne záložka) — segmenty Trénink · Tělo · Strava; segment Trénink (index síly, 30 dní, týdny, pravidelnost, partie, rekordy) |
 | `js/view-checkin.js` | Pokrok → **Tělo** (váha, check-in, fotky, obvody, historie) + stránka formuláře check-inu |
 | `js/view-summary.js` | Pokrok → **Strava**, detail dne `openDaySummary()`, `movingAvgAt()`, stav kalendáře `SV` |
 | `js/view-food.js` | stránka **Jídlo** (denní log) + přidání jídla (hledání, foto, oblíbené, ručně) |
-| `js/view-menu.js` | stránka **Více** (`renderMore()`) + stránky Knihovna cviků, Šablony tréninků (+ editor plánu `openPlanModal()`), Knihovna jídel, Záloha a export (+ CSV sérií `buildSetsCsv()`), Nastavení, O aplikaci; fotky (`PV`) |
+| `js/view-menu.js` | záložka **Profil** (`renderMore()`, `profileHead()`) + stránky Knihovna cviků, Šablony tréninků (+ editor plánu `openPlanModal()`), Knihovna jídel, Záloha a export (+ CSV sérií `buildSetsCsv()`), Nastavení, O aplikaci; fotky (`PV`) |
 | `js/report.js` | `buildCoachReport(range)` — textový report pro Clauda |
 | `js/app.js` | router + velký titulek (`pageHead()`), delegace akcí (`ACTIONS`), `withUndo()`, start |
-| `apps-script/Code.gs` | backend syncu v Google Sheetu + 7 denních záloh |
+| `apps-script/Code.gs` | backend syncu v Google Sheetu + 7 denních záloh; od v5.0 i příjem dat z Apple Health (list `HEALTH`) a pojistka proti přepsání listu `DATA` |
 
 ## Konvence, které je nutné dodržet
 
@@ -195,7 +204,7 @@ ať uživateli nezůstanou testovací data. Reálná data jdou stáhnout z jeho 
   postavené kolem trenéra ztratily adresáta: check-in a fotky teď slouží jemu
   samému (viz níž) a **„Report pro Clauda" vkládá do chatu s Claudem** — je to
   jeho kanál pro rady k tréninku a stravě, takže se má dál zlepšovat (potvrzeno
-  ve v4.1). AI kouč *uvnitř* appky zůstává vyloučený (viz Záměrně neimplementováno).
+  ve v4.1). Od v5.0 je vedle toho **Trenér přímo v appce** (viz v5.0).
 - Appku používá **jen na iPhonu** (potvrzeno ve v4.1) — rozložení pro iPad
   a počítač nemá prioritu.
 - Kalorický cíl (původně od trenéra, jede dál): **2 200 kcal, B 180 / S 230 / T 60**,
@@ -248,6 +257,133 @@ Pořadí je pevné podle těla (`CAT_ORDER`), ať se buňky pod prstem nepřesku
 
 Všechny tři šablony trenéra pokrývají všech 7 partií, takže „N ze 7" je reálný
 cíl každého tréninku, ne teoretické skóre.
+
+## v5.0 — tréninková appka po vzoru Hevy / Strong / Liftosaur
+
+Martinovo zadání: „od základu předělat, co nejvíc se přiblížit Hevy, Liftosaur,
+Strong; u každého cviku animace; posbírat, co se uživatelům na těch appkách
+nelíbí, a vyřešit to; data z Apple Watch / Apple Health; Claude jako osobní
+trenér přímo v appce; dosavadní vzhled a fungování ustupuje UX nejlepší fitness
+appky; plány se mají měnit podle výsledků." Vybral: Apple Health **přes Zkratku**
+(appka zůstává webová), trenér **radí a navrhuje, změny potvrzuje Martin**,
+z dřív odmítnutých věcí vrátit **jen zahřívací série**. Animace nejdřív z cizí
+sady fotek, hned nato: **„animace cviků naanimuj sám"** — žádná cizí média.
+
+**Co se přestavělo:** navigace, Přehled, start Tréninku, živý trénink, Profil;
+nové jsou animace, adaptivní plán, Apple Health a trenér. **Co zůstalo:** datový
+model, sync, rekordy, silový blok, Pokrok (teď stránka), Tělo, Strava, Jídlo,
+knihovny, export, nastavení — jsou dostupné z Profilu.
+
+**Na co si lidé u těch appek stěžují a jak je to tady:** paywall na rutiny,
+grafy a export (tady nic placeného, data jsou Martinova) · Hevy a Strong plán
+samy neposouvají, Liftosaur to umí jen přes vlastní skriptovací jazyk (tady
+`engine.js` — pevná pravidla a ke každému návrhu věta proč) · sociální feed
+(není) · hodinky se nesynchronizují (Zkratka + list HEALTH) · žádné AI rady
+(Trenér).
+
+### Navigace
+Dole **Přehled · Trénink · Trenér · Profil** (`TABS`: `today`, `workout`, `coach`,
+`more`). Pokrok je stránka `progress` (akce `go-progress`), Apple Health stránka
+`health`. **Živý trénink je přes celou obrazovku**: `body.live-full` schová spodní
+navigaci (`--nav-h: 0`), šipka v titulku (`lv-min`) ho zmenší do docku, dock ho
+vrátí. Akce nových obrazovek jsou v `LIVE_ACTIONS`, `HOME_ACTIONS`, `COACH_ACTIONS`,
+`HEALTH_ACTIONS` a v `app.js` se přilévají do `ACTIONS` — **název akce nesmí
+kolidovat** se starou (`tpl-open` už patří Šablonám; rutina na startu je `rt-open`).
+Změny polí jdou přes `liveChange()` / `coachChange()` / `healthChange()`.
+
+### Živý trénink — tabulka sérií (`view-live.js`)
+- Karta cviku: figurka (u právě cvičeného se hýbe), název, „partie · 3 × 8–12 ·
+  RIR 2 · pauza", věta z adaptivního plánu, tabulka **Série · Minule · kg ·
+  Opak. · (RIR) · ✓**. Řádky jsou připravené z plánu a **předvyplněné jako
+  placeholder** — ✓ zapíše cíl jedním klepnutím, přepsané číslo má přednost.
+  Druhé klepnutí na ✓ odškrtnutí vrátí. Hotový cvik se sbalí na řádek.
+- **Model:** živý trénink má `entry.rows = [{t: "n" | "w", reps, weight, rir,
+  failure, note, done}]`. `syncEntry()` z nich po každé změně složí `entry.sets`
+  (odškrtnuté pracovní) a `entry.warm` (odškrtnuté zahřívací) a přepočítá
+  rekordy — **všechno ostatní čte dál `entry.sets`**. `ensureRows()` řádky
+  doplní i session založené jinde (`beginWorkout`, `repeatSession`,
+  `beginEditSession`, výměna cviku). Do `S.sessions` se ukládá `sets` (+ `warm`),
+  `rows` nikdy.
+- **Zahřívací série** (`t: "w"`, v tabulce „Z"): menu cviku → Přidat zahřívací
+  série (`warmupPlan()` — 50 % × 8, 70 % × 5, 85 % × 2 z cílové váhy), nebo
+  přepnutím druhu v sheetu série. **Nepočítají se do sérií, objemu, partií ani
+  rekordů** a nespouští pauzu. Cvik jen se zahřátím se neuloží.
+- **Sheet série** (klepnutí na číslo): druh, RIR, do selhání, poznámka, smazat
+  (`withUndo`). **RIR** se po odškrtnutí nabídne řádkem pod sérií („Kolik by
+  ještě šlo?") — karta se nesbalí, dokud dotaz visí.
+- Další řádek jde podle dneška (`rowHints()`: o kolik se dnes šlo jinak než
+  návrh, o tolik se posune zbytek). Výdrž má stopky v řádku, vlastní váha
+  prázdnou zátěž = 0. Chybějící číslo = červený rámeček pole.
+- **Menu ⋯:** detail, zahřátí, kotouče (vlastní váha v sheetu, pole nemění),
+  výměna, superset, poznámka, **Posunout výš / níž** (tažení cviků je pryč),
+  odebrat. **Detail cviku** (`openExDetail()`): animace, technika, naposledy,
+  rekordy, video, graf.
+- Shrnutí po tréninku má kartu **Příště** — co z dnešních sérií vyplývá.
+- Při větším textu tabulka schová „Minule", pak RIR (container query `lv` v `rem`).
+- Časovač celého tréninku, zvuk pauzy ani streak **dál nejsou**.
+
+### Adaptivní plán (`engine.js`)
+`nextSets(exId, target, excludeSid)` → `{rows, kind, text, last, stall}`; počítá
+se z historie při každém vykreslení, nic se neukládá. Pořadí pravidel: váha od
+trenéra (`S.overrides`, jednorázově — smaže ji dokončení tréninku) → start bloku
+→ bez historie → deload → výdrž / bez rozsahu = zopakuj → všechny série na horní
+hranici: **+ krok váhy, zpět na spodek** → zapsaná rezerva ≥ cíl + 2: přidej →
+pod spodní hranicí jednou drž, **podruhé −10 %** → jinak stejná váha a +1 opak.
+`planProposals()` = karta „Plán se přizpůsobuje" (Přehled a start; nejvýš dva
+naráz): cvik stojí 3 tréninky → reset −10 %; mimo silový blok objem na partii
+proti pásmu 10–20 sérií → ± série. Potvrzení jde přes `applyPlanOps()` +
+`withUndo`, odmítnutí do `S.adaptOff` na 21 dní, deník v `S.planLog`
+(Profil → Změny plánu). Operace: `set_plan`, `swap`, `add`, `remove`, `next_weight`
+— stejné používá trenér. `swap` propisuje i `S.block.days`.
+
+### Animace cviků (`anim.js`)
+Vlastní figurka ve SVG, **žádné cizí obrázky, nic se nestahuje** (appka zůstává
+self-contained). 90 pohybů (`FIGS`) pro všech 143 cviků (`EX_FIG`); vlastní cvik
+dostane pohyb podle názvu (`FIG_WORDS`), pak podle partie. Poloha = kyčel, úhel
+trupu a končetiny buď úhly, nebo **dosah na pevný bod** (ruce na hrazdě, chodidla
+na zemi — klouby dopočítá `figReach()`); mezi dvěma polohami se interpolují úhly
+a cíle, takže končetiny drží délku. Zatěžovaná část nese barvu partie (`hl`).
+SMIL `<animate>` nad `d` s fází podle hodin (překreslení neskočí na začátek);
+v seznamech stojí (`anim: false`), hýbe se v kartě právě cvičeného cviku
+a v detailu; `prefers-reduced-motion` = stojí. Nový pohyb: přidat do `FIGS`
+a zkontrolovat obě krajní polohy na kontaktním listu.
+
+### Apple Health (`health.js`, `Code.gs`, `SETUP_HEALTH.md`)
+PWA na iPhonu HealthKit číst nesmí → **Zkratka** jednou denně pošle POST
+`{kind: "health", date, rhr, hrv, sleep, steps, kcal, weight, workouts}` na adresu
+syncu. Server je uloží do listu `HEALTH` a přibalí ke GET (`health`); appka je
+slije do `S.health = {days, workouts}` (`mergeHealth()`, 180 dní). **Pojistka
+v `doPost`: do `DATA` smí jen tělo s poli `sessions` a `exercises`.** Uživatel
+musí nasadit **novou verzi stávajícího nasazení**. Připravenost = HRV a klidový
+tep proti vlastnímu 14dennímu průměru + spánek, výsledek slovem (ne skóre).
+Váha ze Zdraví doplní dny bez zápisu. Živý tep touhle cestou nejde.
+**Zkratka nebyla vyzkoušená na telefonu** — serverová část jen simulací.
+
+### Trenér (`view-coach.js`)
+Chat s Claudem na Martinově API klíči (`Settings.anthropicApiKey`, model
+`Settings.coachModel`, výchozí `claude-opus-5-5`). Přímé volání
+`api.anthropic.com/v1/messages`: `anthropic-version: 2026-10-21`, stream SSE,
+`fallbacks: "default"` (+ beta hlavička), bez `temperature`, bez `thinking`,
+bez vynuceného nástroje; bloky odpovědi včetně přemýšlení se vrací beze změny.
+Nástroje čtou lokální data (`get_overview`, `get_workouts`,
+`get_exercise_history`, `get_health`, `get_report`, `search_exercises`)
+a `propose_plan_change` vytvoří **kartu návrhu — plán se změní až po klepnutí
+na Potvrdit** (`applyPlanOps` + `withUndo`). Vstup nástroje se parsuje přísně,
+rozbitý JSON se vrátí jako chyba. Odmítnutí (`stop_reason: "refusal"`) a chyby
+kolo z historie vrací. Konverzace je jen v zařízení (`fitapp_coach_v1`), ne
+v syncu. **Živé volání API nebylo z testů možné** — testuje se proti mocku.
+
+### Stav navíc (`S`)
+`health`, `overrides` (`{[exId]: {kg, note}}`), `adaptOff`, `planLog`; u cviku
+v uloženém tréninku `warm: [{reps, weight}]`. Sync slévá `health` po dnech,
+`overrides` a `adaptOff` jako mapy.
+
+### Testy v5
+`v5/t14.js` (59 kontrol: animace, pravidla progrese, operace plánu, tabulka
+sérií, zahřátí, úprava tréninku, Health, trenér proti mocku API, navigace),
+`v5/t0.js` (obrazovky, kontrast, dotykové plochy, základní toky; i `SCHEME=light`),
+`v5/of.js` (přetečení 360 / 390 px × 17–34 px), `v5/gs-test.js` (simulace
+Apps Scriptu). Starší `v2/t6–t12` jsou svázané se starým gym módem a neběží.
 
 ## Silový blok (v4.2, `js/block.js`)
 
@@ -707,18 +843,17 @@ Chová se jako nativní appka — bez zoomu, bez houpání, bez skákání:
 Streak počítadlo (trestá plánovaná volna), cardio „phases", stretch library.
 Sociální feed a veřejné rutiny (appka je jednouživatelská, bez backendu).
 AI kouč nad vlastními daty — postavený ve v1.20, na Martinovu žádost hned
-zase smazaný (v1.21). Nestavět znovu, dokud si o to výslovně neřekne.
+zase smazaný (v1.21); **ve v5.0 si o něj výslovně řekl** (záložka Trenér).
 Rest timer původně taky vyloučen, ale uživatel si ho později vyžádal (v1.10).
-Ve v2.1 (inspirace Hevy) nabídnuté a odmítnuté: **zahřívací série** a **zvuk
-na konci pauzy** — nestavět bez výslovné žádosti.
+Ve v2.1 (inspirace Hevy) nabídnuté a odmítnuté: **zahřívací série** (ve v5.0
+si je vyžádal — jsou) a **zvuk na konci pauzy** — ten dál nestavět bez výslovné žádosti.
 **v3.1 (inspirace opengym) postavená a vrácená:** animované ukázky cviků (vlastní
 SVG piktogramy), vedený režim „jeden cvik na obrazovku" a dotaz na váhu při
 startu tréninku. Martinovi to nesedlo („clunky") — revert. Nestavět znovu bez
 výslovné žádosti. (Cizí média stejně nejdou: opengym je AGPL, animace Gym visual
 bez licence, fotky free-exercise-db nejasného původu.)
-**Navržené ve v4.0, zatím nevybrané:** trénink přes celou obrazovku (bez
-navigace a docku, zmenší se do lišty), tabulka sérií ve stylu Strong/Hevy
-(předvyplněné řádky, ✓ = zapsáno + pauza), nativní SwiftUI appka (pauza na
+**Navržené ve v4.0:** trénink přes celou obrazovku a tabulka sérií ve stylu
+Strong/Hevy jsou od v5.0 postavené; **nevybraná zůstává** nativní SwiftUI appka (pauza na
 zamčené obrazovce / Dynamic Island, vibrace, Apple Health, widget, Watch — za
 cenu přepisu, Xcode a vývojářského účtu). Webová appka na iPhonu nevibruje
 (`navigator.vibrate` Safari nemá), takže konec pauzy je jen vizuální.

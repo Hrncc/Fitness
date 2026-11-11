@@ -122,3 +122,15 @@ a váhy je dost rychlý na to, aby se opravdu dělal.
   - respekt k omezení pohybu.
 - Záměrná odchylka: zoom stránky je vypnutý kvůli pocitu nativní appky. Velký text
   zajišťuje Dynamic Type.
+
+## v5.0 — tréninková appka
+
+Od v5.0 se appka řídí tím, co funguje v Hevy, Strong a Liftosauru, a opravuje,
+na co si jejich uživatelé stěžují: nic není za paywallem, plán se sám posouvá
+podle výsledků (a ke každé změně říká proč), žádný sociální feed, data z hodinek
+přes Zkratku, Claude jako trenér přímo v appce. Záložky jsou Přehled · Trénink ·
+Trenér · Profil; živý trénink je přes celou obrazovku jako tabulka sérií
+(minule · kg · opakování · ✓) se zahřívacími sériemi; každý cvik má vlastní
+kreslenou animaci. Trenér radí a navrhuje — plán se mění až po potvrzení.
+Dál platí: žádný časovač celého tréninku, žádný zvuk pauzy, žádný streak.
+

@@ -123,6 +123,7 @@ function lvExerciseHtml(a, entry, i, isCur) {
   const pin = ex && ex.pin ? `<button class="lv-hint pin" data-act="w-pin" data-i="${i}">${ic("pin", 15)}<span>${esc(ex.pin)}</span></button>` : "";
 
   let work = 0, k = -1;
+  const lastPR = entry.sets.map(st => !!st.isPR).lastIndexOf(true);   // popis rekordu jen u poslední takové série
   const rows = entry.rows.map((r, j) => {
     const isW = r.t === "w";
     if (!isW) { work++; }
@@ -149,7 +150,7 @@ function lvExerciseHtml(a, entry, i, isCur) {
         <button class="lv-chk${r.done ? " on" : ""}" data-act="lv-check" data-i="${i}" data-j="${j}" aria-pressed="${r.done}"
           aria-label="${r.done ? "Zrušit odškrtnutí" : "Odškrtnout sérii"}">${ic(st && st.isPR ? "trophy" : "check", 17, 2.8)}</button>
       </div>
-      ${st && st.isPR ? `<div class="lv-prline">${ic("trophy", 13)} Rekord — ${(st.rec || []).map(x => REC_LABEL[x]).join(", ")}</div>` : ""}
+      ${st && st.isPR && k === lastPR ? `<div class="lv-prline">${ic("trophy", 13)} Rekord — ${(st.rec || []).map(x => REC_LABEL[x]).join(", ")}</div>` : ""}
       ${r.note ? `<div class="lv-note">${ic("note", 13)} ${esc(r.note)}</div>` : ""}
       ${ask ? `<div class="lv-ask"><span>Kolik by ještě šlo?</span>${[0, 1, 2, 3, 4].map(v =>
         `<button class="rir-opt${r.rir === v ? " on" : ""}" data-act="lv-rir" data-i="${i}" data-j="${j}" data-v="${v}">${rirLabel(v)}</button>`).join("")}</div>` : ""}`;

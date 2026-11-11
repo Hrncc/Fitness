@@ -1796,3 +1796,5 @@ body.live-full .bottomnav { display: none; }
 }
 .co-chips .chip { flex: 0 1 auto; max-width: 100%; }
 .lv-head .lv-thumb .ex-th { width: min(58px, 3.4rem); height: min(58px, 3.4rem); }
+.lv-ask span { flex-basis: 100%; margin: 0 0 2px; }
+@media (prefers-color-scheme: light) { .lv-row.pr .lv-chk.on { color: #fff; } }

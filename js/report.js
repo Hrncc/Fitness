@@ -250,6 +250,10 @@ function buildCoachReport(rangeId = "month") {
     ? `**Pozor na chybějící data:** ${missing.join("; ")}. Chybějící hodnoty znamenají „nezapsáno", ne nulu.`
     : `Data jsou kompletní.`);
 
+  /* --- Apple Health (v5.0): spánek, HRV, klidový tep a tréninky z hodinek --- */
+  if (typeof healthHas === "function" && healthHas()) {
+    L.push("", "## Apple Health (hodinky)", healthSummaryText(Math.min(days || 30, 30)));
+  }
   return L.join("\n");
 }
 
