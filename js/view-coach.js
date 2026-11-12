@@ -39,6 +39,16 @@ function coachModel() {
   return COACH_MODELS.some(x => x[0] === m) ? m : COACH_MODELS[0][0];
 }
 function coachKey() { return (Settings.get().anthropicApiKey || "").trim(); }
+function coachXaiKey() { return (Settings.get().xaiApiKey || "").trim(); }
+/* grok = most v náhledu, nebo vlastní klíč na api.x.ai. claude = klíč z console.anthropic.com. */
+function coachWho() {
+  const w = Settings.get().coachWho;
+  if (w === "grok" || w === "claude") return w;
+  if (CO.grok || coachXaiKey()) return "grok";
+  return "claude";
+}
+function coachUsesGrok() { return coachWho() === "grok"; }
+function coachReady() { return coachUsesGrok() ? !!(CO.grok || coachXaiKey()) : !!coachKey(); }
 
 /* Most /api/grok je stejný původ jako appka. Klíč na Groka v prohlížeči není. */
 function coachProbeGrok() {
@@ -70,16 +80,12 @@ function grokMessages(api) {
   }
   return out;
 }
-async function grokRequest(messages, onText, signal) {
-  const res = await fetch("/api/grok", {
-    method: "POST", signal,
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ messages: grokMessages(messages), tools: grokTools() })
-  });
+async function grokStream(url, headers, body, onText, signal) {
+  const res = await fetch(url, { method: "POST", signal, headers, body: JSON.stringify(body) });
   if (!res.ok) {
     let msg = "HTTP " + res.status;
     try { const j = await res.json(); if (j && j.error) msg = typeof j.error === "string" ? j.error : (j.error.message || msg); } catch (e) { /* tělo není JSON */ }
-    throw new Error(res.status === 503 ? "Grok teď není připojený." : res.status === 429 ? "Limit Groka — zkus to za chvíli." : msg);
+    throw new Error(res.status === 401 ? "Klíč na Groka nesedí — zkontroluj ho v Nastavení." : res.status === 503 ? "Grok teď není připojený." : res.status === 429 ? "Limit Groka — zkus to za chvíli." : msg);
   }
   const blocks = [];
   const calls = [];
@@ -133,6 +139,18 @@ async function grokRequest(messages, onText, signal) {
   }
   if (calls.some(c => c && c.name) && stop === "end_turn") stop = "tool_use";
   return { content: blocks, stop };
+}
+async function grokRequest(messages, onText, signal) {
+  return grokStream("/api/grok", { "content-type": "application/json" },
+    { messages: grokMessages(messages), tools: grokTools() }, onText, signal);
+}
+async function grokDirectRequest(messages, onText, signal) {
+  return grokStream("https://api.x.ai/v1/chat/completions", {
+    "content-type": "application/json", authorization: "Bearer " + coachXaiKey()
+  }, {
+    model: "grok-4.5", messages: grokMessages(messages), tools: grokTools(),
+    max_tokens: 1400, temperature: 0.4, stream: true
+  }, onText, signal);
 }
 
 /* ---- nástroje ---- */
@@ -268,7 +286,7 @@ Jak pracuješ:
 
 /* ---- volání API (SSE) ---- */
 async function coachRequest(messages, onText, signal) {
-  if (CO.grok) return grokRequest(messages, onText, signal);
+  if (coachUsesGrok()) return CO.grok ? grokRequest(messages, onText, signal) : grokDirectRequest(messages, onText, signal);
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST", signal,
     headers: { "content-type": "application/json", "x-api-key": coachKey(), "anthropic-version": "2026-10-21",
@@ -332,7 +350,7 @@ async function coachRequest(messages, onText, signal) {
 async function coachSend(text) {
   text = String(text || "").trim();
   if (!text || CO.busy) return;
-  if (!CO.grok && !coachKey()) { toast("Nejdřív vlož API klíč", "err"); return; }
+  if (!coachReady()) { toast(coachUsesGrok() ? "Nejdřív vlož klíč na Groka" : "Nejdřív vlož klíč na Clauda", "err"); return; }
   if (!navigator.onLine) { toast("Trenér potřebuje připojení k internetu", "err"); return; }
   coachLoad();
   CO.err = null; CO.busy = true; CO.draft = "";
@@ -350,7 +368,7 @@ async function coachSend(text) {
       if (r.stop === "refusal") {
         /* odmítnutí: částečný výstup se zahazuje a kolo se do historie nedává */
         CO.api.length = apiStart;
-        item.text = "Na tohle Claude odpovědět odmítl. Zkus se zeptat jinak.";
+        item.text = "Na tohle trenér odpovědět odmítl. Zkus se zeptat jinak.";
         item.tools = [];
         break;
       }
@@ -421,11 +439,52 @@ function coachItemHtml(it, last) {
 }
 const COACH_PROMPTS = ["Zhodnoť můj poslední týden", "Co mám dnes trénovat a s jakými váhami?", "Kde stagnuju a co s tím?", "Uprav mi plán podle výsledků"];
 
+function coachSwitch() {
+  const who = coachWho();
+  return `<div class="seg sm co-who" role="tablist">
+    <button class="seg-btn${who === "grok" ? " on" : ""}" data-act="co-who" data-v="grok" role="tab" aria-selected="${who === "grok"}">Grok</button>
+    <button class="seg-btn${who === "claude" ? " on" : ""}" data-act="co-who" data-v="claude" role="tab" aria-selected="${who === "claude"}">Claude</button>
+  </div>`;
+}
 function coachHead() {
   coachLoad();
-  const who = CO.grok ? "Grok" : "Claude";
-  return { title: "Trenér", sub: (CO.grok || coachKey()) ? `${who} · vidí tréninky, plán a data z hodinek` : "Osobní trenér přímo v appce",
+  const who = coachUsesGrok() ? "Grok" : "Claude";
+  return { title: "Trenér", sub: coachReady() ? `${who} · vidí tréninky, plán a data z hodinek` : "Grok nebo Claude — vyber si",
     right: CO.items.length ? `<button class="iconbtn" data-act="co-clear" aria-label="Nová konverzace">${ic("edit", 20)}</button>` : "" };
+}
+function coachSetup() {
+  const who = coachWho();
+  if (who === "grok" && CO.grok) {
+    return `<div class="card co-setup">
+      ${coachSwitch()}
+      <div class="co-setup-ic">${ic("spark", 26)}</div>
+      <h2>Grok je připojený</h2>
+      <p>V tomhle náhledu jede Grok bez klíče. Na telefonu vlož vlastní klíč z console.x.ai, ať tě trenér zná i tam.</p>
+      <button class="btn primary full" data-act="co-who" data-v="grok">Pokračovat s Grokem</button>
+    </div>`;
+  }
+  if (who === "grok") {
+    return `<div class="card co-setup">
+      ${coachSwitch()}
+      <div class="co-setup-ic">${ic("spark", 26)}</div>
+      <h2>Připoj Groka jako trenéra</h2>
+      <p>Vidí tréninky, plán, váhu, stravu a hodinky. Úpravu plánu vždy potvrzuješ ty.</p>
+      <label class="field"><span>xAI API klíč</span>
+        <input class="input" id="coXai" type="password" autocomplete="off" placeholder="xai-…" data-change="co-key"></label>
+      <button class="btn primary full" data-act="co-xai-save">Připojit Groka</button>
+      <p class="cap">Klíč z console.x.ai → API keys. Zůstává jen v tomhle telefonu, platíš jím zprávy ze svého kreditu. Dotazy odcházejí na api.x.ai.</p>
+    </div>`;
+  }
+  return `<div class="card co-setup">
+      ${coachSwitch()}
+      <div class="co-setup-ic">${ic("spark", 26)}</div>
+      <h2>Připoj Clauda jako trenéra</h2>
+      <p>Vidí tréninky, plán, váhu, stravu a hodinky. Úpravu plánu vždy potvrzuješ ty.</p>
+      <label class="field"><span>Claude API klíč</span>
+        <input class="input" id="coKey" type="password" autocomplete="off" placeholder="sk-ant-…" data-change="co-key"></label>
+      <button class="btn primary full" data-act="co-key-save">Připojit Clauda</button>
+      <p class="cap">Klíč z console.anthropic.com → API keys. Zůstává jen v tomhle telefonu (stejný klíč čte i etikety jídel). Dotazy odcházejí na api.anthropic.com.</p>
+    </div>`;
 }
 function renderCoach() {
   coachLoad();
@@ -433,23 +492,14 @@ function renderCoach() {
     coachProbeGrok().then(() => { if (coachVisible()) render(); });
     return `<div class="co-empty"><p>Připojuju trenéra…</p></div>`;
   }
-  if (!CO.grok && !coachKey()) {
-    return `<div class="card co-setup">
-        <div class="co-setup-ic">${ic("spark", 26)}</div>
-        <h2>Připoj Clauda jako trenéra</h2>
-        <p>Trenér vidí tvoje tréninky, plán, váhu, stravu a data z hodinek. Poradí, co dnes, proč cvik stojí, a navrhne úpravu plánu — tu vždy potvrzuješ ty.</p>
-        <label class="field"><span>Claude API klíč</span>
-          <input class="input" id="coKey" type="password" autocomplete="off" placeholder="sk-ant-…" data-change="co-key"></label>
-        <button class="btn primary full" data-act="co-key-save">Připojit</button>
-        <p class="cap">Klíč si vytvoříš na console.anthropic.com → API keys. Zůstává jen v tomhle telefonu a platíš jím každou zprávu ze svého kreditu (stejný klíč čte i etikety jídel). Dotazy s tvými daty odcházejí na api.anthropic.com.</p>
-      </div>`;
-  }
+  if (!coachReady()) return coachSetup();
   const list = CO.items.map((it, i) => coachItemHtml(it, i === CO.items.length - 1)).join("");
   const empty = !CO.items.length ? `<div class="co-empty">
       <p>Zeptej se na cokoli k tréninku. Trenér si nejdřív sám načte tvoje data.</p>
       <div class="co-chips">${COACH_PROMPTS.map(p => `<button class="chip" data-act="co-prompt" data-q="${esc(p)}">${esc(p)}</button>`).join("")}</div>
     </div>` : "";
   return `
+    ${coachSwitch()}
     <div class="co-list" id="coList" aria-live="polite">${empty}${list}</div>
     ${CO.err ? `<div class="co-err" role="alert">${ic("alert", 15)} ${esc(CO.err)}</div>` : ""}
     <form class="co-compose" id="coForm" data-act-submit="co-send">
@@ -487,9 +537,21 @@ const COACH_ACTIONS = {
   "co-key-save": () => {
     const v = (document.getElementById("coKey").value || "").trim();
     if (!/^sk-ant-/.test(v)) { toast("Klíč má začínat sk-ant-…", "err"); return; }
-    Settings.set({ anthropicApiKey: v });
+    Settings.set({ anthropicApiKey: v, coachWho: "claude" });
     render();
-    toast("Trenér připojen ✓", "ok");
+    toast("Claude připojen ✓", "ok");
+  },
+  "co-xai-save": () => {
+    const v = (document.getElementById("coXai").value || "").trim();
+    if (v.length < 12) { toast("Vlož klíč z console.x.ai", "err"); return; }
+    Settings.set({ xaiApiKey: v, coachWho: "grok" });
+    render();
+    toast("Grok připojen ✓", "ok");
+  },
+  "co-who": d => {
+    const v = d.v === "claude" ? "claude" : "grok";
+    Settings.set({ coachWho: v });
+    render();
   },
   "co-send": () => { const el = document.getElementById("coInput"); if (el) coachSend(el.value); },
   "co-prompt": d => coachSend(d.q),

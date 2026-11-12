@@ -1582,7 +1582,7 @@ input, textarea { caret-color: var(--green-ink); }
   background: var(--s2); display: block;
 }
 .list-item .ex-th, .pv-row .ex-th { width: 44px; height: 44px; }
-.ex-stage { display: flex; align-items: center; gap: 8px; margin: 2px 0 14px; }
+.co-who { margin: 4px 0 12px; }
 .ex-stage .ex-anim { flex: 1; width: auto; min-width: 0; max-width: none; margin: 0; }
 .ex-chip { flex: none; width: 86px; text-align: center; }
 .ex-chip svg { width: 58px; height: 108px; display: block; margin: 0 auto 2px; }

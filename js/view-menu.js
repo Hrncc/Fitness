@@ -1,7 +1,7 @@
 /* ===== Více: sheet s nabídkou a stránky z něj ===== */
 "use strict";
 
-const APP_VERSION = "5.0.5";
+const APP_VERSION = "5.0.6";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -24,6 +24,7 @@ function profileHead() {
   return { title: "Profil", sub: n ? `${n} ${plural(n, "trénink", "tréninky", "tréninků")} · od ${fmtShort(first)}` : "Zatím bez tréninku" };
 }
 function renderMore() {
+  if (CO.grok === undefined) coachProbeGrok().then(() => { if (App.route.tab === "more" && !App.route.page) render(); });
   const link = (icon, label, page, value = "") => lgLink(icon, label, `data-act="menu" data-page="${page}"`, value);
   const lastSync = Settings.get().gasWebAppUrl ? `<span id="syncBadge">${syncBadgeHtml()}</span>` : "";
   const today = todayStr();
@@ -53,7 +54,7 @@ function renderMore() {
     ], { head: "Trénink" })
     + listGroup([
       link("watch", "Apple Health a hodinky", "health", hl ? relDay(hl) : "nepřipojeno"),
-      lgLink("spark", CO.grok ? "Trenér Grok" : "Trenér Claude", `data-act="nav" data-tab="coach"`, (CO.grok || Settings.get().anthropicApiKey) ? "připojen" : "nepřipojen"),
+      lgLink("spark", "Trenér · " + (coachUsesGrok() ? "Grok" : "Claude"), `data-act="nav" data-tab="coach"`, coachReady() ? "připojen" : "nepřipojen"),
       link("share", "Záloha, sync a export", "export", lastSync)
     ], { head: "Propojení" })
     + listGroup([
@@ -718,13 +719,16 @@ function renderSettings() {
       `<label class="lg-row lg-stack"><span class="lg-l">USDA FoodData Central</span>
         <input class="lg-in full" id="setUsda" type="text" data-change="set-field" placeholder="prázdné = DEMO_KEY (30 dotazů/hod)"
           value="${esc(st.usdaApiKey)}" autocomplete="off" autocorrect="off" spellcheck="false"></label>`,
-      `<label class="lg-row lg-stack"><span class="lg-l">Claude API (trenér, etikety a jídlo z fotky)</span>
+      `<label class="lg-row lg-stack"><span class="lg-l">Claude API (etikety, jídlo z fotky, trenér)</span>
         <input class="lg-in full" id="setAnthropic" type="password" data-change="set-field" placeholder="sk-ant-…"
-          value="${esc(st.anthropicApiKey)}" autocomplete="off"></label>`
-      ,`<label class="lg-row lg-stack"><span class="lg-l">Model trenéra</span>
-        <select class="lg-in full" data-change="set-coach-model" aria-label="Model trenéra">${COACH_MODELS.map(([id, lbl]) =>
+          value="${esc(st.anthropicApiKey)}" autocomplete="off"></label>`,
+      `<label class="lg-row lg-stack"><span class="lg-l">Grok API (trenér)</span>
+        <input class="lg-in full" id="setXai" type="password" data-change="set-field" placeholder="xai-…"
+          value="${esc(st.xaiApiKey || "")}" autocomplete="off"></label>`
+      ,`<label class="lg-row lg-stack"><span class="lg-l">Model Clauda</span>
+        <select class="lg-in full" data-change="set-coach-model" aria-label="Model Clauda">${COACH_MODELS.map(([id, lbl]) =>
           `<option value="${id}"${coachModel() === id ? " selected" : ""}>${lbl}</option>`).join("")}</select></label>`
-    ], { head: "API klíče", foot: "Klíče se ukládají jen v tomto zařízení. USDA klíč zdarma na fdc.nal.usda.gov, Claude klíč z console.anthropic.com — posílá se jen na api.anthropic.com." })
+    ], { head: "API klíče", foot: "Klíče zůstávají jen v tomto zařízení. Claude na api.anthropic.com, Grok na api.x.ai. V trenérovi se mezi nimi přepíná." })
     + listGroup([
       `<button class="lg-row" data-act="set-qr-show"><span class="lg-ic">${ic("share", 20)}</span><span class="lg-l">Zobrazit QR kód</span><span class="lg-chev">${ic("chevR", 16, 2.2)}</span></button>`,
       `<button class="lg-row" data-act="set-qr-scan"><span class="lg-ic">${ic("camera", 20)}</span><span class="lg-l">Načíst z QR kódu</span><span class="lg-chev">${ic("chevR", 16, 2.2)}</span></button>`
@@ -738,6 +742,7 @@ function saveSettings() {
   Settings.set({
     usdaApiKey: document.getElementById("setUsda").value.trim(),
     anthropicApiKey: document.getElementById("setAnthropic").value.trim(),
+    xaiApiKey: document.getElementById("setXai").value.trim(),
     restSeconds: int("setRest", 0, 900),
     weeklyGoal: int("setGoal", 0, 14)
   });
@@ -848,7 +853,7 @@ const QR_PREFIX = "FITAPP1:";
 function openQrExport() {
   const st = Settings.get();
   const payload = QR_PREFIX + JSON.stringify({
-    g: st.gasWebAppUrl, u: st.usdaApiKey, a: st.anthropicApiKey,
+    g: st.gasWebAppUrl, u: st.usdaApiKey, a: st.anthropicApiKey, x: st.xaiApiKey || "", t: st.coachWho || "",
     w: st.weightUnit, r: st.restSeconds
   });
   openModal(`${modalTitle("Nastavení jako QR")}
@@ -876,6 +881,8 @@ async function importQrFile(file) {
       gasWebAppUrl: p.g || "",
       usdaApiKey: p.u || "",
       anthropicApiKey: p.a || "",
+      xaiApiKey: p.x || "",
+      coachWho: p.t === "grok" || p.t === "claude" ? p.t : "",
       weightUnit: p.w === "lb" ? "lb" : "kg",
       restSeconds: Number.isFinite(p.r) ? p.r : 120
     });
