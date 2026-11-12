@@ -1535,21 +1535,37 @@ input, textarea { caret-color: var(--green-ink); }
    trenér, Apple Health, Profil
    =================================================================== */
 :root {
-  --fig: #D4D4D8; --fig-far: #5C5C62; --fig-eq: #7E7E85; --fig-pl: #F4F4F0;
+  --fig: #E4E4E8; --fig-body: #C8C8CE; --fig-far: #5E5E66; --fig-eq: #8A8A92;
+  --fig-pl: #F4F4F0; --fig-shoe: #141416; --fig-ink: rgba(0, 0, 0, .55);
+  --fig-hair: #141418; --fig-kit: #2A2A30; --fig-kit-far: #45454C; --fig-sole: #3A3A42;
 }
 @media (prefers-color-scheme: light) {
-  :root { --fig: #3C3C41; --fig-far: #B3B3B9; --fig-eq: #8E8E93; --fig-pl: #1C1C1E; }
+  :root {
+    --fig: #3A3A40; --fig-body: #2C2C31; --fig-far: #C5C5CB; --fig-eq: #8E8E93;
+    --fig-pl: #1C1C1E; --fig-shoe: #121214; --fig-ink: rgba(0, 0, 0, .35);
+    --fig-hair: #141418; --fig-kit: #16161A; --fig-kit-far: #9A9AA2; --fig-sole: #4A4A52;
+  }
 }
 
 /* ---- figurka cviku ---- */
 .fig { width: 100%; height: 100%; display: block; fill: none; stroke-linecap: round; stroke-linejoin: round; }
-.fig .fg { stroke: var(--fig); }
-.fig .ff { stroke: var(--fig-far); }
-.fig .hl { stroke: var(--c, var(--fig)); }
-.fig .eq, .fig .cb { stroke: var(--fig-eq); }
-.fig .eq-b { fill: var(--fig-eq); opacity: .55; }
-.fig .pl { stroke: var(--fig-pl); }
-.fig .fl { stroke: var(--hair2); stroke-width: 1; }
+.fig .bd, .fig .hn, .fig .hd { fill: var(--fig); stroke: var(--fig-ink); stroke-width: .7; }
+.fig .tr { fill: var(--fig-body); stroke: var(--fig-ink); stroke-width: .7; }
+.fig .bf { fill: var(--fig-far); stroke: var(--fig-ink); stroke-width: .55; }
+.fig .hl { fill: var(--c, var(--fig)); stroke: var(--fig-ink); stroke-width: .7; }
+.fig .ft { fill: var(--fig-shoe); stroke: var(--fig-ink); stroke-width: .45; }
+.fig .ftf { fill: var(--fig-far); stroke: var(--fig-ink); stroke-width: .4; }
+.fig .sl { fill: var(--fig-sole); stroke: none; }
+.fig .slf { fill: var(--fig-far); stroke: none; opacity: .7; }
+.fig .hr { fill: var(--fig-hair); stroke: none; }
+.fig .kt { fill: var(--fig-kit); stroke: var(--fig-ink); stroke-width: .4; }
+.fig .ktf { fill: var(--fig-kit-far); stroke: var(--fig-ink); stroke-width: .35; }
+.fig .mg { fill: none; stroke: var(--fig-ink); stroke-width: .65; opacity: .5; }
+.fig .fc { fill: var(--fig-ink); stroke: none; }
+.fig .eq, .fig .cb { stroke: var(--fig-eq); fill: none; }
+.fig .eq-b { fill: var(--fig-eq); stroke: none; opacity: .55; }
+.fig .pl { fill: var(--fig-pl); stroke: var(--fig-pl); }
+.fig .fl { stroke: var(--hair2); stroke-width: 1; fill: none; }
 .ex-th {
   flex: none; width: 48px; height: 48px; border-radius: 13px; overflow: hidden;
   background: var(--s2); display: block;

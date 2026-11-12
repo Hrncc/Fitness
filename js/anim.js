@@ -1,9 +1,9 @@
-/* ===== Animace cviků (v5.0) =====
+/* ===== Animace cviků (v5.0.1) =====
    Vlastní kreslená figurka — žádné cizí fotky ani videa, nic se nestahuje.
-   Každý cvik má dvě krajní polohy (A → B), mezi kterými se figurka plynule
-   pohybuje; klouby se dopočítávají (úhly nebo dosah ruky / nohy na pevný bod),
-   takže končetiny drží délku a ruce zůstanou na hrazdě, chodidla na zemi.
-   Zatěžovaná část těla nese barvu partie.
+   Končetiny jsou zužující se objemy, trup má pas, hlava vlasy a obličej,
+   ruce dlaň, nohy trenky a tenisku. Zatěžovaný sval nese barvu partie
+   a tenkou linku. Každý cvik má dvě krajní polohy (A → B); klouby se
+   dopočítávají (úhly nebo dosah na pevný bod), takže končetiny drží délku.
 
    figSvg(key, {anim})  — SVG jedné animace (anim: false = stojící snímek)
    exFigKey(exId)       — animace cviku: podle id, pak názvu, pak partie
@@ -373,14 +373,101 @@ function figJoints(p, front) {
   const ftLen = front ? 4 : FIG.ft;
   J.toN = _add(J.anN, _dir(lN[2] == null ? 90 : lN[2], ftLen));
   J.toF = _add(J.anF, _dir(lF[2] == null ? (front ? -90 : 90) : lF[2], ftLen));
+  J.face = perp;
+  J.front = !!front;
   return J;
 }
 
 const _r1 = v => (Math.round(v * 10) / 10).toString();
 const _ln = (p, q) => `M${_r1(p[0])} ${_r1(p[1])}L${_r1(q[0])} ${_r1(q[1])}`;
 const _dot = p => `M${_r1(p[0])} ${_r1(p[1])}l0 .01`;
+const _poly = pts => "M" + pts.map(p => _r1(p[0]) + " " + _r1(p[1])).join("L") + "Z";
+const _mid = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 
-/* Sestaví prvky animace: [{c: třída, w: tloušťka, d: [snímky]}] + výřez */
+/* zužující se končetina: oblouk kolem konce, rovné strany, pořád stejný počet bodů */
+function _limb(p, q, r0, r1, n) {
+  n = n || 4;
+  const dx0 = q[0] - p[0], dy0 = q[1] - p[1];
+  let len = Math.hypot(dx0, dy0);
+  if (len < 0.8) { q = [p[0] + 0.8, p[1]]; len = 0.8; }
+  const dx = q[0] - p[0], dy = q[1] - p[1];
+  const ux = dx / len, uy = dy / len, px = -uy, py = ux;
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const a = Math.PI * i / n;
+    pts.push([q[0] + (px * Math.cos(a) + ux * Math.sin(a)) * r1, q[1] + (py * Math.cos(a) + uy * Math.sin(a)) * r1]);
+  }
+  for (let i = 0; i <= n; i++) {
+    const a = Math.PI + Math.PI * i / n;
+    pts.push([p[0] + (px * Math.cos(a) + ux * Math.sin(a)) * r0, p[1] + (py * Math.cos(a) + uy * Math.sin(a)) * r0]);
+  }
+  return pts;
+}
+function _ring(c, r, n) {
+  const pts = [];
+  for (let i = 0; i < (n || 8); i++) {
+    const a = -Math.PI / 2 + Math.PI * 2 * i / (n || 8);
+    pts.push([c[0] + Math.cos(a) * r, c[1] + Math.sin(a) * r]);
+  }
+  return pts;
+}
+/* končetina kousek přetažená přes kloub, ať spoj nevypadá jako koule */
+function _ext(p, q, r0, r1, n) {
+  const dx = q[0] - p[0], dy = q[1] - p[1];
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len, uy = dy / len;
+  return _limb(
+    [p[0] - ux * Math.min(r0 * 0.22, 1.3), p[1] - uy * Math.min(r0 * 0.22, 1.3)],
+    [q[0] + ux * Math.min(r1 * 0.35, 1.6), q[1] + uy * Math.min(r1 * 0.35, 1.6)],
+    r0, r1, n
+  );
+}
+function _up(f) {
+  const a = [-f[1], f[0]], b = [f[1], -f[0]];
+  return a[1] <= b[1] ? a : b;
+}
+function _arcBand(c, r0, r1, a0, a1, n) {
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const a = a0 + (a1 - a0) * i / n;
+    pts.push([c[0] + Math.cos(a) * r1, c[1] + Math.sin(a) * r1]);
+  }
+  for (let i = 0; i <= n; i++) {
+    const a = a1 + (a0 - a1) * i / n;
+    pts.push([c[0] + Math.cos(a) * r0, c[1] + Math.sin(a) * r0]);
+  }
+  return pts;
+}
+function _shoeBasis(an, to) {
+  const dx = to[0] - an[0], dy = to[1] - an[1];
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len, uy = dy / len;
+  let px = -uy, py = ux;
+  if (py < 0) { px = -px; py = -py; }
+  const P = (x, y) => [an[0] + ux * x + px * y, an[1] + uy * x + py * y];
+  return { len, P };
+}
+function _shoe(an, to) {
+  const { len, P } = _shoeBasis(an, to);
+  return [
+    P(-1.15, -1.65), P(-1.55, 0.15), P(-0.7, 1.45), P(len * 0.5, 1.6),
+    P(len + 1.9, 1.25), P(len + 2.55, 0.1), P(len + 1.35, -1.2),
+    P(len * 0.42, -1.25), P(0.15, -1.75), P(-0.85, -1.7)
+  ];
+}
+function _sole(an, to) {
+  const { len, P } = _shoeBasis(an, to);
+  return _limb(P(-0.35, 1.05), P(len + 1.7, 0.72), 0.72, 0.62, 2);
+}
+function _hand(el, ha, rad) {
+  const dx = ha[0] - el[0], dy = ha[1] - el[1];
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len, uy = dy / len;
+  const reach = rad > 2 ? 3.15 : 2.55;
+  return _limb([ha[0] - ux * 0.25, ha[1] - uy * 0.25], [ha[0] + ux * reach, ha[1] + uy * reach], rad, rad * 0.62, 3);
+}
+
+/* Sestaví prvky animace: [{c, d: [snímky], fill? , w?}] + výřez */
 const _figCache = new Map();
 function figBuild(key) {
   if (_figCache.has(key)) return _figCache.get(key);
@@ -396,49 +483,210 @@ function figBuild(key) {
   const els = [];
   const bb = [1e9, 1e9, -1e9, -1e9];
   const grow = (p, r) => { bb[0] = Math.min(bb[0], p[0] - r); bb[1] = Math.min(bb[1], p[1] - r); bb[2] = Math.max(bb[2], p[0] + r); bb[3] = Math.max(bb[3], p[1] + r); };
-  const seg = (c, w, a, b) => els.push({ c, w, d: frames.map(J => { grow(J[a], w / 2); grow(J[b], w / 2); return _ln(J[a], J[b]); }) });
-  const dot = (c, w, fn) => els.push({ c, w, d: frames.map(J => { const p = fn(J); grow(p, w / 2); return _dot(p); }) });
+  const growAll = pts => { for (const p of pts) grow(p, 1.2); return pts; };
+  const fill = (c, frameFn) => els.push({ c, fill: 1, d: frames.map(J => _poly(growAll(frameFn(J)))) });
+  const stroke = (c, w, d) => els.push({ c, w, d });
   const gear = list => {
     for (const g of list || []) {
       const t = g[0];
       if (t === "rect") { els.push({ c: "eq", rect: g.slice(1) }); grow([g[1], g[2]], 0); grow([g[1] + g[3], g[2] + g[4]], 0); }
-      else if (t === "ln") { const w = g[5] || 3; els.push({ c: "eq", w, d: [_ln([g[1], g[2]], [g[3], g[4]])] }); grow([g[1], g[2]], w / 2); grow([g[3], g[4]], w / 2); }
-      else if (t === "disc") dot("pl", g[4] * 2, J => [J[g[1]][0] + g[2], J[g[1]][1] + g[3]]);
-      else if (t === "db") {
-        const v = _dir(g[2] || 0, 4.2);   // 0 = vodorovně k divákovi (krátká svislá čárka by zanikla), kreslí se napříč
-        els.push({ c: "pl", w: 5, d: frames.map(J => { const p = J[g[1]]; const a = [p[0] - v[1], p[1] - v[0]], b = [p[0] + v[1], p[1] + v[0]]; grow(a, 3); grow(b, 3); return _ln(a, b); }) });
+      else if (t === "ln") { const w = g[5] || 3; stroke("eq", w, [_ln([g[1], g[2]], [g[3], g[4]])]); grow([g[1], g[2]], w / 2); grow([g[3], g[4]], w / 2); }
+      else if (t === "disc") {
+        const r = g[4];
+        els.push({
+          c: "pl", fill: 1, even: 1,
+          d: frames.map(J => {
+            const c = [J[g[1]][0] + g[2], J[g[1]][1] + g[3]];
+            const outer = growAll(_ring(c, r, 14));
+            const inner = _ring(c, Math.max(1.5, r * 0.58), 14).reverse();
+            const hub = _ring(c, Math.max(0.55, r * 0.16), 8);
+            return _poly(outer) + _poly(inner) + _poly(hub);
+          })
+        });
       }
-      else if (t === "cab") { const w = g[4] || 1.3; els.push({ c: w > 2 ? "eq" : "cb", w, d: frames.map(J => { grow([g[1], g[2]], 1); return _ln([g[1], g[2]], J[g[3]]); }) }); }
-      else if (t === "seg") { const w = g[6] || 3; els.push({ c: "eq", w, d: frames.map(J => { const p = J[g[1]]; const a = [p[0] + g[2], p[1] + g[3]], b = [p[0] + g[4], p[1] + g[5]]; grow(a, w / 2); grow(b, w / 2); return _ln(a, b); }) }); }
+      else if (t === "db") {
+        const v = _dir(g[2] || 0, 4.2);
+        stroke("pl", 5, frames.map(J => {
+          const p = J[g[1]];
+          const a = [p[0] - v[1], p[1] - v[0]], b = [p[0] + v[1], p[1] + v[0]];
+          grow(a, 3); grow(b, 3);
+          return _ln(a, b);
+        }));
+      }
+      else if (t === "cab") {
+        const w = g[4] || 1.3;
+        stroke(w > 2 ? "eq" : "cb", w, frames.map(J => { grow([g[1], g[2]], 1); return _ln([g[1], g[2]], J[g[3]]); }));
+      }
+      else if (t === "seg") {
+        const w = g[6] || 3;
+        stroke("eq", w, frames.map(J => {
+          const p = J[g[1]];
+          const a = [p[0] + g[2], p[1] + g[3]], b = [p[0] + g[4], p[1] + g[5]];
+          grow(a, w / 2); grow(b, w / 2);
+          return _ln(a, b);
+        }));
+      }
       else if (t === "bar") {
         const ext = g[3], pr = g[4];
-        els.push({ c: "eq", w: 2.2, d: frames.map(J => { const a = J[g[1]], b = J[g[2]]; return _ln([a[0] - ext, a[1]], [b[0] + ext, b[1]]); }) });
-        for (const side of [1, 2]) els.push({ c: "pl", w: 4, d: frames.map(J => { const p = J[g[side]]; const x = p[0] + (side === 1 ? -ext : ext); grow([x, p[1]], pr + 1); return _ln([x, p[1] - pr], [x, p[1] + pr]); }) });
+        stroke("eq", 2.4, frames.map(J => { const a = J[g[1]], b = J[g[2]]; return _ln([a[0] - ext, a[1]], [b[0] + ext, b[1]]); }));
+        for (const side of [1, 2]) stroke("pl", 4.2, frames.map(J => {
+          const p = J[g[side]];
+          const x = p[0] + (side === 1 ? -ext : ext);
+          grow([x, p[1]], pr + 1);
+          return _ln([x, p[1] - pr], [x, p[1] + pr]);
+        }));
       }
     }
   };
-  const cls = (base, letter) => hl.includes(letter) ? "hl" : base;
+  const paint = (letter, far) => far ? "bf" : (hl.includes(letter) ? "hl" : "bd");
+  const arm = (far, sh, el, ha) => {
+    const farB = !!far;
+    fill(paint("U", farB), J => _ext(J[sh], J[el], far ? 3.45 : 4.55, far ? 2.85 : 3.65));
+    fill(paint("F", farB), J => _ext(J[el], J[ha], far ? 2.85 : 3.55, far ? 2.25 : 2.85));
+    fill(far ? "bf" : "hn", J => _hand(J[el], J[ha], far ? 1.85 : 2.25));
+    fill(hl.includes("S") && !far ? "hl" : paint("U", farB), J => _ring(J[sh], far ? 2.0 : 2.5, 8));
+  };
+  const leg = (far, hp, kn, an, to) => {
+    const farB = !!far;
+    fill(paint("Q", farB), J => _ext(J[hp], J[kn], far ? 4.25 : 5.65, far ? 3.25 : 4.15));
+    fill(paint("C", farB), J => _ext(J[kn], J[an], far ? 3.1 : 3.95, far ? 2.3 : 2.9));
+    fill(far ? "ktf" : "kt", J => _limb(J[hp], _mid(J[hp], J[kn], 0.5), far ? 4.65 : 6.05, far ? 3.65 : 4.65, 3));
+    fill(far ? "ftf" : "ft", J => _shoe(J[an], J[to]));
+    fill(far ? "slf" : "sl", J => _sole(J[an], J[to]));
+    fill(paint("Q", farB), J => {
+      const p = J[kn], f = J.front ? [0, -1] : J.face;
+      return _ring([p[0] + f[0] * 1.15, p[1] + f[1] * 1.15], far ? 1.25 : 1.6, 7);
+    });
+  };
+  const torso = J => {
+    const f = J.face, s = J.sh, h = J.h;
+    const dx = s[0] - h[0], dy = s[1] - h[1];
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len, uy = dy / len;
+    const px = f[0], py = f[1];
+    const at = (t, frontW, backW) => {
+      const p = [h[0] + ux * len * t, h[1] + uy * len * t];
+      return [
+        [p[0] + px * frontW, p[1] + py * frontW],
+        [p[0] - px * backW, p[1] - py * backW]
+      ];
+    };
+    if (J.front) {
+      const bulge = (a, b, t, extra) => {
+        const p = _mid(a, b, t);
+        const vx = p[0] - h[0];
+        const n = Math.abs(vx) || 1;
+        return [p[0] + (vx / n) * extra, p[1]];
+      };
+      return [
+        J.shN, bulge(J.shN, J.hpN, 0.22, 1.4), bulge(J.shN, J.hpN, 0.58, -0.7), J.hpN,
+        J.hpF, bulge(J.shF, J.hpF, 0.58, -0.7), bulge(J.shF, J.hpF, 0.22, 1.4), J.shF
+      ];
+    }
+    const chest = at(0.74, 6.05, 4.55);
+    const waist = at(0.40, 3.45, 3.35);
+    const hip = at(0.06, 4.75, 4.05);
+    const sh = at(0.96, 4.05, 3.55);
+    return [sh[1], chest[1], waist[1], hip[1], hip[0], waist[0], chest[0], sh[0]];
+  };
+  const neck = J => _limb(_mid(J.sh, J.hd, 0.02), _mid(J.sh, J.hd, 0.78), J.front ? 3.1 : 2.5, 2.15, 2);
+  const head = J => _ring(J.hd, 5.55, 16);
+  const hair = J => {
+    if (J.front) return _arcBand(J.hd, 4.4, 6.25, -Math.PI * 1.02, Math.PI * 0.02, 7);
+    const fa = Math.atan2(J.face[1], J.face[0]);
+    return _arcBand(J.hd, 3.2, 6.3, fa + Math.PI * 0.95, fa + Math.PI * 1.78, 7);
+  };
+  const nose = J => {
+    const f = J.face, u = _up(f), c = J.hd;
+    return _limb(
+      [c[0] + f[0] * 4.35, c[1] + f[1] * 4.35],
+      [c[0] + f[0] * 6.85 - u[0] * 0.15, c[1] + f[1] * 6.85 - u[1] * 0.15],
+      0.78, 0.42, 2
+    );
+  };
+  const ear = J => {
+    const f = J.face, u = _up(f);
+    return _ring([J.hd[0] - f[0] * 4.45 - u[0] * 0.35, J.hd[1] - f[1] * 4.45 - u[1] * 0.35], 1.6, 8);
+  };
+  const eyeSide = J => {
+    const f = J.face, u = _up(f);
+    return _ring([J.hd[0] + f[0] * 2.0 + u[0] * 0.25, J.hd[1] + f[1] * 2.0 + u[1] * 0.25], 0.72, 6);
+  };
+  const browSide = J => {
+    const f = J.face, u = _up(f);
+    const c = [J.hd[0] + f[0] * 2.05 + u[0] * 1.25, J.hd[1] + f[1] * 2.05 + u[1] * 1.25];
+    return _limb([c[0] - f[0] * 0.95, c[1] - f[1] * 0.95], [c[0] + f[0] * 0.85 + u[0] * 0.2, c[1] + f[1] * 0.85 + u[1] * 0.2], 0.34, 0.22, 2);
+  };
+  const mouthSide = J => {
+    const f = J.face, u = _up(f);
+    const c = [J.hd[0] + f[0] * 3.4 - u[0] * 1.25, J.hd[1] + f[1] * 3.4 - u[1] * 1.25];
+    return _limb([c[0] - f[0] * 0.1, c[1] - f[1] * 0.1], [c[0] + f[0] * 0.95 - u[0] * 0.15, c[1] + f[1] * 0.95 - u[1] * 0.15], 0.28, 0.18, 2);
+  };
+  const browFront = (J, side) => {
+    const x = J.hd[0] + side * 2.2, y = J.hd[1] - 1.7;
+    return _limb([x - 0.95, y + 0.1], [x + 0.95, y - 0.16 * side], 0.32, 0.22, 2);
+  };
+  const belt = J => {
+    if (J.front) return _limb(_mid(J.hpF, J.shF, 0.1), _mid(J.hpN, J.shN, 0.1), 2.35, 2.35, 2);
+    const f = J.face, h = J.h;
+    return _limb([h[0] - f[0] * 4.15, h[1] - f[1] * 3.2], [h[0] + f[0] * 4.65, h[1] + f[1] * 3.7], 2.05, 1.95, 2);
+  };
+  const groove = (letter, a, b) => {
+    if (!hl.includes(letter)) return;
+    stroke("mg", 1.05, frames.map(J => {
+      const p = J[a], q = J[b], f = J.face;
+      const p0 = _mid(p, q, 0.24), p1 = _mid(p, q, 0.78);
+      return _ln([p0[0] + f[0] * 1.15, p0[1] + f[1] * 1.15], [p1[0] + f[0] * 1.15, p1[1] + f[1] * 1.15]);
+    }));
+  };
+
   gear(def.bg);
   if (front) {
-    for (const s of ["F", "N"]) { seg(cls("fg", "Q"), 6.6, "hp" + s, "kn" + s); seg(cls("fg", "C"), 6, "kn" + s, "an" + s); seg("fg", 5, "an" + s, "to" + s); }
-    els.push({ c: cls("fg", "T"), w: 13, d: frames.map(J => { grow(J.h, 6.5); grow(J.sh, 6.5); return _ln([J.h[0], J.h[1] - 1], [J.sh[0], J.sh[1] + 3]); }) });
-    seg("fg", 6.4, "shF", "shN");
-    dot("fg", 11, J => J.hd);
-    for (const s of ["F", "N"]) { seg(cls("fg", "U"), 6, "sh" + s, "el" + s); seg(cls("fg", "F"), 5.4, "el" + s, "ha" + s); }
-    if (hl.includes("S")) for (const s of ["F", "N"]) dot("hl", 8.4, J => J["sh" + s]);
+    leg(false, "hpF", "knF", "anF", "toF");
+    leg(false, "hpN", "knN", "anN", "toN");
+    fill(hl.includes("T") ? "hl" : "tr", torso);
+    fill("kt", belt);
+    fill(hl.includes("T") ? "hl" : "tr", neck);
+    arm(false, "shF", "elF", "haF");
+    arm(false, "shN", "elN", "haN");
+    fill("hd", head);
+    fill("hr", hair);
+    fill("fc", J => _ring([J.hd[0] - 2.2, J.hd[1] - 0.25], 0.78, 6));
+    fill("fc", J => _ring([J.hd[0] + 2.2, J.hd[1] - 0.25], 0.78, 6));
+    fill("fc", J => browFront(J, -1));
+    fill("fc", J => browFront(J, 1));
+    fill("fc", J => _ring([J.hd[0], J.hd[1] + 1.05], 0.42, 6));
+    fill("fc", J => _limb([J.hd[0] - 1.05, J.hd[1] + 2.25], [J.hd[0] + 1.05, J.hd[1] + 2.35], 0.28, 0.24, 2));
   } else {
-    seg("ff", 6.6, "hpF", "knF"); seg("ff", 6, "knF", "anF"); seg("ff", 5, "anF", "toF");
-    seg("ff", 6, "shF", "elF"); seg("ff", 5.4, "elF", "haF");
-    seg(cls("fg", "T"), 10, "h", "sh");
-    dot("fg", 11, J => J.hd);
-    seg(cls("fg", "Q"), 6.6, "hpN", "knN"); seg(cls("fg", "C"), 6, "knN", "anN"); seg("fg", 5, "anN", "toN");
-    seg(cls("fg", "U"), 6, "shN", "elN"); seg(cls("fg", "F"), 5.4, "elN", "haN");
-    if (hl.includes("S")) dot("hl", 8.4, J => J.shN);
+    leg(true, "hpF", "knF", "anF", "toF");
+    arm(true, "shF", "elF", "haF");
+    fill(hl.includes("T") ? "hl" : "tr", torso);
+    fill("kt", belt);
+    fill(hl.includes("T") ? "hl" : "tr", neck);
+    leg(false, "hpN", "knN", "anN", "toN");
+    arm(false, "shN", "elN", "haN");
+    fill("hd", ear);
+    fill("hd", head);
+    fill("hr", hair);
+    fill("fc", nose);
+    fill("fc", eyeSide);
+    fill("fc", browSide);
+    fill("fc", mouthSide);
+  }
+  groove("Q", "hpN", "knN");
+  groove("C", "knN", "anN");
+  groove("U", "shN", "elN");
+  groove("F", "elN", "haN");
+  if (front) {
+    groove("Q", "hpF", "knF");
+    groove("C", "knF", "anF");
+    groove("U", "shF", "elF");
+    groove("F", "elF", "haF");
   }
   gear(def.eq);
   /* čtvercový výřez kolem všeho, co se kdy pohne; zem je vždy vidět */
   grow([50, 96], 0);
-  const size = Math.max(bb[2] - bb[0], bb[3] - bb[1], 90) + 6;
+  const size = Math.max(bb[2] - bb[0], bb[3] - bb[1], 90) + 8;
   const cx = (bb[0] + bb[2]) / 2, cy = (bb[1] + bb[3]) / 2;
   const vb = [cx - size / 2, Math.min(cy - size / 2, Math.max(98, bb[3] + 1) - size), size, size].map(_r1).join(" ");
   const out = { els, vb, x0: cx - size / 2, x1: cx + size / 2 };
@@ -449,22 +697,29 @@ function figBuild(key) {
 function figReduced() {
   return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
+/* tam a zpátky, krajní snímek dvakrát — krátká pauza ve spodu a nahoře */
+function figSeq(d) {
+  return [d[0], ...d, d[d.length - 1], ...d.slice(1, -1).reverse()];
+}
 /* SVG animace. anim: false → stojící snímek (poloha v 60 % pohybu, čte se nejlíp) */
 function figSvg(key, opts = {}) {
   const f = figBuild(key);
   const anim = opts.anim !== false && !figReduced();
-  /* fáze podle hodin: po překreslení obrazovky figurka neskočí na začátek */
   const begin = anim ? `-${(((typeof performance !== "undefined" ? performance.now() : 0) / 1000) % FIG_DUR).toFixed(2)}s` : "";
   const still = opts.at != null ? opts.at : Math.round(FIG_STEPS * 0.62);
+  const phase = anim ? ((typeof performance !== "undefined" ? performance.now() : 0) / 1000 % FIG_DUR) / FIG_DUR : 0;
   let h = `<svg class="fig" viewBox="${f.vb}" aria-hidden="true" focusable="false"><path class="fl" d="M${_r1(f.x0 + 4)} 95.5H${_r1(f.x1 - 4)}"/>`;
   for (const e of f.els) {
     if (e.rect) { const r = e.rect; h += `<rect class="eq-b" x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}" rx="${r[4] || 0}"/>`; continue; }
     const moving = e.d.length > 1 && e.d.some(d => d !== e.d[0]);
-    const d0 = e.d.length > 1 ? e.d[anim ? 0 : still] : e.d[0];
-    h += `<path class="${e.c}" stroke-width="${e.w}" d="${d0}"`;
+    let d0 = e.d.length > 1 ? e.d[still] : e.d[0];
     if (anim && moving) {
-      const seq = [e.d[0], ...e.d, e.d[e.d.length - 1], ...e.d.slice(1, -1).reverse()];
-      h += `><animate attributeName="d" dur="${FIG_DUR}s" begin="${begin}" repeatCount="indefinite" values="${seq.join(";")}"/></path>`;
+      const seq = figSeq(e.d);
+      d0 = seq[Math.min(seq.length - 1, Math.floor(phase * seq.length))];
+    }
+    h += `<path class="${e.c}"${e.fill ? "" : ` stroke-width="${e.w}"`}${e.even ? ` fill-rule="evenodd"` : ""} d="${d0}"`;
+    if (anim && moving) {
+      h += `><animate attributeName="d" dur="${FIG_DUR}s" begin="${begin}" repeatCount="indefinite" calcMode="linear" values="${figSeq(e.d).join(";")}"/></path>`;
     } else h += "/>";
   }
   return h + "</svg>";
