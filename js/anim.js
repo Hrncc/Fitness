@@ -736,6 +736,65 @@ const FIG_ART_OF = {
 function figArtId(key) {
   return FIG_ART[key] ? key : FIG_ART_OF[key];
 }
+/* Cílový sval a tempo. Tempo = excentrika, pauza dole, koncentrika, pauza nahoře. */
+const FIG_MUSCLE = {
+  squat: { view: "front", pri: ["quads"], sec: ["glutes"], tempo: "3-1-2-0", name: "čtyřhlavý", secName: "hýždě" },
+  bench: { view: "front", pri: ["chest"], sec: ["triceps"], tempo: "3-1-1-0", name: "hrudník", secName: "triceps" },
+  deadlift: { view: "back", pri: ["erectors", "glutes", "hams"], sec: [], tempo: "2-0-1-0", name: "záda a hýždě", secName: "" },
+  curl: { view: "front", pri: ["biceps"], sec: [], tempo: "3-1-2-1", name: "biceps", secName: "" },
+  lunge: { view: "front", pri: ["quads"], sec: ["glutes"], tempo: "3-1-1-0", name: "čtyřhlavý", secName: "hýždě" },
+  rdl: { view: "back", pri: ["hams", "glutes"], sec: ["erectors"], tempo: "3-1-1-0", name: "hamstringy", secName: "záda" },
+  row: { view: "back", pri: ["lats"], sec: ["biceps"], tempo: "2-1-1-1", name: "široký zádový", secName: "biceps" },
+  pushup: { view: "front", pri: ["chest"], sec: ["triceps"], tempo: "2-1-1-0", name: "hrudník", secName: "triceps" },
+  crunch: { view: "front", pri: ["abs"], sec: [], tempo: "2-1-2-0", name: "přímý břišní", secName: "" },
+  legpress: { view: "front", pri: ["quads"], sec: ["glutes"], tempo: "3-1-1-0", name: "čtyřhlavý", secName: "hýždě" },
+  pushdown: { view: "back", pri: ["triceps"], sec: [], tempo: "2-1-1-1", name: "triceps", secName: "" },
+  pullup: { view: "back", pri: ["lats"], sec: ["biceps"], tempo: "2-1-1-1", name: "široký zádový", secName: "biceps" },
+  ohp: { view: "front", pri: ["delts"], sec: ["triceps"], tempo: "2-1-1-0", name: "ramena", secName: "triceps" },
+  latraise: { view: "front", pri: ["delts"], sec: [], tempo: "2-1-2-1", name: "střední delt", secName: "" },
+  dips: { view: "back", pri: ["triceps"], sec: ["chest"], tempo: "2-1-1-0", name: "triceps", secName: "hrudník" }
+};
+const MUSCLE_PARTS = {
+  front: {
+    base: `<circle cx="40" cy="16" r="10"/><path d="M27 30c1-4 4-6 8-6h10c4 0 7 2 8 6l2 40c0 4-3 7-8 8H33c-5-1-8-4-8-8z"/><path d="M26 34c-8 3-14 14-13 28 4 1 8-3 10-10 1-5 2-12 3-18z"/><path d="M54 34c8 3 14 14 13 28-4 1-8-3-10-10-1-5-2-12-3-18z"/><path d="M32 78l-5 56h14l3-56z"/><path d="M48 78l5 56H39l-3-56z"/>`,
+    delts: `<ellipse cx="24" cy="36" rx="7" ry="6"/><ellipse cx="56" cy="36" rx="7" ry="6"/>`,
+    chest: `<path d="M31 36c5 1 7 6 7 11H31c0-4-2-8 0-11z"/><path d="M49 36c-5 1-7 6-7 11h7c0-4 2-8 0-11z"/>`,
+    biceps: `<path d="M18 42c-1 7 0 14 3 16 2-2 3-7 3-12s-2-8-6-4z"/><path d="M62 42c1 7 0 14-3 16-2-2-3-7-3-12s2-8 6-4z"/>`,
+    triceps: `<path d="M14 44c1 8 3 14 6 15-1-5-1-10 0-15z"/><path d="M66 44c-1 8-3 14-6 15 1-5 1-10 0-15z"/>`,
+    abs: `<rect x="36" y="50" width="8" height="18" rx="3"/>`,
+    quads: `<path d="M30 82c-1 16-3 34-1 46h10c1-16 1-32 0-46z"/><path d="M50 82c1 16 3 34 1 46H41c-1-16-1-32 0-46z"/>`,
+    glutes: `<ellipse cx="34" cy="80" rx="6" ry="4"/><ellipse cx="46" cy="80" rx="6" ry="4"/>`,
+    hams: `<path d="M27 96c1 12 2 24 3 32h6c0-12-1-22-2-32z"/><path d="M53 96c-1 12-2 24-3 32h-6c0-12 1-22 2-32z"/>`
+  },
+  back: {
+    base: `<circle cx="40" cy="16" r="10"/><path d="M27 30c1-4 4-6 8-6h10c4 0 7 2 8 6l2 40c0 4-3 7-8 8H33c-5-1-8-4-8-8z"/><path d="M26 34c-8 3-14 14-13 28 4 1 8-3 10-10 1-5 2-12 3-18z"/><path d="M54 34c8 3 14 14 13 28-4 1-8-3-10-10-1-5-2-12-3-18z"/><path d="M32 78l-5 56h14l3-56z"/><path d="M48 78l5 56H39l-3-56z"/>`,
+    delts: `<ellipse cx="24" cy="36" rx="7" ry="6"/><ellipse cx="56" cy="36" rx="7" ry="6"/>`,
+    lats: `<path d="M30 40c-4 8-6 18-4 28h8c0-10 1-18 4-24z"/><path d="M50 40c4 8 6 18 4 28h-8c0-10-1-18-4-24z"/>`,
+    triceps: `<path d="M16 40c-2 8-1 16 2 20 2-4 3-10 2-16z"/><path d="M64 40c2 8 1 16-2 20-2-4-3-10-2-16z"/>`,
+    biceps: `<path d="M22 46c1 6 2 10 4 12-2-4-3-8-3-12z"/><path d="M58 46c-1 6-2 10-4 12 2-4 3-8 3-12z"/>`,
+    erectors: `<rect x="37" y="40" width="6" height="32" rx="3"/>`,
+    glutes: `<ellipse cx="33" cy="80" rx="7" ry="6"/><ellipse cx="47" cy="80" rx="7" ry="6"/>`,
+    hams: `<path d="M29 90c-1 16-2 32 0 42h8c0-14 0-28 0-42z"/><path d="M51 90c1 16 2 32 0 42h-8c0-14 0-28 0-42z"/>`,
+    chest: `<path d="M32 78h16c-1 4-3 6-8 6s-7-2-8-6z"/>`
+  }
+};
+function muscleInfo(key) {
+  const id = figArtId(key);
+  return (id && FIG_MUSCLE[id]) || FIG_MUSCLE.squat;
+}
+function muscleChip(key) {
+  const m = muscleInfo(key);
+  const parts = MUSCLE_PARTS[m.view];
+  const mark = name => m.pri.indexOf(name) >= 0 ? "pri" : m.sec.indexOf(name) >= 0 ? "sec" : "";
+  const layers = Object.keys(parts).filter(name => parts[name] && mark(name))
+    .map(name => `<g class="m-${mark(name)}">${parts[name]}</g>`).join("");
+  return `<aside class="ex-chip">
+    <svg viewBox="0 0 80 148" aria-hidden="true"><g class="m-base">${parts.base}</g>${layers}</svg>
+    <b>${esc(m.name)}</b>
+    <span class="ex-tempo" title="excentrika, pauza dole, koncentrika, pauza nahoře">${esc(m.tempo)}</span>
+    ${m.secName ? `<span class="ex-sec">${esc(m.secName)}</span>` : ""}
+  </aside>`;
+}
 function figPicture(key, opts) {
   const id = figArtId(key);
   const pair = id && FIG_ART[id];
@@ -778,5 +837,6 @@ function exThumb(exId, opts = {}) {
 }
 /* Velká ukázka v detailu cviku */
 function exAnim(exId) {
-  return `<div class="ex-anim" style="--c:${exColor(exId)}" role="img" aria-label="Animace cviku ${esc(exName(exId))}">${figSvg(exFigKey(exId), { anim: true })}</div>`;
+  const key = exFigKey(exId);
+  return `<div class="ex-stage" style="--c:${exColor(exId)}">${muscleChip(key)}<div class="ex-anim" role="img" aria-label="Animace cviku ${esc(exName(exId))}">${figSvg(key, { anim: true })}</div></div>`;
 }
