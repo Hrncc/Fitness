@@ -2,7 +2,7 @@
    Cache-first pro vlastní soubory, síť pro externí API (OFF, USDA, GAS). */
 "use strict";
 
-const CACHE = "fitapp-v49";
+const CACHE = "fitapp-v50";
 const SHELL = [
   "./",
   "./index.html",
@@ -47,7 +47,12 @@ const SHELL = [
   "./img/anim/pullup-a.jpg", "./img/anim/pullup-b.jpg",
   "./img/anim/ohp-a.jpg", "./img/anim/ohp-b.jpg",
   "./img/anim/latraise-a.jpg", "./img/anim/latraise-b.jpg",
-  "./img/anim/dips-a.jpg", "./img/anim/dips-b.jpg"
+  "./img/anim/dips-a.jpg", "./img/anim/dips-b.jpg",
+  "./img/anim/squat.mp4", "./img/anim/bench.mp4", "./img/anim/deadlift.mp4",
+  "./img/anim/curl.mp4", "./img/anim/lunge.mp4", "./img/anim/rdl.mp4",
+  "./img/anim/row.mp4", "./img/anim/pushup.mp4", "./img/anim/crunch.mp4",
+  "./img/anim/legpress.mp4", "./img/anim/pushdown.mp4", "./img/anim/pullup.mp4",
+  "./img/anim/ohp.mp4", "./img/anim/latraise.mp4", "./img/anim/dips.mp4"
 ];
 
 self.addEventListener("install", e => {

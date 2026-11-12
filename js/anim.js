@@ -1,6 +1,6 @@
-/* ===== Animace cviků (v5.0.2) =====
-   Hlavní cviky mají ilustrovanou smyčku (dva snímky v img/anim, stejný člověk).
-   Podobné cviky ji sdílí. Kreslená figurka zůstává jen jako záloha.
+/* ===== Animace cviků (v5.0.3) =====
+   Detail cviku přehrává krátké video opakování. Cílový sval svítí barvou
+   partie. Miniatura je jeden snímek. Podobné cviky sdílí jedno video.
 
    figSvg(key, {anim})  — SVG jedné animace (anim: false = stojící snímek)
    exFigKey(exId)       — animace cviku: podle id, pak názvu, pak partie
@@ -698,8 +698,8 @@ function figReduced() {
 function figSeq(d) {
   return [d[0], ...d, d[d.length - 1], ...d.slice(1, -1).reverse()];
 }
-/* Ilustrovaná smyčka cviku: dva snímky stejného člověka, CSS je střídá.
-   Podobný cvik sdílí jednu smyčku. Když snímek není, zůstane kreslená figurka. */
+/* Ilustrovaná smyčka: video jednoho opakování, cílový sval svítí barvou partie.
+   Podobný cvik sdílí jedno video. Miniatura je statický snímek. */
 const FIG_ART = {
   squat: ["squat-a.jpg", "squat-b.jpg"],
   bench: ["bench-a.jpg", "bench-b.jpg"],
@@ -733,17 +733,18 @@ const FIG_ART_OF = {
   curldb: "curl", curlcable: "curl", bayesian: "curl", preacher: "curl", inccurl: "curl", conc: "curl", wrist: "curl",
   ohext: "pushdown", ohcable: "pushdown", skull: "pushdown", kick: "pushdown", benchdip: "dips"
 };
-function figArt(key) {
-  const id = FIG_ART[key] ? key : FIG_ART_OF[key];
-  return id ? FIG_ART[id] : null;
+function figArtId(key) {
+  return FIG_ART[key] ? key : FIG_ART_OF[key];
 }
 function figPicture(key, opts) {
-  const pair = figArt(key);
+  const id = figArtId(key);
+  const pair = id && FIG_ART[id];
   if (!pair) return "";
   const anim = opts.anim !== false && !figReduced();
-  const img = (file, fade) => `<img alt="" src="img/anim/${file}"${fade ? ` class="fade"` : ""}>`;
-  if (!anim) return `<span class="fig-loop still">${img(pair[0])}</span>`;
-  return `<span class="fig-loop">${img(pair[0])}${img(pair[1], true)}</span>`;
+  if (anim) {
+    return `<span class="fig-loop"><video src="img/anim/${id}.mp4" poster="img/anim/${pair[0]}" autoplay muted loop playsinline disablepictureinpicture></video></span>`;
+  }
+  return `<span class="fig-loop still"><img alt="" src="img/anim/${pair[0]}"></span>`;
 }
 /* SVG animace. anim: false → stojící snímek (poloha v 60 % pohybu, čte se nejlíp) */
 function figSvg(key, opts = {}) {

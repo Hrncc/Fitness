@@ -1567,7 +1567,7 @@ input, textarea { caret-color: var(--green-ink); }
 .fig .pl { fill: var(--fig-pl); stroke: var(--fig-pl); }
 .fig .fl { stroke: var(--hair2); stroke-width: 1; fill: none; }
 .fig-loop { position: relative; width: 100%; height: 100%; display: block; background: #18181B; }
-.fig-loop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.fig-loop img, .fig-loop video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #18181B; }
 .fig-loop img.fade { animation: fig-rep 2.4s ease-in-out infinite; }
 @keyframes fig-rep {
   0%, 42% { opacity: 0; }
