@@ -15,7 +15,7 @@ const COACH_MODELS = [["claude-opus-5-5", "Opus 5.5 — nejchytřejší"], ["cla
 const COACH_MAX_TURNS = 8;        // kol nástrojů na jednu zprávu
 const COACH_KEEP = 10;            // tolik posledních otázek zůstává v kontextu
 
-const CO = { items: [], api: [], busy: false, err: null, abort: null, loaded: false, draft: "" };
+const CO = { items: [], api: [], busy: false, err: null, abort: null, loaded: false, draft: "", grok: undefined };
 
 function coachLoad() {
   if (CO.loaded) return;
@@ -39,6 +39,101 @@ function coachModel() {
   return COACH_MODELS.some(x => x[0] === m) ? m : COACH_MODELS[0][0];
 }
 function coachKey() { return (Settings.get().anthropicApiKey || "").trim(); }
+
+/* Most /api/grok je stejný původ jako appka. Klíč na Groka v prohlížeči není. */
+function coachProbeGrok() {
+  if (CO._probe) return CO._probe;
+  CO._probe = fetch("/api/grok").then(r => r.ok ? r.json() : null).then(j => {
+    CO.grok = !!(j && j.ok);
+    return CO.grok;
+  }).catch(() => { CO.grok = false; return false; });
+  return CO._probe;
+}
+function grokTools() {
+  return COACH_TOOLS.map(t => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.input_schema } }));
+}
+function grokMessages(api) {
+  const out = [{ role: "system", content: coachSystem() }];
+  for (const m of api) {
+    if (m.role === "user" && typeof m.content === "string") out.push({ role: "user", content: m.content });
+    else if (m.role === "user" && Array.isArray(m.content)) {
+      for (const b of m.content) if (b.type === "tool_result") out.push({ role: "tool", tool_call_id: b.tool_use_id, content: String(b.content || "") });
+    } else if (m.role === "assistant" && Array.isArray(m.content)) {
+      const text = m.content.filter(b => b.type === "text").map(b => b.text || "").join("");
+      const calls = m.content.filter(b => b.type === "tool_use").map(b => ({
+        id: b.id, type: "function", function: { name: b.name, arguments: JSON.stringify(b.input || {}) }
+      }));
+      const msg = { role: "assistant", content: text || "" };
+      if (calls.length) msg.tool_calls = calls;
+      out.push(msg);
+    }
+  }
+  return out;
+}
+async function grokRequest(messages, onText, signal) {
+  const res = await fetch("/api/grok", {
+    method: "POST", signal,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ messages: grokMessages(messages), tools: grokTools() })
+  });
+  if (!res.ok) {
+    let msg = "HTTP " + res.status;
+    try { const j = await res.json(); if (j && j.error) msg = typeof j.error === "string" ? j.error : (j.error.message || msg); } catch (e) { /* tělo není JSON */ }
+    throw new Error(res.status === 503 ? "Grok teď není připojený." : res.status === 429 ? "Limit Groka — zkus to za chvíli." : msg);
+  }
+  const blocks = [];
+  const calls = [];
+  let stop = "end_turn";
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  const take = line => {
+    const data = line.replace(/^data:\s*/, "").trim();
+    if (!data || data === "[DONE]") return;
+    const ev = JSON.parse(data);
+    const ch = ev.choices && ev.choices[0];
+    if (!ch) return;
+    const d = ch.delta || {};
+    if (d.content) {
+      let b = blocks.find(x => x.type === "text");
+      if (!b) { b = { type: "text", text: "" }; blocks.push(b); }
+      b.text += d.content;
+      onText(d.content);
+    }
+    for (const tc of d.tool_calls || []) {
+      const i = tc.index || 0;
+      if (!calls[i]) calls[i] = { id: "", name: "", args: "" };
+      if (tc.id) calls[i].id = tc.id;
+      if (tc.function && tc.function.name) calls[i].name += tc.function.name;
+      if (tc.function && tc.function.arguments) calls[i].args += tc.function.arguments;
+    }
+    if (ch.finish_reason === "tool_calls") stop = "tool_use";
+    else if (ch.finish_reason === "length") stop = "max_tokens";
+    else if (ch.finish_reason === "stop") stop = "end_turn";
+  };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let at;
+    while ((at = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, at).trim();
+      buf = buf.slice(at + 1);
+      if (line.startsWith("data:")) { try { take(line); } catch (e) { /* rozsekaný kus */ } }
+    }
+  }
+  for (const c of calls) {
+    if (!c || !c.name) continue;
+    let input = {}, bad;
+    try { input = c.args ? JSON.parse(c.args) : {}; }
+    catch (e) { bad = c.args; }
+    const b = { type: "tool_use", id: c.id || ("call_" + Math.random().toString(36).slice(2, 10)), name: c.name, input };
+    if (bad !== undefined) b._bad = bad;
+    blocks.push(b);
+  }
+  if (calls.some(c => c && c.name) && stop === "end_turn") stop = "tool_use";
+  return { content: blocks, stop };
+}
 
 /* ---- nástroje ---- */
 const COACH_TOOLS = [
@@ -173,6 +268,7 @@ Jak pracuješ:
 
 /* ---- volání API (SSE) ---- */
 async function coachRequest(messages, onText, signal) {
+  if (CO.grok) return grokRequest(messages, onText, signal);
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST", signal,
     headers: { "content-type": "application/json", "x-api-key": coachKey(), "anthropic-version": "2026-10-21",
@@ -236,7 +332,7 @@ async function coachRequest(messages, onText, signal) {
 async function coachSend(text) {
   text = String(text || "").trim();
   if (!text || CO.busy) return;
-  if (!coachKey()) { toast("Nejdřív vlož API klíč", "err"); return; }
+  if (!CO.grok && !coachKey()) { toast("Nejdřív vlož API klíč", "err"); return; }
   if (!navigator.onLine) { toast("Trenér potřebuje připojení k internetu", "err"); return; }
   coachLoad();
   CO.err = null; CO.busy = true; CO.draft = "";
@@ -327,12 +423,17 @@ const COACH_PROMPTS = ["Zhodnoť můj poslední týden", "Co mám dnes trénovat
 
 function coachHead() {
   coachLoad();
-  return { title: "Trenér", sub: coachKey() ? "Claude · vidí tréninky, plán a data z hodinek" : "Claude jako osobní trenér přímo v appce",
+  const who = CO.grok ? "Grok" : "Claude";
+  return { title: "Trenér", sub: (CO.grok || coachKey()) ? `${who} · vidí tréninky, plán a data z hodinek` : "Osobní trenér přímo v appce",
     right: CO.items.length ? `<button class="iconbtn" data-act="co-clear" aria-label="Nová konverzace">${ic("edit", 20)}</button>` : "" };
 }
 function renderCoach() {
   coachLoad();
-  if (!coachKey()) {
+  if (CO.grok === undefined) {
+    coachProbeGrok().then(() => { if (coachVisible()) render(); });
+    return `<div class="co-empty"><p>Připojuju trenéra…</p></div>`;
+  }
+  if (!CO.grok && !coachKey()) {
     return `<div class="card co-setup">
         <div class="co-setup-ic">${ic("spark", 26)}</div>
         <h2>Připoj Clauda jako trenéra</h2>

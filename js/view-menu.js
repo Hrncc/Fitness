@@ -1,7 +1,7 @@
 /* ===== Více: sheet s nabídkou a stránky z něj ===== */
 "use strict";
 
-const APP_VERSION = "5.0.3";
+const APP_VERSION = "5.0.4";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library
@@ -53,7 +53,7 @@ function renderMore() {
     ], { head: "Trénink" })
     + listGroup([
       link("watch", "Apple Health a hodinky", "health", hl ? relDay(hl) : "nepřipojeno"),
-      lgLink("spark", "Trenér Claude", `data-act="nav" data-tab="coach"`, Settings.get().anthropicApiKey ? "připojen" : "nepřipojen"),
+      lgLink("spark", CO.grok ? "Trenér Grok" : "Trenér Claude", `data-act="nav" data-tab="coach"`, (CO.grok || Settings.get().anthropicApiKey) ? "připojen" : "nepřipojen"),
       link("share", "Záloha, sync a export", "export", lastSync)
     ], { head: "Propojení" })
     + listGroup([
