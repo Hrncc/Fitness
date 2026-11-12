@@ -2,7 +2,7 @@
    Cache-first pro vlastní soubory, síť pro externí API (OFF, USDA, GAS). */
 "use strict";
 
-const CACHE = "fitapp-v48";
+const CACHE = "fitapp-v49";
 const SHELL = [
   "./",
   "./index.html",
@@ -32,7 +32,22 @@ const SHELL = [
   "./js/view-menu.js",
   "./js/app.js",
   "./icons/icon-192.png",
-  "./icons/icon-512.png"
+  "./icons/icon-512.png",
+  "./img/anim/squat-a.jpg", "./img/anim/squat-b.jpg",
+  "./img/anim/bench-a.jpg", "./img/anim/bench-b.jpg",
+  "./img/anim/deadlift-a.jpg", "./img/anim/deadlift-b.jpg",
+  "./img/anim/curl-a.jpg", "./img/anim/curl-b.jpg",
+  "./img/anim/lunge-a.jpg", "./img/anim/lunge-b.jpg",
+  "./img/anim/rdl-a.jpg", "./img/anim/rdl-b.jpg",
+  "./img/anim/row-a.jpg", "./img/anim/row-b.jpg",
+  "./img/anim/pushup-a.jpg", "./img/anim/pushup-b.jpg",
+  "./img/anim/crunch-a.jpg", "./img/anim/crunch-b.jpg",
+  "./img/anim/legpress-a.jpg", "./img/anim/legpress-b.jpg",
+  "./img/anim/pushdown-a.jpg", "./img/anim/pushdown-b.jpg",
+  "./img/anim/pullup-a.jpg", "./img/anim/pullup-b.jpg",
+  "./img/anim/ohp-a.jpg", "./img/anim/ohp-b.jpg",
+  "./img/anim/latraise-a.jpg", "./img/anim/latraise-b.jpg",
+  "./img/anim/dips-a.jpg", "./img/anim/dips-b.jpg"
 ];
 
 self.addEventListener("install", e => {

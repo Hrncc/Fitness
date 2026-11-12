@@ -1,9 +1,6 @@
-/* ===== Animace cviků (v5.0.1) =====
-   Vlastní kreslená figurka — žádné cizí fotky ani videa, nic se nestahuje.
-   Končetiny jsou zužující se objemy, trup má pas, hlava vlasy a obličej,
-   ruce dlaň, nohy trenky a tenisku. Zatěžovaný sval nese barvu partie
-   a tenkou linku. Každý cvik má dvě krajní polohy (A → B); klouby se
-   dopočítávají (úhly nebo dosah na pevný bod), takže končetiny drží délku.
+/* ===== Animace cviků (v5.0.2) =====
+   Hlavní cviky mají ilustrovanou smyčku (dva snímky v img/anim, stejný člověk).
+   Podobné cviky ji sdílí. Kreslená figurka zůstává jen jako záloha.
 
    figSvg(key, {anim})  — SVG jedné animace (anim: false = stojící snímek)
    exFigKey(exId)       — animace cviku: podle id, pak názvu, pak partie
@@ -701,8 +698,57 @@ function figReduced() {
 function figSeq(d) {
   return [d[0], ...d, d[d.length - 1], ...d.slice(1, -1).reverse()];
 }
+/* Ilustrovaná smyčka cviku: dva snímky stejného člověka, CSS je střídá.
+   Podobný cvik sdílí jednu smyčku. Když snímek není, zůstane kreslená figurka. */
+const FIG_ART = {
+  squat: ["squat-a.jpg", "squat-b.jpg"],
+  bench: ["bench-a.jpg", "bench-b.jpg"],
+  deadlift: ["deadlift-a.jpg", "deadlift-b.jpg"],
+  curl: ["curl-a.jpg", "curl-b.jpg"],
+  lunge: ["lunge-a.jpg", "lunge-b.jpg"],
+  rdl: ["rdl-a.jpg", "rdl-b.jpg"],
+  row: ["row-a.jpg", "row-b.jpg"],
+  pushup: ["pushup-a.jpg", "pushup-b.jpg"],
+  crunch: ["crunch-a.jpg", "crunch-b.jpg"],
+  legpress: ["legpress-a.jpg", "legpress-b.jpg"],
+  pushdown: ["pushdown-a.jpg", "pushdown-b.jpg"],
+  pullup: ["pullup-a.jpg", "pullup-b.jpg"],
+  ohp: ["ohp-a.jpg", "ohp-b.jpg"],
+  latraise: ["latraise-a.jpg", "latraise-b.jpg"],
+  dips: ["dips-a.jpg", "dips-b.jpg"]
+};
+const FIG_ART_OF = {
+  fsquat: "squat", goblet: "squat", bwsquat: "squat", sumo: "squat", hack: "squat", sissy: "squat",
+  sumodl: "deadlift",
+  rdldb: "rdl", goodmorning: "rdl", hyper: "rdl", hipthrust: "rdl",
+  bss: "lunge", stepup: "lunge", nordic: "lunge", gkick: "lunge", abd: "lunge", calf: "lunge", calfseat: "lunge",
+  calfpress: "legpress", legext: "legpress", legcurls: "legpress", legcurll: "legpress", legcurlst: "legpress",
+  bbrow: "row", dbrow: "row", mrow: "row", invrow: "row", cablerow: "row", sapull: "row", shrug: "row", shrugbar: "row",
+  benchdb: "bench", incbench: "bench", incdb: "bench", fly: "bench", pecdeck: "bench", crosshi: "bench", crosslo: "bench", pullover: "bench", mpress: "bench",
+  pushupdec: "pushup", plank: "pushup", plankreach: "pushup", sideplank: "pushup",
+  cablecrunch: "crunch", legraiseh: "crunch", kneeraise: "crunch", legraisel: "crunch", deadbug: "crunch", twist: "crunch", vup: "crunch", hollow: "crunch", bicycle: "crunch", abwheel: "crunch", woodchop: "crunch", pallof: "crunch",
+  pullupw: "pullup", latpull: "pullup", facepull: "pullup",
+  ohpdb: "ohp", landmine: "ohp", uprow: "ohp", frontraise: "ohp",
+  rfly: "latraise",
+  curldb: "curl", curlcable: "curl", bayesian: "curl", preacher: "curl", inccurl: "curl", conc: "curl", wrist: "curl",
+  ohext: "pushdown", ohcable: "pushdown", skull: "pushdown", kick: "pushdown", benchdip: "dips"
+};
+function figArt(key) {
+  const id = FIG_ART[key] ? key : FIG_ART_OF[key];
+  return id ? FIG_ART[id] : null;
+}
+function figPicture(key, opts) {
+  const pair = figArt(key);
+  if (!pair) return "";
+  const anim = opts.anim !== false && !figReduced();
+  const img = (file, fade) => `<img alt="" src="img/anim/${file}"${fade ? ` class="fade"` : ""}>`;
+  if (!anim) return `<span class="fig-loop still">${img(pair[0])}</span>`;
+  return `<span class="fig-loop">${img(pair[0])}${img(pair[1], true)}</span>`;
+}
 /* SVG animace. anim: false → stojící snímek (poloha v 60 % pohybu, čte se nejlíp) */
 function figSvg(key, opts = {}) {
+  const pic = figPicture(key, opts);
+  if (pic) return pic;
   const f = figBuild(key);
   const anim = opts.anim !== false && !figReduced();
   const begin = anim ? `-${(((typeof performance !== "undefined" ? performance.now() : 0) / 1000) % FIG_DUR).toFixed(2)}s` : "";
