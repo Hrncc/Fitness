@@ -281,6 +281,16 @@ samy neposouvají, Liftosaur to umí jen přes vlastní skriptovací jazyk (tady
 (není) · hodinky se nesynchronizují (Zkratka + list HEALTH) · žádné AI rady
 (Trenér).
 
+### Rozcestník na Přehledu (v5.1)
+Martin chtěl „lepší UI pro vybrání, co chci — trénink, jídlo a tak, takovej novej
+hub". Nahoře jsou čtyři dlaždice **Trénink · Jídlo · Váha · Tělo** (`hubHtml()`,
+`hubTiles()`): každá říká dnešní stav (volt fajfka = hotovo, tečka = probíhá /
+check-in na řadě) a klepnutím (`hub`, `TV.hub`) otevře svůj panel hned pod sebou
+(`hubPanelHtml()`): trénink na řadě + Prázdný trénink / Kardio, jídlo dvěma
+klepnutími nebo kalorie dne + Přidat jídlo, stepper váhy, check-in. Vybraná
+dlaždice má bílý rámeček (výběr). Starý seznam dne (`todayListHtml()`) je pryč;
+pod panelem zůstává připravenost, návrhy plánu, hodinky, týden a pokrok.
+
 ### Navigace
 Dole **Přehled · Trénink · Trenér · Profil** (`TABS`: `today`, `workout`, `coach`,
 `more`). Pokrok je stránka `progress` (akce `go-progress`), Apple Health stránka

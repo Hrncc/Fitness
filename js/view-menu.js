@@ -1,7 +1,7 @@
 /* ===== Více: sheet s nabídkou a stránky z něj ===== */
 "use strict";
 
-const APP_VERSION = "5.0.6";
+const APP_VERSION = "5.1";
 
 const MV = {
   exCat: "all",     // filtr kategorie v Exercise Library

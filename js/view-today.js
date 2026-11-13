@@ -20,8 +20,102 @@ function todayHead() {
 }
 
 function renderToday() {
-  return healthCardHtml() + nextCardHtml({ preview: 4 }) + adaptCardHtml() + todayListHtml() + watchTodayHtml()
+  return hubHtml() + hubPanelHtml() + healthCardHtml() + adaptCardHtml() + watchTodayHtml()
     + weekSectionHtml() + progressTeaserHtml();
+}
+
+/* ===== Rozcestník (v5.1) =====
+   Čtyři dlaždice nahoře: Trénink · Jídlo · Váha · Tělo. Každá říká, jak na tom
+   dnes jsi (hotovo = volt fajfka), a klepnutím otevře svůj panel hned pod sebou —
+   všechno, co se dá dnes zapsat, je na jedno klepnutí od otevření appky.
+   Vybraná dlaždice má bílý rámeček (výběr); TV.hub drží ruční volbu. */
+function hubKey() {
+  if (TV.hub) return TV.hub;
+  return "workout";
+}
+function hubTiles() {
+  const today = todayStr();
+  const st = todayStatus();
+  const a = S.activeSession;
+  const next = nextTemplate();
+  const nut = dayNutrition(today);
+  const m = dayRating(today);
+  const lastW = lastBodyWeight(today);
+  const lastC = lastCheckin();
+  return [
+    { k: "workout", icon: "dumbbell", title: "Trénink", done: st.workout && !a, live: !!a,
+      sub: a ? (a.editOf ? "Úprava tréninku" : `Probíhá · ${sessionSets(a)} ${plural(sessionSets(a), "série", "série", "sérií")}`)
+        : st.workout ? "Dnes hotovo" : next ? `Na řadě ${esc(next.name)}` : "Začni první" },
+    { k: "food", icon: "food", title: "Jídlo", done: st.food,
+      sub: nut.count ? `${fmtNum(nut.calories)} z ${fmtNum(S.goal.dailyCalories)} kcal`
+        : st.food ? `${(FOOD_RATINGS.find(r => r[0] === m.foodRating) || [])[1] || ""} · bílkoviny ${m.proteinOk ? "ano" : "ne"}` : "Jak to dnes dopadlo?" },
+    { k: "weight", icon: "scale", title: "Váha", done: st.weight,
+      sub: st.weight ? fmtWeight(bodyWeightOn(today)) : lastW ? `Naposledy ${fmtWeight(lastW.weightKg)}` : "Zapiš první vážení" },
+    { k: "body", icon: "body", title: "Tělo", done: false, due: st.checkin,
+      sub: st.checkin ? "Check-in je na řadě" : lastC ? `Check-in ${relDay(lastC.date)}` : "Check-in a fotky" }
+  ];
+}
+function hubHtml() {
+  const cur = hubKey();
+  return `<div class="hub" role="tablist" aria-label="Co chceš zapsat">${hubTiles().map(t => `
+    <button class="hub-t${t.k === cur ? " on" : ""}${t.done ? " done" : ""}" data-act="hub" data-k="${t.k}" role="tab" aria-selected="${t.k === cur}">
+      <span class="hub-top"><span class="hub-ic">${ic(t.icon, 20)}</span>
+        ${t.done ? `<span class="hub-ok" aria-label="hotovo">${ic("check", 13, 3)}</span>` : t.live ? `<i class="live-dot" aria-label="probíhá"></i>` : t.due ? `<span class="hub-due" aria-hidden="true"></span>` : ""}</span>
+      <span class="hub-title">${t.title}</span>
+      <span class="hub-sub">${t.sub}</span>
+    </button>`).join("")}</div>`;
+}
+function hubPanelHtml() {
+  const k = hubKey();
+  const today = todayStr();
+  if (k === "workout") {
+    const done = sessionsOn(today);
+    return (done.length && !S.activeSession ? `<div class="card rows" style="margin-bottom:12px">${done.map(sessionRowHtml).join("")}</div>` : "")
+      + nextCardHtml({ preview: 4 })
+      + (S.activeSession ? "" : `<div class="start-two">
+          <button class="btn" data-act="t-begin-next" data-template="custom">${ic("plus", 16, 2.4)} Prázdný trénink</button>
+          <button class="btn" data-act="w-cardio"><i class="p-dot" style="background:var(--p-cardio)"></i> Kardio</button></div>`);
+  }
+  if (k === "food") {
+    const nut = dayNutrition(today), g = S.goal;
+    if (nut.count) {
+      const pct = Math.min(100, nut.calories / g.dailyCalories * 100);
+      return `<div class="card hub-p">
+          <div class="hub-fig"><b class="num">${fmtNum(nut.calories)}</b><span>z ${fmtNum(g.dailyCalories)} kcal</span></div>
+          <div class="page-prog"><i style="width:${pct.toFixed(0)}%"></i></div>
+          <div class="hub-mac"><span>Bílkoviny <b>${fmtNum(nut.protein)}</b> / ${fmtNum(g.proteinGrams)} g</span><span>Sacharidy <b>${fmtNum(nut.carbs)}</b> g</span><span>Tuky <b>${fmtNum(nut.fat)}</b> g</span></div>
+          <button class="btn primary full" data-act="menu" data-page="food">${ic("plus", 16, 2.4)} Přidat jídlo</button>
+        </div>`;
+    }
+    const m = dayRating(today);
+    return `<div class="card hub-p">
+        <div class="food-q"><span>Kalorie · cíl ${fmtNum(g.dailyCalories)} kcal</span>
+          <div class="opts">${FOOD_RATINGS.map(([id, lbl]) =>
+            `<button class="opt${m && m.foodRating === id ? " on" : ""}" data-act="t-food-rating" data-v="${id}">${lbl}</button>`).join("")}</div></div>
+        <div class="food-q"><span>Bílkoviny ≈ ${fmtNum(g.proteinGrams)} g</span>
+          <div class="opts">
+            <button class="opt${m && m.proteinOk === false ? " on" : ""}" data-act="t-food-protein" data-v="0">ne</button>
+            <button class="opt${m && m.proteinOk === true ? " on" : ""}" data-act="t-food-protein" data-v="1">ano</button>
+          </div></div>
+        <div class="btn-row">
+          ${m ? `<button class="btn text danger" data-act="t-food-reset">Smazat zápis</button>` : ""}
+          <button class="btn" data-act="menu" data-page="food">Zapsat podrobně</button>
+        </div>
+      </div>`;
+  }
+  if (k === "weight") {
+    return `<div class="card today-card hub-p0">${todayStatus().weight ? weightRowHtml(true) : weightOpenHtml()}</div>`;
+  }
+  const last = lastCheckin();
+  const since = last ? daysBetween(last.date, today) : null;
+  return `<div class="card hub-p">
+      <div class="hub-fig sm"><b>${last ? `Check-in ${relDay(last.date)}` : "Zatím žádný check-in"}</b>
+        <span>${checkinDue() ? "Je na řadě — obvody, váha a fotka jednou týdně." : since != null ? `Další za ${Math.max(1, 7 - since)} ${plural(Math.max(1, 7 - since), "den", "dny", "dní")}.` : "Obvody, váha a fotka jednou týdně."}</span></div>
+      <div class="btn-row">
+        <button class="btn" data-act="go-progress" data-seg="body">Tělo a fotky</button>
+        <button class="btn${checkinDue() ? " primary" : ""}" data-act="ci-new">Nový check-in</button>
+      </div>
+    </div>`;
 }
 
 /* ===== Trénink na řadě — společná karta Přehledu a startu Tréninku =====
@@ -145,7 +239,8 @@ const HOME_ACTIONS = {
     save(); render();
     toast("Návrh schovaný na 3 týdny", "ok");
   },
-  "ad-log": () => openPlanLog()
+  "ad-log": () => openPlanLog(),
+  "hub": d => { TV.hub = d.k; render(); }
 };
 
 /* ---- Co dnes dlužíš ---- */
@@ -175,22 +270,6 @@ function todayOpenKey() {
   return !st.weight ? "weight" : !st.food ? "food" : null;
 }
 
-function todayListHtml() {
-  const open = todayOpenKey();
-  const st = todayStatus();
-  const nut = dayNutrition(todayStr());
-  const rows = [
-    open === "weight" && !st.weight ? weightOpenHtml() : weightRowHtml(st.weight),
-    open === "food" && !nut.count ? foodOpenHtml() : foodRowHtml(st.food)
-  ];
-  if (st.checkin) {
-    const last = lastCheckin();
-    rows.push(tdRow({ icon: "clipboard", title: "Týdenní check-in",
-      sub: last ? `na řadě · poslední ${relDay(last.date)}` : "obvody, váha a fotka — jednou týdně",
-      state: "nav", act: "ci-new" }));
-  }
-  return `<div class="card today-card">${rows.join("")}</div>`;
-}
 
 /* Sbalený řádek: stav vpravo — fajfka (hotovo), prázdný kroužek (čeká),
    šipka (otevře jinou obrazovku) */
